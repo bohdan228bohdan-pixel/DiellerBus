@@ -154,11 +154,11 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-ALLOWED_HOSTS = ['bus-12.onrender.com', 'dieller.online'] # заміни на свій Render URL
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 # WhiteNoise
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

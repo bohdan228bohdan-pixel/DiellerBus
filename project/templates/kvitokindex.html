@@ -1,321 +1,244 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Оформлення квитка — Dieller Bus{% endblock %}
-
 {% block head_extra %}
-<style>
-  body {
-    background-color: #1a1a1a;
-    color: #ff0000;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 0;
-    padding: 0;
-  }
-
-  .container {
-    max-width: 720px;
-    margin: 40px auto;
-    padding: 20px;
-    background: #000;
-    border-radius: 12px;
-    box-shadow: 0 0 15px #ff0000aa;
-  }
-
-  h1 {
-    text-align: center;
-    font-weight: 900;
-    font-size: 2.4rem;
-    margin-bottom: 30px;
-    text-shadow: 0 0 8px #ff0000cc;
-  }
-
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  label {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: #ff3333;
-    margin-bottom: 8px;
-    display: block;
-    text-shadow: 0 0 6px #ff3300cc;
-  }
-
-  select, input[type="date"], input[type="number"] {
-    width: 100%;
-    padding: 12px;
-    font-size: 1rem;
-    border-radius: 8px;
-    border: 2px solid #ff0000;
-    background-color: #1a1a1a;
-    color: #ff0000;
-    box-shadow: 0 0 8px #ff0000aa inset;
-    outline: none;
-    transition: border-color 0.3s ease;
-  }
-
-  select:focus, input[type="date"]:focus, input[type="number"]:focus {
-    border-color: #ff6666;
-    box-shadow: 0 0 12px #ff6666aa inset;
-  }
-
-  .price-display {
-    background-color: #220000;
-    border: 2px solid #ff0000;
-    border-radius: 10px;
-    padding: 15px;
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: #ff6666;
-    text-align: center;
-    text-shadow: 0 0 8px #ff3300bb;
-    margin-top: 10px;
-  }
-
-  .btn-pay {
-    background: linear-gradient(180deg, #ff0000, #cc0000);
-    border: none;
-    color: #fff;
-    font-weight: 900;
-    font-size: 1.3rem;
-    padding: 15px;
-    border-radius: 12px;
-    cursor: pointer;
-    box-shadow: 0 0 20px #ff0000bb;
-    transition: background 0.3s ease, box-shadow 0.3s ease;
-    user-select: none;
-  }
-
-  .btn-pay:hover, .btn-pay:focus {
-    background: linear-gradient(180deg, #cc0000, #ff0000);
-    box-shadow: 0 0 26px #ff6666cc;
-    outline: none;
-  }
-
-  /* Table for routes and tickets */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 30px;
-    color: #ff4d4d;
-  }
-
-  th, td {
-    border: 2px solid #ff0000;
-    padding: 12px 15px;
-    text-align: center;
-    font-weight: 700;
-    text-shadow: 0 0 6px #ff0000bb;
-  }
-
-  th {
-    background-color: #330000;
-  }
-
-  tbody tr:nth-child(even) {
-    background-color: #220000;
-  }
-
-  /* Responsive */
-  @media (max-width: 600px) {
-    .container {
-      margin: 20px 15px;
-      padding: 15px;
-    }
-
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: 20px;
-    }
-
-    form {
-      gap: 15px;
-    }
-
-    .price-display {
-      font-size: 1.2rem;
-      padding: 12px;
-    }
-
-    .btn-pay {
-      font-size: 1.1rem;
-      padding: 12px;
-    }
-
-    th, td {
-      padding: 10px 8px;
-      font-size: 0.9rem;
-    }
-  }
-</style>
+  <link rel="stylesheet" href="{% static 'css/kvitokindex.css' %}">
 {% endblock %}
 
+{% block title %}Квитки — Dieller Bus{% endblock %}
+
 {% block content %}
-<div class="container" role="main" aria-labelledby="pageTitle">
-  <h1 id="pageTitle">Оформлення квитка</h1>
+<div class="container ticket-page py-4">
+  <h1 class="ticket-title">Квитки</h1>
+  <p class="ticket-sub">Шукайте рейси та купуйте квитки.</p>
 
-  <form id="ticketForm" novalidate>
-    <div>
-      <label for="from">Звідки</label>
-      <select id="from" required aria-required="true" aria-describedby="fromDesc">
-        <option value="" disabled selected>Оберіть пункт відправлення</option>
-        <option>Луцьк</option>
-        <option>Ковель</option>
-        <option>Ягодин</option>
-      </select>
-      <span id="fromDesc" class="sr-only">Оберіть місто відправлення</span>
-    </div>
-
-    <div>
-      <label for="to">Куди</label>
-      <select id="to" required aria-required="true" aria-describedby="toDesc">
-        <option value="" disabled selected>Оберіть пункт призначення</option>
-        <option>Хелм</option>
-        <option>Люблін</option>
-        <option>Пулави</option>
-      </select>
-      <span id="toDesc" class="sr-only">Оберіть місто призначення</span>
-    </div>
-
-    <div>
-      <label for="departureDate">Дата поїздки</label>
-      <input type="date" id="departureDate" required aria-required="true" min="{{ today }}">
-    </div>
-
-    <div>
-      <label for="passengers">Пасажири</label>
-      <input type="number" id="passengers" min="1" max="5" value="1" required aria-required="true" aria-describedby="passengersDesc">
-      <span id="passengersDesc" class="sr-only">Введіть кількість пасажирів від 1 до 5</span>
-    </div>
-
-    <div class="price-display" id="priceDisplay" aria-live="polite" aria-atomic="true">
-      Виберіть маршрут та дату, щоб побачити ціну
-    </div>
-
-    <button type="submit" class="btn-pay" aria-label="Оплатити квиток">Оплатити</button>
+  <form id="buyForm" method="post" action="{% url 'create_ticket' %}" style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="from_city" id="form_from_city">
+    <input type="hidden" name="to_city" id="form_to_city">
+    <input type="hidden" name="passengers" id="form_passengers">
+    <input type="hidden" name="travel_date" id="form_travel_date">
+    <input type="hidden" name="price" id="form_price">
   </form>
 
-  <table style="border-collapse: collapse; width: 100%; color: red; border: 1px solid red;">
-  <thead>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <th style="border: 1px solid rgb(2, 255, 56); 8px;">Ім'я шофера</th>
-      <th style="border: 1px solid rgb(2, 255, 56); 8px;">Номер телефону</th>
-      <th style="border: 1px solid rgb(2, 255, 56); 8px;">Польський номер </th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Володимир</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 050 662 21 06</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 692 16 70 41</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Анатолій</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 050 176 30 30</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 692 16 70 41</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Іван</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 095 588 81 13</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 880 47 96 21</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Петро</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 050 951 52 58</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 880 47 96 21</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Віталій</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 097 419 00 27</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 886 26 56 67</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Леонід</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 098 266 52 02</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+48 888 86 89 89</td>
-    </tr>
-    <tr style="border: 1px solid rgb(2, 255, 56);">
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">Людмила (диспетчер)</td>
-      <td style="border: 1px solid rgb(2, 255, 56); 8px;">+38 066 801 92 55</td>
-      <td style="border: 1px solid rgb(2, 255, 56); padding: 8px;">+38 097 419 28 10</td>
-    </tr>
-  </tbody>
-</table>
+  <div class="search-panel mb-4">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <div class="btn-group" role="group" aria-label="Напрям">
+        <button id="dirUA" type="button" class="btn btn-outline-light active">Україна → Польща</button>
+        <button id="dirPL" type="button" class="btn btn-outline-light">Польща → Україна</button>
+      </div>
+      <button id="swapBtn" type="button" class="btn btn-light btn-sm">⇄</button>
+    </div>
+
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label">Відправлення</label>
+        <select id="fromCity" class="form-select"></select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Призначення</label>
+        <select id="toCity" class="form-select"></select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Дата</label>
+        <input id="travelDate" type="date" class="form-control">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Пас.</label>
+        <input id="passengers" type="number" min="1" max="6" value="1" class="form-control">
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button id="findBtn" type="button" class="btn btn-danger w-100">Знайти</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div id="resultsMeta">Натисніть “Знайти”, щоб показати доступні рейси.</div>
+    <div id="resultsBadge" class="badge bg-secondary" style="display:none">0</div>
+  </div>
+
+  <div id="results"></div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const prices = {
-      'Луцьк->Хелм': 500, 'Луцьк->Люблін': 600, 'Луцьк->Пулави': 800,
-      'Ковель->Хелм': 400, 'Ковель->Люблін': 500, 'Ковель->Пулави': 700,
-      'Ягодин->Хелм': 400, 'Ягодин->Люблін': 500, 'Ягодин->Пулави': 650,
-    };
-    const returnPrices = {
-      'Хелм->Луцьк': 80, 'Люблін->Луцьк': 70, 'Пулави->Луцьк': 60,
-      'Хелм->Ковель': 70, 'Люблін->Ковель': 60, 'Пулави->Ковель': 60,
-      'Хелм->Ягодин': 50, 'Люблін->Ягодин': 50, 'Пулави->Ягодин': 50,
-    };
+(function(){
+  const IS_AUTH = {{ user.is_authenticated|yesno:"true,false" }};
 
-    const fromSelect = document.getElementById('from');
-    const toSelect = document.getElementById('to');
-    const passengersInput = document.getElementById('passengers');
-    const priceDisplay = document.getElementById('priceDisplay');
-    const form = document.getElementById('ticketForm');
+  // city lists
+  let UA_CITIES = [];
+  let PL_CITIES = [];
 
-    function calculatePrice() {
-      const from = fromSelect.value;
-      const to = toSelect.value;
-      const passengers = parseInt(passengersInput.value, 10) || 1;
-      if (!from || !to || from === to) {
-        priceDisplay.textContent = 'Оберіть різні пункти відправлення і призначення.';
-        return;
-      }
-      const key = `${from}->${to}`;
-      const price = prices[key];
-      if (!price) {
-        priceDisplay.textContent = 'Маршрут недоступний.';
-        return;
-      }
-      priceDisplay.textContent = `Ціна за квиток: ${price} ₴ × ${passengers} пасажир(ів) = ${price * passengers} ₴`;
-    }
+  // elements
+  const dirUA = document.getElementById('dirUA');
+  const dirPL = document.getElementById('dirPL');
+  const swapBtn = document.getElementById('swapBtn');
+  const fromCity = document.getElementById('fromCity');
+  const toCity = document.getElementById('toCity');
+  const travelDate = document.getElementById('travelDate');
+  const passengers = document.getElementById('passengers');
+  const findBtn = document.getElementById('findBtn');
+  const results = document.getElementById('results');
+  const resultsMeta = document.getElementById('resultsMeta');
+  const resultsBadge = document.getElementById('resultsBadge');
 
-    fromSelect.addEventListener('change', calculatePrice);
-    toSelect.addEventListener('change', calculatePrice);
-    passengersInput.addEventListener('input', calculatePrice);
+  let currentDirection = 'UA_PL';
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const from = fromSelect.value;
-      const to = toSelect.value;
-      const passengers = passengersInput.value;
-      if (!from || !to || from === to) {
-        alert('Будь ласка, виберіть різні пункти відправлення та призначення.');
-        return;
+  function formatPrice(price, currency){
+    if (!currency || currency === 'UAH') return `${Number(price).toFixed(0)} грн`;
+    if (currency === 'PLN') return `${Number(price).toFixed(0)} zł`;
+    return `${Number(price).toFixed(2)} ${currency}`;
+  }
+
+  function fillSelect(select, list){
+    select.innerHTML = '';
+    list.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; select.appendChild(o); });
+  }
+
+  function fmtDate(d){ if (!d) return ''; try{ const [y,m,dd]=d.split('-'); return `${dd}.${m}.${y}` }catch(e){return d} }
+
+  function renderTripCard(t, pax){
+    const total = t.price * pax;
+    const disabled = (t.free < pax);
+    return `
+      <div class="trip-card mb-3 p-3" data-id="${t.id}" style="border:1px solid rgba(255,255,255,0.06);border-radius:8px">
+        <div class="d-grid" style="grid-template-columns:1fr 1fr 1fr 120px;gap:12px;display:grid;align-items:center">
+          <div>
+            <div class="k">Відправлення</div>
+            <div class="v">${t.depart}</div>
+            <div class="sub">${t.from}, ${t.from_place}</div>
+          </div>
+          <div>
+            <div class="k">В дорозі</div>
+            <div class="v">${t.duration}</div>
+            <div class="sub">${t.carrier}</div>
+          </div>
+          <div>
+            <div class="k">Прибуття</div>
+            <div class="v">${t.arrive}</div>
+            <div class="sub">${t.to}, ${t.to_place}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="k">Ціна</div>
+            <div class="price text-danger fw-bold">${formatPrice(t.price, t.currency)}</div>
+            <div class="sub">Разом: <strong>${formatPrice(total, t.currency)}</strong></div>
+            <div class="mt-2"><button class="btn btn-outline-light choose-btn" ${disabled ? 'disabled' : ''}>Обрати</button></div>
+          </div>
+        </div>
+        <div class="trip-details mt-3" style="display:none">
+          <div class="row">
+            <div class="col-md-8">
+              <h5>Зупинки</h5>
+              <div class="stop-list small">
+                ${t.stops.map(s => `<div class="d-flex"><div style="width:64px">${s.time}</div><div>${s.place}</div></div>`).join('')}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <h5>Інформація</h5>
+              <p><strong>Перевізник:</strong> ${t.carrier}</p>
+              <p><strong>Вільних місць:</strong> <span class="seats-count-right">${t.free}</span></p>
+              <div><button class="btn btn-danger buy-now mt-2" ${disabled ? 'disabled' : ''}>Купити</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadCities(){
+    try{
+      const res = await fetch('/api/cities/');
+      if (res.ok){
+        const data = await res.json();
+        UA_CITIES = (data.UA || []).map(c => c.name);
+        PL_CITIES = (data.PL || []).map(c => c.name);
       }
-      const key = `${from}->${to}`;
-      const price = prices[key];
-      if (!price) {
-        alert('Вибраний маршрут недоступний.');
-        return;
+    }catch(e){ console.warn('Failed to load cities', e); }
+  }
+
+  async function doSearch(){
+    const f = fromCity.value; const t = toCity.value; const d = travelDate.value;
+    const pax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
+    if (!f || !t || f === t){ results.innerHTML = ''; resultsMeta.textContent = 'Оберіть різні пункти відправлення та призначення.'; resultsBadge.style.display = 'none'; return; }
+
+    resultsMeta.textContent = `${f} — ${t}${d ? ' на ' + fmtDate(d) : ''}`;
+    resultsBadge.style.display = 'inline-flex';
+
+    let list = [];
+    try{
+      const url = `/api/trips/?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&date=${encodeURIComponent(d)}&dir=${encodeURIComponent(currentDirection)}&pax=${encodeURIComponent(pax)}`;
+      const res = await fetch(url);
+      if (res.ok){
+        const data = await res.json();
+        list = (data.trips || []).map(x => ({
+          id: String(x.id), direction: x.direction, from: x.from, from_place: x.from_place || '',
+          to: x.to, to_place: x.to_place || '', depart: x.depart || '', arrive: x.arrive || '',
+          duration: x.duration || '', price: Number(x.price) || 0, currency: x.currency || 'UAH',
+          free: Number(x.free) || 0, carrier: x.carrier || '', stops: x.stops || []
+        }));
       }
-      alert(`Ви оформили квиток:\nМаршрут: ${from} → ${to}\nПасажири: ${passengers}\nЗагальна сума: ${price * passengers} ₴\n\nДякуємо за покупку!`);
-      // Тут можна додати логіку оплати або перенаправлення на платіжний шлюз
+    }catch(e){ console.warn('API trips fetch failed', e); }
+
+    resultsBadge.textContent = `${list.length} рейс(ів)`;
+    if (!list.length){ results.innerHTML = '<div class="small-muted">Немає рейсів за цими параметрами.</div>'; return; }
+
+    results.innerHTML = list.map(x => renderTripCard(x, pax)).join('');
+
+    results.querySelectorAll('.trip-card').forEach(card => {
+      const id = card.dataset.id;
+      const chooseBtn = card.querySelector('.choose-btn');
+      const buyNow = card.querySelector('.buy-now');
+      const details = card.querySelector('.trip-details');
+
+      chooseBtn && chooseBtn.addEventListener('click', () => { details.style.display = details.style.display === 'none' ? 'block' : 'none'; details.scrollIntoView({behavior:'smooth', block:'center'}); });
+
+      buyNow && buyNow.addEventListener('click', () => {
+        const pax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
+        const trip = list.find(x => String(x.id) === String(id)); if (!trip) return;
+        if (trip.free < pax){ alert('Недостатньо вільних місць для цієї кількості пасажирів.'); return; }
+
+        if (!IS_AUTH){ window.location.href = '{% url "registerindex" %}?next=' + encodeURIComponent(window.location.pathname + window.location.search); return; }
+
+        document.getElementById('form_from_city').value = trip.from;
+        document.getElementById('form_to_city').value = trip.to;
+        document.getElementById('form_passengers').value = pax;
+        document.getElementById('form_travel_date').value = travelDate.value || '';
+        document.getElementById('form_price').value = Math.round(trip.price || 0);
+        document.getElementById('buyForm').submit();
+      });
     });
-  });
+  }
+
+  // events
+  dirUA.addEventListener('click', () => setDirection('UA_PL'));
+  dirPL.addEventListener('click', () => setDirection('PL_UA'));
+  swapBtn.addEventListener('click', () => { setDirection(currentDirection === 'UA_PL' ? 'PL_UA' : 'UA_PL'); });
+  findBtn.addEventListener('click', doSearch);
+
+  // init
+  (async function init(){
+    await loadCities();
+    const params = new URLSearchParams(window.location.search);
+    const qFrom = params.get('from'); const qTo = params.get('to'); const qDate = params.get('date') || params.get('travelDate'); const qPax = params.get('pax'); const qDir = params.get('dir');
+    const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+    travelDate.value = qDate || `${y}-${m}-${d}`;
+
+    setDirection(qDir === 'PL_UA' ? 'PL_UA' : 'UA_PL');
+    try{ if (qFrom) fromCity.value = qFrom; if (qTo) toCity.value = qTo; if (qPax) passengers.value = qPax; }catch(e){}
+    if (qFrom && qTo && qFrom !== qTo) doSearch();
+  })();
+
+  function setDirection(dir){
+    currentDirection = dir;
+    dirUA.classList.toggle('active', dir === 'UA_PL'); dirPL.classList.toggle('active', dir === 'PL_UA');
+    dirUA.setAttribute('aria-pressed', dir === 'UA_PL'); dirPL.setAttribute('aria-pressed', dir === 'PL_UA');
+    const fromList = (dir === 'UA_PL') ? UA_CITIES : PL_CITIES; const toList = (dir === 'UA_PL') ? PL_CITIES : UA_CITIES;
+    fillSelect(fromCity, fromList); fillSelect(toCity, toList); fromCity.value = fromList[0] || ''; toCity.value = toList[0] || '';
+    results.innerHTML = ''; resultsMeta.textContent = 'Натисніть “Знайти”, щоб показати доступні рейси.'; resultsBadge.style.display = 'none';
+  }
+
+})();
 </script>
-
-  {% csrf_token %}
-
-  <input type="hidden" name="from_city" value="Луцьк">
-  <input type="hidden" name="to_city" value="Хелм">
-  <input type="hidden" name="travel_date" value="2025-12-20">
-  <input type="hidden" name="passengers" value="1">
-  <input type="hidden" name="price" value="500">
-
-  <button type="submit" class="btn-pay">Оплатити</button>
-</form>
 {% endblock %}

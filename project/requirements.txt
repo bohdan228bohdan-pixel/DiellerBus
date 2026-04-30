@@ -4,6 +4,8 @@ gid==1.0.1
 sqlparse==0.5.4
 tzdata==2025.2
 gunicorn
-whitenoise==7.1.2
+
+whitenoise==6.12.0
+stripe==15.1.0
 
 

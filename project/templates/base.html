@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="ук">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,7 +33,6 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">Головна</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'nashbusindex' %}">Каталог</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'kvitokindex' %}">Квитки</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'oplata' %}">Оплата</a></li>
             {% if user.is_authenticated %}
               <li class="nav-item d-lg-none"><a class="nav-link" href="{% url 'profile' %}">Профіль</a></li>
             {% endif %}

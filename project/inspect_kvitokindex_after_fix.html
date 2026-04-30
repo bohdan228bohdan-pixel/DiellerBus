@@ -1,0 +1,844 @@
+
+<!DOCTYPE html>
+<html lang="ук">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dieller Bus">
+  <title>Квитки — Dieller Bus</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/red_black_theme.css">
+
+  
+<style>
+/* Small overrides for ticket page (uses theme colors) */
+.ticket-page{padding:28px 0 60px}
+.ticket-title{font-weight:900;margin:0 0 6px;color:#fff}
+ticket-sub{color:var(--muted);margin:0 0 18px}
+
+</style>
+
+<form id="buyForm" method="post" action="/create-ticket/" style="display:none">
+  <input type="hidden" name="csrfmiddlewaretoken" value="Lr5Mx6ifwjWfrMtHNMVliQQDessfo7Gr8yGjnf9RhiZR6lg6jcIyMDltm5ahb3dQ">
+  <input type="hidden" name="from_city" id="form_from_city">
+  <input type="hidden" name="to_city" id="form_to_city">
+  <input type="hidden" name="passengers" id="form_passengers">
+  <input type="hidden" name="travel_date" id="form_travel_date">
+  <input type="hidden" name="price" id="form_price">
+</form>
+
+<script>
+(function(){
+  const IS_AUTH = false;
+
+  // dynamic city lists (populated from server)
+  let UA_CITIES = [];
+  let PL_CITIES = [];
+
+  // elements
+  const dirUA = document.getElementById('dirUA');
+  const dirPL = document.getElementById('dirPL');
+  const swapBtn = document.getElementById('swapBtn');
+  const fromCity = document.getElementById('fromCity');
+  const toCity = document.getElementById('toCity');
+  const travelDate = document.getElementById('travelDate');
+  const passengers = document.getElementById('passengers');
+  const findBtn = document.getElementById('findBtn');
+  const results = document.getElementById('results');
+  const resultsMeta = document.getElementById('resultsMeta');
+  const resultsBadge = document.getElementById('resultsBadge');
+
+  let currentDirection = "UA_PL";
+
+  function formatPrice(price, currency){
+    if (!currency || currency === 'UAH') return `${Number(price).toFixed(0)} грн`;
+    if (currency === 'PLN') return `${Number(price).toFixed(0)} zł`;
+    return `${Number(price).toFixed(2)} ${currency}`;
+  }
+
+  function fillSelect(select, list){
+    select.innerHTML = '';
+    list.forEach(c => {
+      const o = document.createElement('option'); o.value = c; o.textContent = c;
+      select.appendChild(o);
+    });
+  }
+
+  function fmtDate(d){ if (!d) return ""; try{ const [y,m,dd] = d.split('-'); return `${dd}.${m}.${y}` }catch(e){return d} }
+
+  function renderTripCard(t, pax){
+    const total = t.price * pax;
+    const disabled = (t.free < pax);
+    return `
+      <div class="trip-card" data-id="${t.id}">
+        <div class="trip-grid">
+          <div class="trip-col">
+            <div class="k">Відправлення</div>
+            <div class="v">${t.depart}</div>
+            <div class="sub">${t.from}, ${t.from_place}</div>
+          </div>
+          <div class="trip-col">
+            <div class="k">В дорозі</div>
+            <div class="v">${t.duration}</div>
+            <div class="sub">${t.carrier}</div>
+          </div>
+          <div class="trip-col">
+            <div class="k">Прибуття</div>
+            <div class="v">${t.arrive}</div>
+            <div class="sub">${t.to}, ${t.to_place}</div>
+          </div>
+          <div class="trip-col">
+            <div class="k">Вільних місць</div>
+            <div class="v seats-count">${t.free}</div>
+          </div>
+          <div class="trip-col">
+            <div class="k">Ціна</div>
+            <div class="price">${formatPrice(t.price, t.currency)}</div>
+            <div class="sub">Разом: <strong style="color:#fff">${formatPrice(total, t.currency)}</strong></div>
+          </div>
+          <div class="trip-col" style="display:flex;justify-content:flex-end;align-items:center">
+            <button class="choose-btn" type="button" ${disabled ? "disabled" : ""}>Обрати</button>
+          </div>
+        </div>
+        <div class="trip-footer">
+          <span class="badge-soft">Маршрут: <strong style="color:#fff">${t.from} → ${t.to}</strong></span>
+          <span class="badge-soft">Пасажири: <strong style="color:#fff">${pax}</strong></span>
+          <button class="btn-secondary details-toggle" type="button" style="margin-left:8px">Деталі</button>
+        </div>
+        <div class="trip-details" style="display:none" aria-hidden="true">
+          <div class="grid">
+            <div>
+              <h4>Рейс: ${t.from} - ${t.to}</h4>
+              <div class="stop-list">
+                ${t.stops.map(s => `<div class="stop-item"><div class="stop-time">${s.time}</div><div class="stop-info">${s.place}</div></div>`).join('')}
+              </div>
+            </div>
+            <div class="details-right" aria-label="Деталі рейсу">
+              <h4>Інформація</h4>
+              <p><strong>Перевізник:</strong> ${t.carrier}</p>
+              <p><strong>Відправлення:</strong> ${t.depart}</p>
+              <p><strong>Прибуття:</strong> ${t.arrive}</p>
+              <p><strong>Дата поїздки:</strong> <span class="selected-date">${fmtDate(travelDate.value)}</span></p>
+              <p><strong>Вільних місць:</strong> <span class="seats-count-right">${t.free}</span></p>
+              <div class="buy-row">
+                <button class="choose-btn buy-now" ${disabled ? "disabled" : ""}>Купити</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadCities(){
+    try{
+      const res = await fetch('/api/cities/');
+      if (res.ok){
+        const data = await res.json();
+        UA_CITIES = (data.UA || []).map(c => c.name);
+        PL_CITIES = (data.PL || []).map(c => c.name);
+      }
+    }catch(e){ console.warn('Failed to load cities', e); }
+  }
+
+  async function doSearch(){
+    const f = fromCity.value;
+    const t = toCity.value;
+    const d = travelDate.value;
+    const pax = Math.max(1, Math.min(6, parseInt(passengers.value || "1", 10)));
+
+    if (!f || !t || f === t){
+      results.innerHTML = "";
+      resultsMeta.textContent = "Оберіть різні пункти відправлення та призначення.";
+      resultsBadge.style.display = "none";
+      return;
+    }
+
+    resultsMeta.textContent = `${f} — ${t}${d ? " на " + fmtDate(d) : ""}`;
+    resultsBadge.style.display = "inline-flex";
+
+    // call server API
+    let list = [];
+    try{
+      const url = `/api/trips/?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&date=${encodeURIComponent(d)}&dir=${encodeURIComponent(currentDirection)}&pax=${encodeURIComponent(pax)}`;
+      const res = await fetch(url);
+      if (res.ok){
+        const data = await res.json();
+        list = (data.trips || []).map(x => ({
+          id: String(x.id),
+          direction: x.direction,
+          from: x.from,
+          from_place: x.from_place || '',
+          to: x.to,
+          to_place: x.to_place || '',
+          depart: x.depart || '',
+          arrive: x.arrive || '',
+          duration: x.duration || '',
+          price: Number(x.price) || 0,
+          currency: x.currency || 'UAH',
+          free: Number(x.free) || 0,
+          carrier: x.carrier || '',
+          stops: x.stops || []
+        }));
+      }
+    }catch(e){
+      console.warn('API trips fetch failed', e);
+    }
+
+    resultsBadge.textContent = `${list.length} рейс(ів)`;
+
+    if (!list.length){
+      results.innerHTML = `<div class="small-muted">Немає рейсів за цими параметрами. Спробуйте іншу дату або напрямок.</div>`;
+      return;
+    }
+
+    results.innerHTML = list.map(x => renderTripCard(x, pax)).join("");
+
+    // attach handlers
+    results.querySelectorAll('.trip-card').forEach(card => {
+      const id = card.dataset.id;
+      const chooseBtn = card.querySelector('.choose-btn');
+      const buyNow = card.querySelector('.buy-now');
+      const detailsToggle = card.querySelector('.details-toggle');
+      const detailsPanel = card.querySelector('.trip-details');
+
+      detailsToggle.addEventListener('click', () => {
+        const opened = detailsPanel.style.display !== 'none';
+        document.querySelectorAll('.trip-details').forEach(p => { if (p !== detailsPanel) { p.style.display = 'none'; p.setAttribute('aria-hidden','true'); }});
+        detailsPanel.style.display = opened ? 'none' : 'block';
+        detailsPanel.setAttribute('aria-hidden', opened ? 'true' : 'false');
+        detailsToggle.textContent = opened ? 'Деталі' : 'Згорнути';
+        const dateSpan = detailsPanel.querySelector('.selected-date');
+        if (dateSpan) dateSpan.textContent = (travelDate.value ? (function(){const [yy,mm,dd]=travelDate.value.split('-');return dd+'.'+mm+'.'+yy;})() : '');
+      });
+
+      chooseBtn.addEventListener('click', () => {
+        document.querySelectorAll('.trip-details').forEach(p => { p.style.display = 'none'; p.setAttribute('aria-hidden','true'); });
+        detailsPanel.style.display = 'block';
+        detailsPanel.setAttribute('aria-hidden', 'false');
+        detailsToggle.textContent = 'Згорнути';
+        detailsPanel.scrollIntoView({behavior:'smooth', block:'center'});
+        const dateSpan = detailsPanel.querySelector('.selected-date');
+        if (dateSpan) dateSpan.textContent = (travelDate.value ? (function(){const [yy,mm,dd]=travelDate.value.split('-');return dd+'.'+mm+'.'+yy;})() : '');
+      });
+
+      buyNow.addEventListener('click', () => {
+        const pax = Math.max(1, Math.min(6, parseInt(passengers.value || "1", 10)));
+        const trip = list.find(x => String(x.id) === String(id));
+        if (!trip) return;
+        if (trip.free < pax){ alert("Недостатньо вільних місць для цієї кількості пасажирів."); return; }
+
+        if (!IS_AUTH){
+          // redirect to login/register page
+          window.location.href = '/register/?next=' + encodeURIComponent(window.location.pathname + window.location.search);
+          return;
+        }
+
+        // submit server-side ticket creation (Stripe checkout)
+        document.getElementById('form_from_city').value = trip.from;
+        document.getElementById('form_to_city').value = trip.to;
+        document.getElementById('form_passengers').value = pax;
+        document.getElementById('form_travel_date').value = travelDate.value || '';
+        document.getElementById('form_price').value = Math.round(trip.price || 0);
+        document.getElementById('buyForm').submit();
+      });
+    });
+  }
+
+  // events
+  dirUA.addEventListener('click', () => setDirection('UA_PL'));
+  dirPL.addEventListener('click', () => setDirection('PL_UA'));
+  swapBtn.addEventListener('click', () => { setDirection(currentDirection === "UA_PL" ? "PL_UA" : "UA_PL"); });
+  findBtn.addEventListener('click', doSearch);
+
+  // init — load cities then set initial direction and possibly auto-search
+  (async function init(){
+    await loadCities();
+
+    const params = new URLSearchParams(window.location.search);
+    const qFrom = params.get('from');
+    const qTo = params.get('to');
+    const qDate = params.get('date') || params.get('travelDate');
+    const qPax = params.get('pax') || params.get('passengers');
+    const qDir = params.get('dir');
+
+    const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+    travelDate.value = qDate || `${y}-${m}-${d}`;
+
+    // fill selects with loaded cities
+    setDirection(qDir === 'PL_UA' ? 'PL_UA' : 'UA_PL');
+    if (qFrom) { try{ fromCity.value = qFrom }catch(e){} }
+    if (qTo) { try{ toCity.value = qTo }catch(e){} }
+    if (qPax) { try{ passengers.value = qPax }catch(e){} }
+
+    if (qFrom && qTo && qFrom !== qTo) { doSearch(); }
+  })();
+
+  function setDirection(dir){
+    currentDirection = dir;
+    dirUA.classList.toggle('active', dir === 'UA_PL');
+    dirPL.classList.toggle('active', dir === 'PL_UA');
+    dirUA.setAttribute('aria-pressed', dir === 'UA_PL');
+    dirPL.setAttribute('aria-pressed', dir === 'PL_UA');
+
+    const fromList = (dir === "UA_PL") ? UA_CITIES : PL_CITIES;
+    const toList = (dir === "UA_PL") ? PL_CITIES : UA_CITIES;
+    fillSelect(fromCity, fromList);
+    fillSelect(toCity, toList);
+    fromCity.value = fromList[0] || "";
+    toCity.value = toList[0] || "";
+    results.innerHTML = "";
+    resultsMeta.textContent = "Натисніть “Знайти”, щоб показати доступні рейси.";
+    resultsBadge.style.display = "none";
+  }
+
+})();
+</script>
+    },
+
+    // KOVEL -> LUBLIN
+    {
+      id: "KV-LB-0830",
+      direction: "UA_PL",
+      from: "Ковель",
+      from_place: 'Автостанція "Ковель"',
+      to: "Люблін",
+      to_place: 'Автостанція "Люблін"',
+      depart: "12:20",
+      arrive: "15:50",
+      duration: "3г 30хв",
+      price: 500, currency: "UAH",
+      free: 14,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"12:20", place:'Ковель, Автостанція "Ковель"'},
+        {time:"12:55", place:'Ковель, Зупинка "АЗС UPG"'},
+        {time:"13:10", place:'Луків, Зупинка Луков'},
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+        {time:"15:50", place:'Люблін, Автовокзал Люблін (старий)'},
+      ]
+    },
+
+    // KOVEL -> CHEŁM
+    {
+      id: "KV-CH-0700",
+      direction: "UA_PL",
+      from: "Ковель",
+      from_place: 'Автостанція "Ковель"',
+      to: "Хелм",
+      to_place: 'Зупинка "Хелм"',
+      depart: "12:20",
+      arrive: "14:20",
+      duration: "2г 0хв",
+      price: 400, currency: "UAH",
+      free: 12,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"12:20", place:'Ковель, Автостанція "Ковель"'},
+        {time:"12:55", place:'Ковель, Зупинка "АЗС UPG"'},
+        {time:"13:10", place:'Луків, Зупинка Луков'},
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+      ]
+    },
+
+    // YAGODYN -> PULAWY (same prices as Kovel)
+    {
+      id: "YG-PU-0900",
+      direction: "UA_PL",
+      from: "Ягодин",
+      from_place: 'КПП "Ягодин"',
+      to: "Пулави",
+      to_place: 'Автостанція "Пулави"',
+      depart: "13:50",
+      arrive: "17:30",
+      duration: "3г 40хв",
+      price: 700, currency: "UAH",
+      free: 10,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:10", place:'Луків, Зупинка Луков'},
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+        {time:"15:50", place:'Люблін, Автовокзал Люблін (старий)'},
+        {time:"17:30", place:'Пулави, Автостанція Пулави'}
+      ]
+    },
+
+    // YAGODYN -> LUBLIN
+    {
+      id: "YG-LB-0915",
+      direction: "UA_PL",
+      from: "Ягодин",
+      from_place: 'КПП "Ягодин"',
+      to: "Люблін",
+      to_place: 'Автостанція "Люблін"',
+      depart: "13:50",
+      arrive: "15:50",
+      duration: "2г 00хв",
+      price: 500, currency: "UAH",
+      free: 12,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:10", place:'Луків, Зупинка Луков'},
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+        {time:"15:50", place:'Люблін, Автовокзал Люблін (старий)'},
+      ]
+    },
+
+    // YAGODYN -> CHEŁM
+    {
+      id: "YG-CH-0830",
+      direction: "UA_PL",
+      from: "Ягодин",
+      from_place: 'КПП "Ягодин"',
+      to: "Хелм",
+      to_place: 'Зупинка "Хелм"',
+      depart: "08:30",
+      arrive: "10:00",
+      duration: "1г 30хв",
+      price: 400, currency: "UAH",
+      free: 10,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+      ]
+    },
+
+    // LUBOML -> PULAWY (same as Kovel prices)
+    {
+      id: "LBM-PU-0930",
+      direction: "UA_PL",
+      from: "Любомль",
+      from_place: 'Зупинка "Любомль"',
+      to: "Пулави",
+      to_place: 'Автостанція "Пулави"',
+      depart: "13:30",
+      arrive: "17:00",
+      duration: "3г 30хв",
+      price: 700, currency: "UAH",
+      free: 12,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+        {time:"15:50", place:'Люблін, Автовокзал Люблін (старий)'},
+        {time:"17:30", place:'Пулави, Автостанція Пулави'}
+      ]
+    },
+
+    // LUBOML -> LUBLIN
+    {
+      id: "LBM-LB-1000",
+      direction: "UA_PL",
+      from: "Любомль",
+      from_place: 'Зупинка "Любомль"',
+      to: "Люблін",
+      to_place: 'Автостанція "Люблін"',
+      depart: "13:30",
+      arrive: "15:50",
+      duration: "2г 20хв",
+      price: 500, currency: "UAH",
+      free: 12,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+        {time:"15:50", place:'Люблін, Автовокзал Люблін (старий)'},
+      ]
+    },
+
+    // LUBOML -> CHEŁM
+    {
+      id: "LBM-CH-0830",
+      direction: "UA_PL",
+      from: "Любомль",
+      from_place: 'Зупинка "Любомль"',
+      to: "Хелм",
+      to_place: 'Зупинка "Хелм"',
+      depart: "13:30",
+      arrive: "14:20",
+      duration: "0г 50хв",
+      price: 400, currency: "UAH",
+      free: 10,
+      carrier: "Михалусь П.П",
+      stops: [
+        {time:"13:30", place:'Любомль, Зупинка Любомль (Вишнів)'},
+        {time:"13:50", place:'Ягодин КПП (Україна/Польща), Зупинка "КПП"'},
+        {time:"14:20", place:'Холм, Зупинка "МакДональдс"'},
+      ]
+    },
+
+    // PL -> UA simplified (PLN prices, match Kovel equivalents)
+    { id: "PU-KV-0830", direction: "PL_UA", from: "Пулави", from_place: 'Автостанція "Пулави"', to: "Ковель", to_place: 'Автостанція "Ковель"', depart: "08:30", arrive: "11:00", duration: "2г 30хв", price: 70, currency: "PLN", free: 12, carrier: "Михалусь П.П", stops:[{time:"08:30",place:"Пулави"},{time:"10:00",place:"Люблін"},{time:"11:00",place:"Ковель"}] },
+    { id: "LB-KV-1000", direction: "PL_UA", from: "Люблін", from_place: 'Автостанція "Люблін"', to: "Ковель", to_place: 'Автостанція "Ковель"', depart: "10:00", arrive: "12:30", duration: "2г 30хв", price: 60, currency: "PLN", free: 10, carrier: "Михалусь П.П", stops:[{time:"10:00",place:"Люблін"},{time:"11:20",place:"Ягодин КПП"},{time:"12:30",place:"Ковель"}] },
+    { id: "CH-KV-0730", direction: "PL_UA", from: "Хелм", from_place: 'Зупинка "Хелм"', to: "Ковель", to_place: 'Автостанція "Ковель"', depart: "07:30", arrive: "10:00", duration: "2г 30хв", price: 50, currency: "PLN", free: 8, carrier: "Михалусь П.П", stops:[{time:"07:30",place:"Хелм"},{time:"09:00",place:"Ягодин КПП"},{time:"10:00",place:"Ковель"}] },
+
+    // PL -> Любомль / Ягодин equivalents (PLN)
+    { id: "PU-LBM-0830", direction: "PL_UA", from: "Пулави", from_place: 'Автостанція "Пулави"', to: "Любомль", to_place: 'Зупинка "Любомль"', depart: "08:30", arrive: "12:30", duration: "4г 0хв", price: 70, currency: "PLN", free: 8, carrier: "Михалусь П.П", stops:[{time:"08:30",place:"Пулави"},{time:"10:40",place:"Люблін"},{time:"12:30",place:"Любомль"}] },
+    { id: "PU-YG-0830", direction: "PL_UA", from: "Пулави", from_place: 'Автостанція "Пулави"', to: "Ягодин", to_place: 'КПП "Ягодин"', depart: "08:30", arrive: "11:10", duration: "2г 40хв", price: 70, currency: "PLN", free: 8, carrier: "Михалусь П.П", stops:[{time:"08:30",place:"Пулави"},{time:"10:00",place:"Люблін"},{time:"11:10",place:"Ягодин КПП"}] }
+  ];
+
+  // helper to format price with correct currency label
+  function formatPrice(price, currency){
+    if (!currency || currency === 'UAH') return `${Number(price).toFixed(0)} грн`;
+    if (currency === 'PLN') return `${Number(price).toFixed(0)} zł`;
+    return `${Number(price).toFixed(2)} ${currency}`;
+  }
+
+  // elements & city lists
+  const UA_CITIES = ["Луцьк","Ковель","Ягодин","Любомль"];
+  const PL_CITIES = ["Пулави","Люблін","Хелм"];
+
+  const dirUA = document.getElementById('dirUA');
+  const dirPL = document.getElementById('dirPL');
+  const swapBtn = document.getElementById('swapBtn');
+  const fromCity = document.getElementById('fromCity');
+  const toCity = document.getElementById('toCity');
+  const travelDate = document.getElementById('travelDate');
+  const passengers = document.getElementById('passengers');
+  const findBtn = document.getElementById('findBtn');
+  const results = document.getElementById('results');
+  const resultsMeta = document.getElementById('resultsMeta');
+  const resultsBadge = document.getElementById('resultsBadge');
+
+  let currentDirection = "UA_PL";
+
+  function setDirection(dir){
+    currentDirection = dir;
+    dirUA.classList.toggle('active', dir === 'UA_PL');
+    dirPL.classList.toggle('active', dir === 'PL_UA');
+    dirUA.setAttribute('aria-pressed', dir === 'UA_PL');
+    dirPL.setAttribute('aria-pressed', dir === 'PL_UA');
+
+    const fromList = (dir === "UA_PL") ? UA_CITIES : PL_CITIES;
+    const toList = (dir === "UA_PL") ? PL_CITIES : UA_CITIES;
+    fillSelect(fromCity, fromList);
+    fillSelect(toCity, toList);
+    fromCity.value = fromList[0] || "";
+    toCity.value = toList[0] || "";
+    results.innerHTML = "";
+    resultsMeta.textContent = "Натисніть “Знайти”, щоб показати доступні рейси.";
+    resultsBadge.style.display = "none";
+  }
+
+  function fillSelect(select, list){
+    select.innerHTML = '';
+    list.forEach(c => {
+      const o = document.createElement('option'); o.value = c; o.textContent = c;
+      select.appendChild(o);
+    });
+  }
+
+  function fmtDate(d){
+    if (!d) return "";
+    try{ const [y,m,dd] = d.split('-'); return `${dd}.${m}.${y}` }catch(e){return d}
+  }
+
+  function renderTripCard(t, pax){
+    const total = t.price * pax;
+    const disabled = (t.free < pax);
+
+    return `
+      <div class="trip-card" data-id="${t.id}">
+        <div class="trip-grid">
+          <div class="trip-col">
+            <div class="k">Відправлення</div>
+            <div class="v">${t.depart}</div>
+            <div class="sub">${t.from}, ${t.from_place}</div>
+          </div>
+
+          <div class="trip-col">
+            <div class="k">В дорозі</div>
+            <div class="v">${t.duration}</div>
+            <div class="sub">${t.carrier}</div>
+          </div>
+
+          <div class="trip-col">
+            <div class="k">Прибуття</div>
+            <div class="v">${t.arrive}</div>
+            <div class="sub">${t.to}, ${t.to_place}</div>
+          </div>
+
+          <div class="trip-col">
+            <div class="k">Вільних місць</div>
+            <div class="v seats-count">${t.free}</div>
+          </div>
+
+          <div class="trip-col">
+            <div class="k">Ціна</div>
+            <div class="price">${formatPrice(t.price, t.currency)}</div>
+            <div class="sub">Разом: <strong style="color:#fff">${formatPrice(total, t.currency)}</strong></div>
+          </div>
+
+          <div class="trip-col" style="display:flex;justify-content:flex-end;align-items:center">
+            <button class="choose-btn" type="button" ${disabled ? "disabled" : ""}>Обрати</button>
+          </div>
+        </div>
+
+        <div class="trip-footer">
+          <span class="badge-soft">Маршрут: <strong style="color:#fff">${t.from} → ${t.to}</strong></span>
+          <span class="badge-soft">Пасажири: <strong style="color:#fff">${pax}</strong></span>
+          <button class="btn-secondary details-toggle" type="button" style="margin-left:8px">Деталі</button>
+        </div>
+
+        <div class="trip-details" style="display:none" aria-hidden="true">
+          <div class="grid">
+            <div>
+              <h4>Рейс: ${t.from} - ${t.to}</h4>
+              <div class="stop-list">
+                ${t.stops.map(s => `<div class="stop-item"><div class="stop-time">${s.time}</div><div class="stop-info">${s.place}</div></div>`).join('')}
+              </div>
+            </div>
+
+            <div class="details-right" aria-label="Деталі рейсу">
+              <h4>Інформація</h4>
+              <p><strong>Перевізник:</strong> ${t.carrier}</p>
+              <p><strong>Відправлення:</strong> ${t.depart}</p>
+              <p><strong>Прибуття:</strong> ${t.arrive}</p>
+              <p><strong>Дата поїздки:</strong> <span class="selected-date">${fmtDate(travelDate.value)}</span></p>
+              <p><strong>Вільних місць:</strong> <span class="seats-count-right">${t.free}</span></p>
+              <div class="buy-row">
+                <button class="choose-btn buy-now" ${disabled ? "disabled" : ""}>Купити</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function doSearch(){
+    const f = fromCity.value;
+    const t = toCity.value;
+    const d = travelDate.value;
+    const pax = Math.max(1, Math.min(6, parseInt(passengers.value || "1", 10)));
+
+    if (!f || !t || f === t){
+      results.innerHTML = "";
+      resultsMeta.textContent = "Оберіть різні пункти відправлення та призначення.";
+      resultsBadge.style.display = "none";
+      return;
+    }
+
+    resultsMeta.textContent = `${f} — ${t}${d ? " на " + fmtDate(d) : ""}`;
+    resultsBadge.style.display = "inline-flex";
+
+    // try server API first
+    let list = [];
+    try{
+      const url = `/api/trips/?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&date=${encodeURIComponent(d)}&dir=${encodeURIComponent(currentDirection)}&pax=${encodeURIComponent(pax)}`;
+      const res = await fetch(url);
+      if (res.ok){
+        const data = await res.json();
+        list = (data.trips || []).map(x => ({
+          id: String(x.id),
+          direction: x.direction,
+          from: x.from,
+          from_place: x.from_place || '',
+          to: x.to,
+          to_place: x.to_place || '',
+          depart: x.depart || '',
+          arrive: x.arrive || '',
+          duration: x.duration || '',
+          price: x.price || 0,
+          currency: x.currency || 'UAH',
+          free: x.free || 0,
+          carrier: x.carrier || '',
+          stops: x.stops || []
+        }));
+      }
+    }catch(e){
+      console.warn('API trips fetch failed, falling back to local data', e);
+    }
+
+    // fallback to local data if server returned nothing
+    if (!list.length){
+      list = trips.filter(x => x.direction === currentDirection && x.from === f && x.to === t);
+    }
+
+    resultsBadge.textContent = `${list.length} рейс(ів)`;
+
+    if (!list.length){
+      results.innerHTML = `<div class="small-muted">Немає рейсів за цими параметрами. Спробуйте іншу дату або напрямок.</div>`;
+      return;
+    }
+
+    results.innerHTML = list.map(x => renderTripCard(x, pax)).join("");
+
+    // attach handlers (uses closure 'list')
+    results.querySelectorAll('.trip-card').forEach(card => {
+      const id = card.dataset.id;
+      const chooseBtn = card.querySelector('.choose-btn');
+      const buyNow = card.querySelector('.buy-now');
+      const detailsToggle = card.querySelector('.details-toggle');
+      const detailsPanel = card.querySelector('.trip-details');
+
+      detailsToggle.addEventListener('click', () => {
+        const opened = detailsPanel.style.display !== 'none';
+        document.querySelectorAll('.trip-details').forEach(p => { if (p !== detailsPanel) { p.style.display = 'none'; p.setAttribute('aria-hidden','true'); }});
+        detailsPanel.style.display = opened ? 'none' : 'block';
+        detailsPanel.setAttribute('aria-hidden', opened ? 'true' : 'false');
+        detailsToggle.textContent = opened ? 'Деталі' : 'Згорнути';
+        const dateSpan = detailsPanel.querySelector('.selected-date');
+        if (dateSpan) dateSpan.textContent = (travelDate.value ? (function(){const [yy,mm,dd]=travelDate.value.split('-');return dd+'.'+mm+'.'+yy;})() : '');
+      });
+
+      chooseBtn.addEventListener('click', () => {
+        document.querySelectorAll('.trip-details').forEach(p => { p.style.display = 'none'; p.setAttribute('aria-hidden','true'); });
+        detailsPanel.style.display = 'block';
+        detailsPanel.setAttribute('aria-hidden', 'false');
+        detailsToggle.textContent = 'Згорнути';
+        detailsPanel.scrollIntoView({behavior:'smooth', block:'center'});
+        const dateSpan = detailsPanel.querySelector('.selected-date');
+        if (dateSpan) dateSpan.textContent = (travelDate.value ? (function(){const [yy,mm,dd]=travelDate.value.split('-');return dd+'.'+mm+'.'+yy;})() : '');
+      });
+
+      buyNow.addEventListener('click', () => {
+        const pax = Math.max(1, Math.min(6, parseInt(passengers.value || "1", 10)));
+        const trip = list.find(x => String(x.id) === String(id));
+        if (!trip) return;
+        if (trip.free < pax){
+          alert("Недостатньо вільних місць для цієї кількості пасажирів.");
+          return;
+        }
+        trip.free -= pax;
+        const seatEl = card.querySelector('.seats-count');
+        const seatElRight = card.querySelector('.seats-count-right');
+        if (seatEl) seatEl.textContent = trip.free;
+        if (seatElRight) seatElRight.textContent = trip.free;
+        if (trip.free <= 0){
+          card.querySelectorAll('.choose-btn, .buy-now').forEach(b => b.disabled = true);
+        }
+        alert(`Бронь створена (фронтенд). Сума: ${ formatPrice(trip.price * pax, trip.currency) }.`);
+      });
+    });
+  }
+
+  // events
+  dirUA.addEventListener('click', () => setDirection('UA_PL'));
+  dirPL.addEventListener('click', () => setDirection('PL_UA'));
+  swapBtn.addEventListener('click', () => { setDirection(currentDirection === "UA_PL" ? "PL_UA" : "UA_PL"); });
+  findBtn.addEventListener('click', doSearch);
+
+  // init — check URL params to auto-search when called from homepage
+  const params = new URLSearchParams(window.location.search);
+  const qFrom = params.get('from');
+  const qTo = params.get('to');
+  const qDate = params.get('date') || params.get('travelDate');
+  const qPax = params.get('pax') || params.get('passengers');
+  const qDir = params.get('dir');
+
+  const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+  travelDate.value = qDate || `${y}-${m}-${d}`;
+
+  setDirection(qDir === 'PL_UA' ? 'PL_UA' : 'UA_PL');
+  if (qFrom) { try{ fromCity.value = qFrom }catch(e){} }
+  if (qTo) { try{ toCity.value = qTo }catch(e){} }
+  if (qPax) { try{ passengers.value = qPax }catch(e){} }
+
+  if (qFrom && qTo && qFrom !== qTo) {
+    // run search automatically when parameters are provided
+    doSearch();
+  }
+})();
+</script>
+
+</head>
+<body>
+  <header class="site-header">
+    <nav class="navbar navbar-expand-lg navbar-dark" aria-label="Main navigation">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <img src="/static/img/5269672762366693828.jpg" alt="logo" class="brand-img-small"> 
+          <span class="brand">Dieller <span class="brand-accent">Bus</span></span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNav">
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+            <li class="nav-item"><a class="nav-link" href="/">Головна</a></li>
+            <li class="nav-item"><a class="nav-link" href="/nashbusindex/">Каталог</a></li>
+            <li class="nav-item"><a class="nav-link" href="/kvitokindex/">Квитки</a></li>
+            
+          </ul>
+
+          <div class="d-flex align-items-center ms-lg-3">
+            
+              <a href="/register/" class="btn btn-cta me-2">Зареєструватись</a>
+            
+          </div>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    
+  </main>
+
+  <footer class="site-footer mt-5">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <h5>Про нас</h5>
+          <p class="muted-small">Dieller Bus — надійні перевезення між містами. Безпечні маршрути та сучасний автопарк.</p>
+        </div>
+        <div class="col-md-4 mb-3">
+          <h5>Швидкі посилання</h5>
+          <ul class="footer-links">
+            <li><a href="/nashbusindex/">Каталог</a></li>
+            <li><a href="/kvitokindex/">Квитки</a></li>
+            <li><a href="/register/">Реєстрація</a></li>
+          </ul>
+        </div>
+        <div class="col-md-4 mb-3 text-md-end">
+          <h5>Контакти</h5>
+          <div class="muted-small">Тел: <a href="tel:+380000000000">+38 (000) 000-00-00</a></div>
+          <div class="socials mt-2">📧 <a href="mailto:info@dieller.bus">info@dieller.bus</a></div>
+        </div>
+      </div>
+
+      <div class="footer-bottom mt-3 d-flex justify-content-between">
+        <div>© Dieller Bus — Всі права захищені</div>
+        <div class="muted-small">Made with ❤️</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+  <script src="/static/js/animations.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() { AOS.init({ once: true, duration: 800 }); });
+  </script>
+
+  
+  
+  <!-- Floating contact button -->
+  <a class="fab-contact" href="tel:+380000000000" aria-label="Contact us">📞</a>
+
+  <script>
+    try{ gsap.from('.brand', {y:-8, opacity:0, duration:0.6, ease:'power2.out'}); }catch(e){}
+  </script>
+</body>
+</html>
