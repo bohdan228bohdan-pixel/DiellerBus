@@ -3,7 +3,7 @@
 @import url('buttons.css');
 @import url('main.css');
 
-/* Додаткові стилі для kvitokindex.html */
+/* Короткі стилі сторінки квитків в стилі головної */
 .kvitok-info {
   max-width: 1100px;
   margin: 60px auto 40px;
@@ -16,73 +16,65 @@
   z-index: 1;
 }
 
-/* Additional glow/gradient styles for trip cards */
-.ticket-page {
-  background: linear-gradient(180deg, rgba(20,20,23,0.02) 0%, rgba(10,10,12,0.03) 100%);
+/* Page basics (main theme handles most vars) */
+.ticket-page { padding: 28px 0 60px; }
+.ticket-title { font-weight:900; margin:0 0 6px; }
+.ticket-sub { color:var(--muted); margin:0 0 18px; }
+
+/* ensure form controls match main theme */
+.form-control, .form-select {
+  width:100%;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:#0f0f0f;
+  color:#fff;
+  padding:10px 12px;
+  outline:none;
+}
+.form-control:focus, .form-select:focus {
+  border-color: rgba(225,11,0,0.55);
+  box-shadow: 0 0 0 3px rgba(225,11,0,0.12);
 }
 
+/* Trip cards: use main theme appearance (no heavy glow) */
 .trip-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border: 1px solid rgba(255,255,255,0.04);
-  position: relative;
-  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.25));
+  border:1px solid rgba(255,255,255,0.04);
+  border-radius:16px;
+  padding:14px;
+  margin:12px 0;
   transition: transform .18s ease, box-shadow .18s ease;
 }
+.trip-card:before, .trip-card:after { display:none; content:none; }
+.trip-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.45); }
 
-.trip-card:before {
-  content: "";
-  position: absolute;
-  inset: -50% -50% -50% -50%;
-  background: radial-gradient(1200px 1200px at 10% 10%, rgba(255,150,80,0.03), transparent 10%),
-              linear-gradient(90deg, rgba(120,80,255,0.02), rgba(80,200,255,0.01));
-  opacity: 0.9;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  animation: slow-pan 8s linear infinite;
-}
+/* align with main trip-grid */
+.trip-grid { display:grid; grid-template-columns: 1fr .8fr 1fr .7fr .8fr auto; gap:12px; align-items:start; }
+@media (max-width:992px){ .trip-grid{ grid-template-columns: 1fr 1fr; } }
 
-@keyframes slow-pan {
-  0% { transform: translate3d(0,0,0) rotate(0deg); }
-  50% { transform: translate3d(-6%,2%,0) rotate(1deg); }
-  100% { transform: translate3d(0,0,0) rotate(0deg); }
-}
+.k{ color:var(--muted); font-size:12px; font-weight:800; margin-bottom:6px; }
+.v{ color:#fff; font-weight:800; }
+.sub{ color:var(--muted); font-size:12px; margin-top:4px; line-height:1.35; }
 
-.trip-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 10px 30px rgba(30,30,40,0.5), 0 0 40px rgba(200,120,255,0.06);
-}
+.price { color:var(--accent-red-soft); font-weight:900; font-size:18px; }
 
-.k { font-size: 12px; color: rgba(255,255,255,0.6); }
-.v { font-size: 18px; font-weight:700; }
-.sub { font-size: 12px; color: rgba(255,255,255,0.5); }
-
-.price {
-  font-size: 20px;
-  text-shadow: 0 2px 18px rgba(255,40,80,0.06);
-  background: linear-gradient(90deg, #ff8a00, #ff3d81);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
+/* Buttons consistent with main theme */
 .choose-btn, .buy-now {
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+  border:none;
+  background: linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));
+  color:#fff;
+  font-weight:900;
+  border-radius:12px;
+  padding:10px 14px;
 }
+.choose-btn:disabled, .buy-now:disabled { opacity:0.45; cursor:not-allowed; }
 
-.choose-btn:hover, .buy-now:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 30px rgba(120,80,255,0.08), 0 0 18px rgba(255,80,120,0.05);
-}
+.trip-footer { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06); }
+.badge-soft { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.04); color:var(--muted); font-weight:800; font-size:12px; }
 
-.badge.glow {
-  box-shadow: 0 6px 18px rgba(255,80,120,0.08), 0 0 14px rgba(120,80,255,0.06);
-}
+.stop-list div { padding:4px 0; border-bottom:1px dashed rgba(255,255,255,0.02); }
 
-.stop-list div { padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.02); }
-
-@media (max-width: 768px) {
-  .trip-card { padding: 12px; }
-  .v { font-size: 16px; }
+@media (max-width:768px) {
+  .trip-card { padding:12px; }
+  .v { font-size:16px; }
 }
