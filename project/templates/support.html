@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}Техпідтримка — Dieller Bus{% endblock %}
+
+{% load static %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container support-container" style="max-width:940px;margin:40px auto;background-color:#0b0b0b;color:#ffffff;padding:26px;border-radius:12px;">
+  <h2>Техпідтримка</h2>
+  <p class="muted-small">Виберіть тип проблеми або опишіть свою ситуацію. Наші оператори відповідають якнайшвидше.</p>
+
+  {# Quick preset buttons removed per request: keep the presets available in the form select only #}
+
+  <div style="margin-top:18px">
+    <h5>Нове звернення</h5>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {# preset field removed from UI per user request; users can enter Subject manually #}
+      <div class="mb-2">
+        {{ form.subject.label_tag }}
+        {{ form.subject }}
+      </div>
+      <!-- Ticket selector removed per UI request -->
+      <div class="mb-2">
+        <label>Опис проблеми</label>
+        <textarea name="initial_message" rows="4" class="form-control" required></textarea>
+      </div>
+      <div class="mb-2">
+        <label>Прикріпити фото (опційно)</label>
+        <input type="file" name="initial_attachment" accept="image/*" class="form-control" />
+      </div>
+      <button class="btn btn-cta">Відправити звернення</button>
+    </form>
+  </div>
+
+  <hr style="margin:24px 0">
+  <h5>Мої звернення</h5>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+    {% if tickets %}
+      {% for t in tickets %}
+        <div class="panel-dark" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <a class="panel-link" href="{% url 'main:support_ticket_detail' t.id %}">Звернення #{{ t.id }} — {{ t.subject|default:t.preset.title }}</a>
+            <div class="muted-small">{{ t.created_at|date:'d.m.Y H:i' }} · {{ t.get_status_display }}</div>
+          </div>
+          <div style="text-align:right">
+            {% if t.status == 'new' %}
+              <span class="badge bg-secondary">Не в роботі</span>
+            {% elif t.status == 'in_progress' %}
+              <span class="badge bg-warning text-dark">В роботі</span>
+            {% else %}
+              <span class="badge bg-success">Закрито</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="muted-small">Поки що звернень немає.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+{% block title %}Профіль — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Profile page styles adapted to theme */
+.profile-container{max-width:720px;margin:60px auto;padding:28px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.45));border:1px solid rgba(255,255,255,0.03)}
+.profile-header{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:16px}
+.avatar{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--accent-red);font-weight:800;color:#fff;font-size:2.4rem;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
+.info-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+.profile-label{color:var(--muted);font-weight:600}
+.profile-value{font-weight:700}
+.change-pass-btn,.profile-btn-secondary{display:block;width:100%;padding:12px;border-radius:10px;margin-top:12px;text-align:center}
+.change-pass-btn{background:#111;color:var(--accent-red);border:1px solid rgba(255,255,255,0.03)}
+.logout-btn{display:block;width:100%;padding:12px;border-radius:10px;background:linear-gradient(90deg,#c0392b,#e74c3c);color:#fff;border:none;margin-top:10px}
+@media(max-width:600px){.profile-container{margin:40px 12px;padding:18px}}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="profile-container" data-aos="fade-up">
+    <div class="profile-header">
+      <div class="avatar">{{ user.username|slice:":1"|upper }}</div>
+      <h2 style="color:#fff;margin:0">Профіль користувача</h2>
+    </div>
+
+    <div class="profile-info">
+      <div class="info-row"><span class="profile-label">Логін:</span><span class="profile-value">{{ user.username }}</span></div>
+      <div class="info-row"><span class="profile-label">Email:</span><span class="profile-value">{{ user.email|default:"Не вказано" }}</span></div>
+      <div class="info-row"><span class="profile-label">Дата реєстрації:</span><span class="profile-value">{{ user.date_joined|date:'d.m.Y H:i' }}</span></div>
+    </div>
+
+    <div class="profile-balance" style="margin-top:12px">
+      <div class="info-row"><span class="profile-label">Баланс:</span><span class="profile-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
+    </div>
+
+    <div class="profile-tickets" style="margin-top:12px">
+      <div class="info-row" style="flex-direction:column;align-items:flex-start;padding:0">
+        <span class="profile-label" style="margin-bottom:8px">Куплені квитки:</span>
+        <ul style="padding-left:18px;color:var(--muted)">
+          <li>Квиток №12345 — Луцьк → Люблін — 01.12.2025</li>
+          <li>Квиток №12346 — Ковель → Хелм — 15.11.2025</li>
+        </ul>
+      </div>
+    </div>
+
+    <a href="{% url 'password_change' %}" class="change-pass-btn">🔐 Змінити пароль</a>
+    <a href="#" class="profile-btn-secondary" onclick="alert('Функція у розробці')">✉️ Змінити email</a>
+
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="logout-btn">🚪 Вийти з акаунту</button>
+    </form>
+  </div>
+{% endblock %}

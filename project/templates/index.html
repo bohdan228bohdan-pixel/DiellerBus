@@ -54,6 +54,52 @@
     @media(max-width:576px){.home-search .home-grid{grid-template-columns:1fr}}
     .home-search input,.home-search select{width:100%;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:#0f0f0f;color:#fff;padding:10px 12px}
     .home-search .home-find{height:46px;border-radius:10px;border:none;font-weight:900;background:linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));color:#fff;padding:0 14px;cursor:pointer}
+
+    /* Hero highlights and badges */
+    .eyebrow{font-weight:700;color:var(--accent-red);letter-spacing:1px}
+    .title{font-size:2.4rem;margin:6px 0 6px;font-weight:900}
+    .lead{color:var(--muted);font-size:1.02rem;line-height:1.5}
+    .lead .em{background:linear-gradient(90deg,rgba(255,100,100,0.12),rgba(255,50,50,0.06));padding:2px 6px;border-radius:6px;color:#fff;font-weight:800}
+
+    .hero-highlights{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .hl-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,#111,#0a0a0a);border:1px solid rgba(255,255,255,0.04);font-weight:800;color:#fff}
+    .hl-pill .dot{width:10px;height:10px;border-radius:50%}
+    .hl-fast .dot{background:linear-gradient(90deg,#ffd166,#ff9f43)}
+    .hl-comfort .dot{background:linear-gradient(90deg,#6ee7b7,#10b981)}
+    .hl-safe .dot{background:linear-gradient(90deg,#93c5fd,#3b82f6)}
+
+    /* Features emphasis */
+    .feature{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.06));padding:16px;border-radius:12px;text-align:center}
+    .feature .icon{font-size:22px;margin-bottom:8px;width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;margin:0 auto 12px;color:#fff}
+    .feature-1 .icon{background:linear-gradient(90deg,#ff9a9e,#ff6b6b)}
+    .feature-2 .icon{background:linear-gradient(90deg,#ffd166,#ff9f43)}
+    .feature-3 .icon{background:linear-gradient(90deg,#93c5fd,#3b82f6)}
+    .feature h4{font-weight:900;margin-bottom:6px;color:#ff6b6b}
+
+    @media(max-width:720px){
+      .title{font-size:1.8rem}
+      .hero-highlights{flex-direction:column;align-items:flex-start}
+    }
+    /* Hot trips scroll */
+    .hot-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+    .hot-row{display:flex;gap:12px}
+    .hot-card{min-width:260px;flex:0 0 auto;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.04);text-decoration:none;color:inherit}
+    .hot-img img{width:100%;height:140px;object-fit:cover;display:block}
+    .hot-body{padding:12px}
+    .hot-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .hot-title{font-weight:800;color:#fff}
+    .hot-badge{background:#ff6b6b;color:#fff;padding:4px 8px;border-radius:8px;font-weight:800;font-size:0.85rem}
+    .hot-sub{color:var(--muted);font-size:0.95rem;margin-top:6px}
+    .hot-meta{font-weight:700;color:#f87171;margin-top:8px}
+
+    @media(max-width:576px){
+      .hero-inner{display:flex;flex-direction:column;align-items:center}
+      .hero-left{width:100%;text-align:center}
+      .home-search .home-grid{grid-template-columns:1fr;gap:8px}
+      .hero-highlights{justify-content:center}
+      .hot-row{padding:8px 4px}
+      .hot-card{min-width:220px}
+    }
   </style>
 </head>
 <body>
@@ -63,9 +109,9 @@
 
       <nav class="nav-actions">
         {% if user.is_authenticated %}
-          <a href="{% url 'profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
+          <a href="{% url 'main:profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
         {% else %}
-          <a href="{% url 'registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
+          <a href="{% url 'main:registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
         {% endif %}
       </nav>
     </div>
@@ -76,26 +122,30 @@
       <div class="overlay"></div>
       <div class="container hero-inner">
         <div class="hero-left" data-aos="fade-right">
-          <p class="eyebrow">Маршрут</p>
-          <h1 class="title">Луцьк — Пулави</h1>
-          <p class="lead">Комфортні рейси: Луцьк — Ковель — Ягодин — Хелм — Люблін — Пулави. Зручний розклад та безпечні поїздки.</p>
+          <p class="eyebrow">ПОДОРОЖУЙ РОЗУМНО</p>
+          <h1 class="title">Dieller Bus </h1>
+          <p class="lead"><span class="em">Гнучкі маршрути</span>, <span class="em">дружня атмосфера</span> і <span class="em">місця, що бронюються за хвилини</span>. Знайди попутників, зручний рейс або просто купи квиток і вирушай назустріч пригодам — <strong>швидко</strong>, <strong>безпечно</strong> та з комфортом.</p>
 
           <div class="hero-ctas">
-            <a href="{% url 'kvitokindex' %}" class="btn btn-primary btn-book">Забронювати квиток</a>
-            <a href="{% url 'nashbusindex' %}" class="btn btn-outline-light btn-details">Наші автобуси</a>
+            <a href="{% url 'main:kvitokindex' %}" class="btn btn-primary btn-book">Забронювати квиток</a>
+            <a href="{% url 'main:nashbusindex' %}" class="btn btn-outline-light btn-details">Наші автобуси</a>
+            <a href="{% url 'main:contacts' %}" class="btn btn-primary btn-book">Контакти</a>
+          </div>
+          
+          <div class="hero-highlights" aria-hidden="false">
+            <div class="hl-pill hl-fast"><span class="dot" aria-hidden="true"></span> Миттєве бронювання</div>
+            <div class="hl-pill hl-comfort"><span class="dot" aria-hidden="true"></span> Комфортні автобуси</div>
+            <div class="hl-pill hl-safe"><span class="dot" aria-hidden="true"></span> Гарантована безпека</div>
           </div>
           
           <!-- Compact homepage search (redirects to ticket page) -->
-          <form class="home-search" action="{% url 'kvitokindex' %}" method="get" role="search" aria-label="Пошук рейсу">
+          <form class="home-search" action="{% url 'main:kvitokindex' %}" method="get" role="search" aria-label="Пошук рейсу">
             <div class="home-grid" role="group" aria-label="Параметри пошуку">
               <input name="from" type="text" placeholder="Відправлення (місто)" aria-label="Звідки">
               <button type="button" class="swap-btn" onclick="const a=this.previousElementSibling.value,b=this.nextElementSibling.value;this.previousElementSibling.value=b;this.nextElementSibling.value=a;">⇄</button>
               <input name="to" type="text" placeholder="Куди (місто)" aria-label="Куди">
               <input name="date" type="date" aria-label="Дата">
-              <select name="dir" aria-label="Напрям">
-                <option value="UA_PL">Україна → Польща</option>
-                <option value="PL_UA">Польща → Україна</option>
-              </select>
+              
               <button class="home-find" type="submit" aria-label="Знайти">Знайти</button>
             </div>
           </form>
@@ -116,21 +166,21 @@
     <section class="features container" data-aos="fade-up">
       <div class="row g-4">
         <div class="col-md-4">
-          <div class="feature">
+          <div class="feature feature-1">
             <div class="icon">🚍</div>
             <h4>Сучасні автобуси</h4>
             <p>Зручні сидіння, кондиціонування, Wi‑Fi на борту.</p>
           </div>
         </div>
         <div class="col-md-4">
-          <div class="feature">
+          <div class="feature feature-2">
             <div class="icon">⏱️</div>
             <h4>Точний розклад</h4>
             <p>Плануйте поїздку впевнено — ми дбаємо про час.</p>
           </div>
         </div>
         <div class="col-md-4">
-          <div class="feature">
+          <div class="feature feature-3">
             <div class="icon">🔒</div>
             <h4>Безпека</h4>
             <p>Досвідчені водії та регулярні техогляди.</p>
@@ -139,22 +189,35 @@
       </div>
     </section>
 
-    <!-- НАШІ МАРШРУТИ -->
+    <!-- ГАРЯЧІ ПОЇЗДКИ -->
     <section class="routes container" data-aos="fade-up">
-      <h2 class="routes-title">НАШІ МАРШРУТИ</h2>
-      <p class="routes-sub">Маршрути розроблені так, щоб ви могли подорожувати з максимальним комфортом і без зайвих турбот.</p>
+      <h2 class="routes-title">Гарячі поїздки!</h2>
+      <p class="routes-sub">Популярні напрямки — перегортайте вліво/вправо, щоб побачити деталі.</p>
 
-      <div class="row g-4">
-        <div class="col-md-6">
-          <div class="route-card">
-            <!-- фото ти підставиш сам -->
-            <img src="{% static 'img/Пулави.jpg' %}" alt="Луцьк — Пулави">
-            <div class="route-body">
-              <h3 class="route-name">ЛУЦЬК → ПУЛАВИ</h3>
-              <p class="route-desc">Рейс Луцьк → Пулави — зручний спосіб дістатися до Польщі. Комфортні автобуси, зручний графік та підтримка.</p>
-            </div>
+      <div class="hot-scroll" style="margin-top:12px;">
+        {% if hot_trips %}
+          <div class="hot-row">
+            {% for trip in hot_trips %}
+              <a class="hot-card" href="{% url 'main:kvitokindex' %}?from={{ trip.start_city.name }}&to={{ trip.end_city.name }}{% if trip.date %}&date={{ trip.date|date:'Y-m-d' }}{% endif %}">
+                <div class="hot-img">
+                  <img src="{% static 'img/logo.jpg' %}" alt="{{ trip.route.name }}">
+                </div>
+                <div class="hot-body">
+                  <div class="hot-top">
+                    <div class="hot-title">{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</div>
+                    {% if trip.sold and trip.sold > 3 %}
+                      <span class="hot-badge">ТОП</span>
+                    {% endif %}
+                  </div>
+                  <div class="hot-sub">{{ trip.start_city }} → {{ trip.end_city }}</div>
+                  <div class="hot-meta">{{ trip.date|date:'d.m.Y' }} · {{ trip.base_price|floatformat:0 }} {{ trip.currency }}</div>
+                </div>
+              </a>
+            {% endfor %}
           </div>
-        </div>
+        {% else %}
+          <div style="color:var(--muted)">Поки немає гарячих поїздок.</div>
+        {% endif %}
       </div>
     </section>
 
@@ -162,7 +225,7 @@
       <div class="cta-block">
         <h2>Готові вирушити в подорож?</h2>
         <p>Забронюйте місце зараз — швидко та зручно.</p>
-        <a href="{% url 'kvitokindex' %}" class="btn btn-cta-large">Забронювати квиток</a>
+        <a href="{% url 'main:kvitokindex' %}" class="btn btn-cta-large">Забронювати квиток</a>
       </div>
     </section>
   </main>
@@ -182,3 +245,4 @@
   </script>
 </body>
 </html>
+

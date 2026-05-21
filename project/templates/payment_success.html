@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Оплата успішна — Dieller Bus{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="card p-4 text-center">
+    <h2>Дякуємо — оплата успішна</h2>
+    {% if ticket %}
+      <p>Квиток №{{ ticket.id }}: <strong>{{ ticket.from_city }} → {{ ticket.to_city }}</strong></p>
+      <p>Дата: {{ ticket.travel_date|date:'d.m.Y' }} — Пасажирів: {{ ticket.passengers }} — Сума: {{ ticket.total_price }} грн</p>
+      <p><a class="btn btn-primary" href="{% url 'main:download_ticket' ticket.id %}">Завантажити квиток (PDF)</a></p>
+      <p>Квиток також надіслано на Вашу пошту (якщо вказана) і доступний у профілі.</p>
+    {% else %}
+      <p>Оплата пройшла успішно. Перевірте свій профіль — квиток має з'явитися там.</p>
+    {% endif %}
+
+    <p class="mt-3"><a href="{% url 'main:profile' %}" class="btn btn-light">Перейти в профіль</a></p>
+  </div>
+</div>
+{% endblock %}

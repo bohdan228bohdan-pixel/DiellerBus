@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<style>
+
+/* ===== PAGE ===== */
+.contacts-page{
+  padding: 80px 20px;
+}
+
+/* TITLE */
+.contacts-title{
+  text-align:center;
+  font-size:42px;
+  font-weight:900;
+  margin-bottom:10px;
+}
+
+.contacts-sub{
+  text-align:center;
+  color:#aaa;
+  margin-bottom:50px;
+}
+
+/* GRID */
+.contacts-grid{
+  display:grid;
+  grid-template-columns: 2fr 1fr;
+  gap:30px;
+}
+
+/* ===== CARD ===== */
+.card{
+  background:#111;
+  border-radius:15px;
+  padding:30px;
+  border:1px solid #222;
+  box-shadow:0 0 30px rgba(0,0,0,0.5);
+}
+
+/* ===== SOCIALS ===== */
+.socials{
+  display:grid;
+  grid-template-columns: repeat(2,1fr);
+  gap:20px;
+  margin-bottom:30px;
+}
+
+.social{
+  background:#151515;
+  padding:20px;
+  border-radius:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  transition:0.3s;
+}
+
+.social:hover{
+  transform:translateY(-5px);
+  box-shadow:0 0 20px rgba(255,0,0,0.3);
+}
+
+.social span{
+  color:#ccc;
+}
+
+/* ===== FORM ===== */
+.form input,
+.form textarea{
+  width:100%;
+  background:#0d0d0d;
+  border:1px solid #222;
+  padding:12px;
+  margin-bottom:15px;
+  border-radius:8px;
+  color:#fff;
+}
+
+.form textarea{
+  height:120px;
+  resize:none;
+}
+
+/* BUTTON */
+.btn-send{
+  background: linear-gradient(135deg,#ff2a2a,#ff0000);
+  border:none;
+  padding:12px 25px;
+  border-radius:25px;
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+.btn-send:hover{
+  box-shadow:0 0 20px rgba(255,0,0,0.8);
+}
+
+/* ===== CONTACT INFO ===== */
+.contact-info p{
+  margin:10px 0;
+  color:#ccc;
+}
+
+/* MAP */
+.map{
+  margin-top:20px;
+  border-radius:12px;
+  overflow:hidden;
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .contacts-grid{
+    grid-template-columns:1fr;
+  }
+
+  .socials{
+    grid-template-columns:1fr;
+  }
+}
+
+</style>
+
+
+<div class="contacts-page">
+
+  <div class="contacts-title">
+    Контакти та соцмережі
+  </div>
+
+  <div class="contacts-sub">
+    Напишіть або зателефонуйте — відповідаємо швидко 🚀
+  </div>
+
+  <div class="contacts-grid">
+
+    <!-- LEFT -->
+    <div>
+
+      <!-- SOCIALS -->
+      <div class="socials">
+
+        <a href="https://t.me/***" class="social">
+          <div>
+            <strong>Telegram</strong><br>
+            <span>@***</span>
+          </div>
+          <span>→</span>
+        </a>
+
+        <a href="https://instagram.com/***" class="social">
+          <div>
+            <strong>Instagram</strong><br>
+            <span>@***</span>
+          </div>
+          <span>→</span>
+        </a>
+
+        <a href="https://tiktok.com/@***" class="social">
+          <div>
+            <strong>TikTok</strong><br>
+            <span>@***</span>
+          </div>
+          <span>→</span>
+        </a>
+
+        <a href="https://youtube.com/***" class="social">
+          <div>
+            <strong>YouTube</strong><br>
+            <span>@***</span>
+          </div>
+          <span>→</span>
+        </a>
+
+      </div>
+
+
+      <!-- FORM -->
+      <div class="card">
+        <h3>Напишіть нам</h3>
+
+        <form method="post" class="form">
+          {% csrf_token %}
+
+          <input type="text" name="name" placeholder="Ваше ім'я" required>
+          <input type="tel" name="phone" placeholder="+380..." required>
+          <input type="email" name="email" placeholder="Email">
+          <textarea name="message" placeholder="Ваше повідомлення"></textarea>
+
+          <button type="submit" class="btn-send">
+            Відправити
+          </button>
+        </form>
+
+      </div>
+
+    </div>
+
+
+    <!-- RIGHT -->
+    <div class="card">
+
+      <h3>Наші контакти</h3>
+
+      <div class="contact-info">
+        <p>📞 <a href="tel:+380*********">+380 *** *** ** **</a></p>
+        <p>📧 email@***.com</p>
+        <p>📍 Луцьк</p>
+      </div>
+
+      <!-- MAP -->
+      <div class="map">
+        <iframe 
+          src="https://maps.google.com/maps?q=Луцьк&t=&z=13&ie=UTF8&iwloc=&output=embed"
+          width="100%" 
+          height="250" 
+          style="border:0;">
+        </iframe>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Перевірка квитка #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto;text-align:center">
+  {% if valid %}
+    <h2 style="color:#10b981">Дійсний квиток — №{{ ticket.id }}</h2>
+  {% else %}
+    <h2 style="color:#ef4444">Невірний або підроблений квиток</h2>
+  {% endif %}
+
+  <div style="margin-top:12px;background:#fff;padding:18px;border-radius:12px;text-align:left">
+    <div style="font-weight:800">Маршрут: {{ ticket.from_city }} → {{ ticket.to_city }}</div>
+    <div style="color:var(--muted);margin-top:6px">Дата: {{ ticket.travel_date|date:'d.m.Y' }} · Пасажирів: {{ ticket.passengers }}</div>
+    <h4 style="margin-top:12px">Пасажири</h4>
+    <ul>
+      {% for p in passengers %}
+        <li>{{ p.first_name }} {{ p.last_name }}</li>
+      {% empty %}
+        <li>Пасажирів не вказано</li>
+      {% endfor %}
+    </ul>
+
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <a href="{{ download_url }}" class="btn btn-primary">Відкрити PDF квитка</a>
+      <a href="{% url 'main:ticket_view' ticket.id %}" class="btn btn-outline-light">Переглянути в кабінеті</a>
+    </div>
+
+    <div style="margin-top:12px;color:var(--muted);font-size:12px">Підпис: {{ signature }}</div>
+  </div>
+</div>
+{% endblock %}

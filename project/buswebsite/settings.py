@@ -16,17 +16,31 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load local environment overrides from 'local_settings.py' if present.
+# This file can set os.environ variables for development (keep it out of VCS).
+_local_settings_path = os.path.join(BASE_DIR, 'local_settings.py')
+if os.path.exists(_local_settings_path):
+    try:
+        with open(_local_settings_path, 'r', encoding='utf-8') as _f:
+            _code = compile(_f.read(), _local_settings_path, 'exec')
+            exec(_code, globals())
+    except Exception:
+        pass
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-^qn)$tc2yr4dpoao*vlh7xilr96y%x6e!lf+)aeyv*$q33k!$m'
+# SECURITY: load sensitive settings from environment where possible
+# In production set DJANGO_SECRET_KEY and DJANGO_DEBUG appropriately.
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-^qn)$tc2yr4dpoao*vlh7xilr96y%x6e!lf+)aeyv*$q33k!$m')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Note: DEBUG defaults to 'True' for local development. Set DJANGO_DEBUG='False'
+# in production to disable Django debug pages and enable stricter headers.
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS should be explicitly set in production (comma-separated)
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 
 # Application definition
@@ -41,9 +55,27 @@ INSTALLED_APPS = [
     'main',
 ]
 
+# Optional Channels integration (only enable if package available)
+try:
+    import channels  # type: ignore
+except Exception:
+    CHANNELS_AVAILABLE = False
+else:
+    CHANNELS_AVAILABLE = True
+
+if CHANNELS_AVAILABLE:
+    INSTALLED_APPS += ['channels']
+    ASGI_APPLICATION = 'buswebsite.asgi.application'
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        }
+    }
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # static file serving
+    'main.middleware.security_headers.SecurityHeadersMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -66,6 +98,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'main.context_processors.site_config',
             ],
         },
     },
@@ -111,7 +144,9 @@ LANGUAGE_CODE = 'uk'
 
 TIME_ZONE = 'Europe/Kiev'
 
-USE_I18N = True
+# Allow disabling Django i18n loading via environment for faster startup during
+# local debugging (set DJANGO_USE_I18N='False' to disable).
+USE_I18N = os.environ.get('DJANGO_USE_I18N', 'True') == 'True'
 
 USE_TZ = True
 
@@ -134,19 +169,22 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.environ.get('EMAIL_HOST', "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 
-EMAIL_HOST_USER = "dieller7073@gmail.com"
-EMAIL_HOST_PASSWORD = "upcpnpvmfxzzorpb"
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', "")
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
-DEFAULT_FROM_EMAIL = "Dieller Bus <dieller7073@gmail.com>"
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <no-reply@example.com>")
 
 # Stripe
 STRIPE_PUBLIC_KEY = ""
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+# LiqPay (use environment variables for keys)
+LIQPAY_PUBLIC_KEY = os.environ.get("LIQPAY_PUBLIC_KEY", "")
+LIQPAY_PRIVATE_KEY = os.environ.get("LIQPAY_PRIVATE_KEY", "")
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
@@ -159,19 +197,68 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# WhiteNoise
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← ВАЖЛИВО
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+# Security-related cookie and header defaults (adjust via environment)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False') == 'True'
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False') == 'True'
+SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'False') == 'True'
+SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'False') == 'True'
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False') == 'True'
+X_FRAME_OPTIONS = 'DENY'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Static files (WhiteNoise)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Logging: write INFO+ logs to a rotating file and to console. Ensure log directory exists.
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+try:
+    os.makedirs(LOG_DIR, exist_ok=True)
+except Exception:
+    pass
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOG_DIR, 'django.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'main': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    }
+}
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Redirect unauthenticated users to registration page when protected views are accessed
+LOGIN_URL = '/register/'
+
 STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [

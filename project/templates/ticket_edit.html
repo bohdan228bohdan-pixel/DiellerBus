@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Редагувати квиток #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto">
+  <h3>Редагувати квиток №{{ ticket.id }}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <div style="margin-bottom:12px">{{ form.as_p }}</div>
+    <h5>Пасажири</h5>
+    <div>
+      {{ formset.management_form }}
+      {% for f in formset.forms %}
+        <div style="border:1px solid #eee;padding:10px;border-radius:8px;margin-bottom:8px">
+          {{ f.as_p }}
+          {% if f.instance.pk %}
+            <label>Видалити: {{ f.DELETE }}</label>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-primary" type="submit">Зберегти</button>
+      <a href="{% url 'main:ticket_view' ticket.id %}" class="btn btn-outline-light">Скасувати</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -27,8 +27,10 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,2
       <h2>Реєстрація</h2>
       {% if register_error %}<div class="error-message">{{ register_error }}</div>{% endif %}
       {% if register_success %}<div class="success-message">{{ register_success }}</div>{% endif %}
-      <form action="{% url 'registerindex' %}" method="post">
+        <div id="registerError" class="error-message" style="display:none;margin-bottom:10px"></div>
+        <form id="registerForm" action="{% url 'main:registerindex' %}" method="post">
         {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
         <div class="form-group">
           <label for="login">Логін</label>
           <input type="text" id="login" name="login" placeholder="Введіть логін" required />
@@ -57,8 +59,9 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,2
     <div class="auth-card" id="loginBox" style="display:none;">
       <h2>Вхід</h2>
       {% if login_error %}<div class="error-message">{{ login_error }}</div>{% endif %}
-      <form action="{% url 'registerindex' %}" method="post">
+      <form action="{% url 'main:registerindex' %}" method="post">
         {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
         <div class="form-group">
           <label for="login2">Логін</label>
           <input type="text" id="login2" name="login" placeholder="Введіть логін" required />
@@ -82,4 +85,45 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,2
   function showRegister(){document.getElementById('registerBox').style.display='block';document.getElementById('loginBox').style.display='none';}
   {% if login_error %}showLogin();{% endif %}
 </script>
+<script>
+  (function(){
+    const form = document.getElementById('registerForm');
+    if (!form) return;
+    const errBox = document.getElementById('registerError');
+
+    form.addEventListener('submit', async function(e){
+      if (window._allowRegisterSubmit) { window._allowRegisterSubmit = false; return; }
+      e.preventDefault();
+      if (errBox) { errBox.style.display='none'; errBox.textContent=''; }
+
+      const username = document.getElementById('login').value.trim();
+      const email = document.getElementById('emeil').value.trim();
+      const password = document.getElementById('password').value || '';
+      const repeat = document.getElementById('repeatpass').value || '';
+
+      if (!username || !email || !password || !repeat){ showError('Заповніть всі поля'); return; }
+      if (password !== repeat){ showError('Паролі не співпадають'); return; }
+
+      try{
+        const url = '{% url "main:check_user_availability" %}?username='+encodeURIComponent(username)+'&email='+encodeURIComponent(email);
+        const resp = await fetch(url, {credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.username_available === false){ showError('Такий логін вже існує'); return; }
+        if (data.email_available === false){ showError('Така пошта вже використовується'); return; }
+
+        // all good — allow native submit to continue (prevents infinite loop)
+        window._allowRegisterSubmit = true;
+        form.submit();
+      }catch(err){
+        // network error — fallback to submitting so server-side still validates
+        window._allowRegisterSubmit = true;
+        form.submit();
+      }
+    });
+
+    function showError(msg){ if (!errBox) return; errBox.textContent = msg; errBox.style.display = 'block'; errBox.scrollIntoView({behavior:'smooth', block:'center'}); }
+  })();
+</script>
 {% endblock %}
+
+

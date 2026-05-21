@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Перегляд квитка #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto">
+  <div style="display:flex;gap:16px;align-items:flex-start">
+    <div style="flex:1;background:#0f0f0f;padding:20px;border-radius:10px;color:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h3 style="margin:0">Квиток №{{ ticket.id }}</h3>
+          <div class="muted-small">Маршрут: {{ ticket.from_city }} → {{ ticket.to_city }}</div>
+          <div class="muted-small">Дата: {{ ticket.travel_date|date:'d.m.Y' }} · Пасажирів: {{ ticket.passengers }}</div>
+          <div class="muted-small" style="margin-top:6px">Клієнт: {{ ticket.user.username }}{% if ticket.user.email %} · <small>{{ ticket.user.email }}</small>{% endif %}</div>
+          <div class="muted-small">Контакт: {{ ticket.contact_phone }}{% if ticket.contact_email %} · <small>{{ ticket.contact_email }}</small>{% endif %}</div>
+          <div class="muted-small">Куплено: {{ ticket.created_at|date:'d.m.Y H:i' }}</div>
+        </div>
+        <div style="text-align:right">
+          {% if ticket.paid %}
+            <div style="background:linear-gradient(90deg,#10b981,#059669);color:#fff;padding:6px 10px;border-radius:8px;font-weight:700;margin-bottom:8px">ОПЛАЧЕНО</div>
+          {% else %}
+            <div style="background:#f59e0b;color:#fff;padding:6px 10px;border-radius:8px;font-weight:700;margin-bottom:8px">РЕЗЕРВАЦІЯ</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <hr style="border-color:rgba(255,255,255,0.05);margin:12px 0" />
+
+      <h5 style="margin:6px 0">Пасажири</h5>
+      <ul>
+       {% for p in passengers %}
+         <li>{{ p.first_name }} {{ p.last_name }}</li>
+       {% empty %}
+         <li>Пасажирів не вказано</li>
+       {% endfor %}
+      </ul>
+
+      <h5 style="margin:6px 0">Платіж</h5>
+      {% if last_payment %}
+        <div style="font-weight:700">Провайдер: {{ last_payment.provider }}</div>
+        <div style="font-size:14px">ID транзакції: {{ last_payment.provider_payment_id }}</div>
+        <div style="font-size:13px;color:var(--muted)">Сума: {{ last_payment.amount }} {{ last_payment.currency }} · Статус: {{ last_payment.get_status_display }}</div>
+      {% else %}
+        <div style="color:var(--muted)">Платіжні дані відсутні</div>
+      {% endif %}
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <a class="btn btn-primary" href="{% url 'main:download_ticket' ticket.id %}?sig={{ sig }}">Завантажити квиток (PDF)</a>
+        {# Only allow staff (but not carrier accounts) to edit/refund here #}
+        {% if user.is_staff and not is_carrier_view %}
+          <a class="btn btn-outline-light" href="{% url 'main:ticket_edit' ticket.id %}">Редагувати</a>
+          <form method="post" action="{% url 'main:ticket_refund' ticket.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger" onclick="return confirm('Повернути кошти за квиток?')">Повернути кошти</button></form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="width:220px;display:flex;flex-direction:column;align-items:center;gap:8px">
+      {% if qr_b64 %}
+        <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR" style="width:200px;border:1px solid rgba(0,0,0,0.08);background:#fff;padding:8px;border-radius:8px" />
+      {% else %}
+        <a class="btn btn-sm" href="{{ verification_url }}">Перевірити квиток</a>
+      {% endif %}
+      <div style="font-size:12px;color:var(--muted);text-align:center">Скануйте QR для перевірки квитка</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

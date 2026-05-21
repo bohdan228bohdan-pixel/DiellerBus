@@ -1,0 +1,138 @@
+{% load static %}
+{% if request.user.is_authenticated and request.session.support_popup %}
+<style>
+.support-widget { position: fixed; right: 18px; bottom: 18px; width: 360px; max-width: calc(100% - 40px); z-index: 1200; font-family: Poppins, sans-serif }
+.support-widget .widget-header { background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)); border-radius:12px 12px 0 0; padding:10px 14px; box-shadow:0 6px 18px rgba(2,6,23,0.12); display:flex;justify-content:space-between;align-items:center; color:#fff }
+.support-widget .widget-body { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.45)); border-radius:0 0 12px 12px; padding:12px; max-height:480px; overflow:auto; box-shadow:0 6px 18px rgba(2,6,23,0.08) }
+.support-widget .bubble { padding:8px 12px; border-radius:18px; margin:6px 0; display:inline-block; max-width:85% }
+.support-widget .from-user { background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)); color:#fff; margin-left:auto }
+.support-widget .from-admin { background: rgba(255,255,255,0.04); color:#fff }
+.support-widget .widget-toggle { cursor:pointer; }
+.support-widget .small-muted { color:var(--muted); font-size:13px }
+</style>
+
+<div id="supportWidget" class="support-widget">
+  <div class="widget-header">
+    <div style="display:flex;gap:10px;align-items:center">
+      <img src="{% static 'img/logo.jpg' %}" alt="logo" style="width:36px;height:36px;border-radius:8px;object-fit:cover">
+      <div>
+        <div style="font-weight:700">Техпідтримка</div>
+        <div class="small-muted" id="supportStatus">Підключаємось…</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="supportClose" aria-label="Закрити" class="btn btn-sm btn-outline-secondary">✕</button>
+    </div>
+  </div>
+  <div class="widget-body" id="supportBody">
+    <div id="supportMessages" style="min-height:80px">
+      <div class="small-muted">Чат відкритий. Якщо оператор доступний, він прийме ваше звернення.</div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+      <a id="openSupportPage" class="btn btn-primary btn-sm">Відкрити чат</a>
+      <div class="small-muted">або зачекайте оператора</div>
+    </div>
+  </div>
+</div>
+
+<audio id="supportPing" src="{% static 'audio/notification.mp3' %}" preload="auto"></audio>
+
+<script>
+(function(){
+  const apiUrl = '{% url "main:support_api_my_ticket" %}';
+  const closeUrl = '{% url "main:support_close_popup" %}';
+  const openPageUrl = '{% url "main:support_home" %}';
+  const ticketDetailBase = '{% url "main:support_ticket_detail" 0 %}';
+  const supportBody = document.getElementById('supportBody');
+  const supportMessages = document.getElementById('supportMessages');
+  const supportStatus = document.getElementById('supportStatus');
+  const supportPing = document.getElementById('supportPing');
+  const openSupportPage = document.getElementById('openSupportPage');
+  const supportClose = document.getElementById('supportClose');
+
+  openSupportPage.addEventListener('click', function(){
+    if (window.currentSupportTicketId){
+      try{ window.location = ticketDetailBase.replace('/0/', '/' + window.currentSupportTicketId + '/'); return; }catch(e){}
+    }
+    window.location = openPageUrl;
+  });
+  supportClose.addEventListener('click', async function(){
+    try{ await fetch(closeUrl, {method:'POST', headers: {'X-CSRFToken': (document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)')||[])[2]}}); }catch(e){}
+    document.getElementById('supportWidget').style.display='none';
+  });
+
+  let lastAssigned = null;
+
+  let wsSocket = null;
+
+  function openTicketSocket(ticketId){
+    if (!window.location) return;
+    if (wsSocket){ try{ wsSocket.close(); }catch(e){} }
+    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = scheme + '://' + window.location.host + '/ws/support/ticket/' + ticketId + '/';
+    try{
+      wsSocket = new WebSocket(url);
+    }catch(e){ wsSocket = null; return; }
+    wsSocket.onmessage = function(ev){
+      try{
+        const data = JSON.parse(ev.data);
+        if (data.type === 'init'){
+          window.currentSupportTicketId = data.ticket.id;
+          supportStatus.textContent = (data.ticket.subject || '') + ' · ' + (data.ticket.created_at || '') + ' · ' + (data.ticket.status || '');
+          let html = '';
+          if (data.messages && data.messages.length){
+            data.messages.forEach(function(m){
+              if (m.sender_avatar){
+                html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">';
+                html += '<img src="'+m.sender_avatar+'" style="width:34px;height:34px;border-radius:8px;object-fit:cover">';
+                html += '<div><div style="font-weight:700">'+(m.sender||'')+' <span style="color:#6b7280;font-size:12px">· '+(m.created_at||'')+'</span></div><div>'+ (m.text?m.text.replace(/\n/g,'<br/>'):'') +'</div></div></div>';
+              } else {
+                html += '<div class="small-muted">'+(m.sender||'')+' · '+(m.created_at||'')+' — '+(m.text||'')+'</div>';
+              }
+            });
+          } else {
+            html = '<div class="small-muted">Очікується відповідь оператора.</div>';
+          }
+          supportMessages.innerHTML = html;
+        } else if (data.type === 'new_message'){
+          const m = data.message;
+          let fragment = '';
+          if (m.sender_avatar){
+            fragment += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">';
+            fragment += '<img src="'+m.sender_avatar+'" style="width:36px;height:36px;border-radius:8px;object-fit:cover">';
+            fragment += '<div><div style="font-weight:700">'+(m.sender||'')+' <span style="color:#6b7280;font-size:12px">· '+(m.created_at||'')+'</span></div><div>'+ (m.text?m.text.replace(/\n/g,'<br/>'):'') +'</div></div></div>';
+          } else {
+            fragment = '<div class="small-muted">'+(m.sender||'')+' · '+(m.created_at||'')+' — '+(m.text||'')+'</div>';
+          }
+          supportMessages.insertAdjacentHTML('beforeend', fragment);
+          try{ supportPing.play(); }catch(e){}
+        }
+      }catch(e){ }
+    };
+    wsSocket.onopen = function(){ /* connected */ };
+    wsSocket.onclose = function(){ /* closed */ };
+  }
+
+  async function update(){
+    try{
+      const resp = await fetch(apiUrl, {credentials:'same-origin'});
+      const data = await resp.json();
+      const ticket = data.ticket;
+      if (!ticket){
+        document.getElementById('supportWidget').style.display = 'none';
+        return;
+      }
+      document.getElementById('supportWidget').style.display = 'block';
+      window.currentSupportTicketId = ticket.id;
+      supportStatus.textContent = ticket.status_display + (ticket.assigned_to ? (' — ' + ticket.assigned_to) : '');
+      if (!wsSocket){
+        try{ openTicketSocket(ticket.id); }catch(e){}
+      }
+    }catch(err){ }
+  }
+
+  update();
+  setInterval(function(){ if (!wsSocket || wsSocket.readyState !== 1) update(); }, 10000);
+})();
+</script>
+{% endif %}

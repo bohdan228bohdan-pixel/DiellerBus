@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Черга звернень — Техпідтримка{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1100px;margin:30px auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3>Черга техпідтримки</h3>
+    <div class="muted-small">Нове: <strong>{{ counts.new }}</strong> · В роботі: <strong>{{ counts.in_progress }}</strong></div>
+  </div>
+
+  <div style="display:flex;gap:18px">
+    <div style="flex:1">
+      <h5>Всі відкриті звернення</h5>
+      <div class="ticket-list">
+        {% for t in tickets %}
+          <div class="ticket-row">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <a href="{% url 'main:support_ticket_detail' t.id %}"><strong>#{{ t.id }}</strong></a> — {{ t.subject|default:t.preset.title }}
+                <div class="muted-small">{{ t.user.username }} · {{ t.get_status_display }} · {{ t.last_message_at|date:'d.m.Y H:i' }}</div>
+              </div>
+              <div>
+                {% if not t.assigned_to %}
+                  <form method="post" action="{% url 'main:support_worker_take' t.id %}">{% csrf_token %}<button class="btn btn-primary">Взяти</button></form>
+                {% else %}
+                  <span class="muted-small">Обраб. {{ t.assigned_to.username }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="muted-small">Немає звернень</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div style="width:320px">
+      <h5>Мої звернення</h5>
+      {% for mt in my_tickets %}
+        <div style="padding:8px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
+          <a href="{% url 'main:support_ticket_detail' mt.id %}">#{{ mt.id }} — {{ mt.subject|default:mt.preset.title }}</a>
+          <div class="muted-small">Останнє: {{ mt.last_message_at|date:'d.m.Y H:i' }}</div>
+        </div>
+      {% empty %}
+        <div class="muted-small">Немає звернень</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

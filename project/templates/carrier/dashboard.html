@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Панель перевізника — Продані квитки{% endblock %}
+{% block head_extra %}
+<style>
+/* Carrier dashboard tiles */
+.carrier-dashboard{max-width:1100px;margin:40px auto;padding:16px;color:#fff}
+.carrier-header{text-align:center;margin-bottom:18px}
+.months-grid{display:flex;flex-direction:column;gap:18px;align-items:center;padding:12px 0}
+.month-card{width:680px;background:linear-gradient(180deg,#0f0f10,#121212);border:1px solid rgba(255,255,255,0.04);padding:20px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);text-align:left;color:#fff;text-decoration:none;display:flex;flex-direction:row;justify-content:space-between;align-items:center;min-height:110px;transition:transform .12s,box-shadow .12s}
+.month-card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(0,0,0,0.7)}
+.month-name{font-size:1.15rem;font-weight:800;color:#ff6b6b;margin-bottom:6px}
+.month-sub{color:#c9c9c9;font-size:0.9rem;margin-bottom:8px}
+.month-count{font-weight:800;font-size:1.1rem;color:#fff;margin-bottom:6px}
+.month-total{font-weight:700;color:#f87171;font-size:1rem;margin-bottom:8px}
+.month-actions{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.btn-ghost{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff;text-decoration:none;font-weight:700}
+.btn-primary{padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,#ff3b30,#ff6b6b);color:#fff;text-decoration:none;font-weight:800}
+.month-card.empty{opacity:0.6;border:1px dashed rgba(255,255,255,0.03);background:linear-gradient(180deg,#0b0b0c,#0e0e0f)}
+.helper{color:#cfcfcf;text-align:center;margin-top:14px;font-size:0.95rem}
+@media(max-width:1100px){.month-card{width:calc(100% - 40px);flex-direction:row;padding:16px}}
+@media(max-width:900px){.months-grid{flex-direction:column;padding:8px 0;gap:12px}.month-card{width:calc(100% - 32px);min-height:120px;padding:12px}.month-name{font-size:1rem}}
+@media(max-width:480px){
+  .month-card{width:100%;flex-direction:column;align-items:flex-start}
+  .month-actions{display:flex;flex-direction:column;gap:8px;width:100%}
+  .month-actions a{width:100%;display:block;text-align:center}
+  .carrier-header form{width:100%;display:flex;justify-content:center}
+  .carrier-header select{min-width:0;width:100%;padding:10px;border-radius:8px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06)}
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.month-card').forEach(function(card){card.addEventListener('click',function(e){if(e.target.closest('a'))return;var link=card.getAttribute('data-href');if(link)window.location=link;});});});
+</script>
+{% endblock %}
+{% block content %}
+<div class="carrier-dashboard">
+  <div class="carrier-header">
+    <h1 style="margin:0">Продані квитки — {{ year }}</h1>
+    <p class="helper">Натисніть на місяць, щоб подивитись деталі продажів. Кнопка «Детальніше» відкриває список квитків за місяць.</p>
+    {% if trips %}
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;align-items:center">
+        <form method="get" style="display:flex;gap:8px;align-items:center">
+          <label style="color:var(--muted);margin-right:6px">Рейс:</label>
+          <select name="trip_id" onchange="this.form.submit()" style="padding:8px;border-radius:8px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.04)">
+            <option value="">Всі рейси</option>
+            {% for t in trips %}
+              <option value="{{ t.id }}" {% if selected_trip_id and t.id == selected_trip_id %}selected{% endif %}>{{ t.route.name }} — {{ t.title|default:t.date }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+  <div class="months-grid">
+    {% for m in months %}
+      <a href="{% url 'main:carrier_tickets_month' m.year m.month %}" class="month-card {% if not m.count %}empty{% endif %}" data-href="{% url 'main:carrier_tickets_month' m.year m.month %}">
+        <div>
+          <div class="month-name">{{ m.name }}</div>
+          <div class="month-sub">{{ m.year }}</div>
+          <div class="month-count">{{ m.count }} проданих</div>
+          <div class="month-total">{{ m.total|floatformat:2 }} грн</div>
+        </div>
+        <div class="month-actions">
+          <a class="btn-ghost" href="{% url 'main:carrier_tickets_month_export_csv' m.year m.month %}{% if selected_trip_id %}?trip_id={{ selected_trip_id }}{% endif %}">CSV</a>
+          {% if m.count %}
+            <a class="btn-primary" href="{% url 'main:carrier_tickets_month' m.year m.month %}{% if selected_trip_id %}?trip_id={{ selected_trip_id }}{% endif %}">Детальніше</a>
+          {% else %}
+            <a class="btn-ghost" href="#" onclick="event.preventDefault();">Детальніше</a>
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+  <div class="helper" style="margin-top:22px">Пояснення: <strong>CSV</strong> — експортує файл зі списком квитків; <strong>Детальніше</strong> — показує всі продані квитки по датах, з кнопками перегляду та завантаження PDF.</div>
+</div>
+{% endblock %}

@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<style>
+/* ===== GLOBAL ===== */
+.container {
+    max-width: 1100px;
+    margin: auto;
+    padding: 40px;
+}
+
+.bus-wrapper {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+}
+
+/* ===== IMAGE ===== */
+.bus-image img {
+    width: 500px;
+    border-radius: 12px;
+}
+
+/* ===== INFO ===== */
+.bus-info {
+    background: #111;
+    padding: 30px;
+    border-radius: 15px;
+    position: relative;
+    z-index: 5;
+}
+
+.bus-info h1 {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+/* ===== PRICE ===== */
+.price {
+    color: #ff2a2a;
+    font-size: 26px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+/* ===== TEXT ===== */
+.info-item {
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #ccc;
+}
+
+.contact {
+    margin-top: 20px;
+}
+
+/* ===== BUTTON (FIXED) ===== */
+.btn-book {
+    display: inline-block;
+    margin-top: 25px;
+    padding: 15px 35px;
+
+    background: linear-gradient(135deg, #ff2a2a, #cc0000);
+    color: #fff;
+
+    border: none;
+    border-radius: 30px;
+
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+
+    cursor: pointer;
+
+    position: relative;
+    z-index: 999; /* 🔥 ГОЛОВНЕ */
+
+    box-shadow:
+        0 0 15px rgba(255,0,0,0.6),
+        0 0 30px rgba(255,0,0,0.3);
+
+    transition: all 0.3s ease;
+}
+
+/* HOVER */
+.btn-book:hover {
+    background: linear-gradient(135deg, #ff4444, #990000);
+    transform: translateY(-3px);
+
+    box-shadow:
+        0 0 25px rgba(255,0,0,1),
+        0 0 50px rgba(255,0,0,0.6);
+}
+
+/* ACTIVE */
+.btn-book:active {
+    transform: scale(0.95);
+}
+
+/* ===== MODAL ===== */
+.call-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6); /* 🔥 світліше */
+    
+    backdrop-filter: blur(6px);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.3s;
+
+    z-index: 9999;
+}
+
+.call-modal.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* BOX */
+.call-box {
+    background: #111;
+    padding: 40px;
+    border-radius: 15px;
+    text-align: center;
+    width: 320px;
+
+    border: 1px solid #222;
+
+    box-shadow:
+        0 0 30px rgba(255,0,0,0.3);
+
+    position: relative;
+}
+
+/* CLOSE */
+.close-modal {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+/* PHONE */
+.phone-number {
+    font-size: 22px;
+    margin: 20px 0;
+    color: #ff2a2a;
+}
+
+/* CALL BUTTON */
+.call-btn {
+    display: inline-block;
+    padding: 12px 25px;
+
+    background: #ff2a2a;
+    color: #fff;
+
+    border-radius: 25px;
+
+    transition: 0.3s;
+}
+
+.call-btn:hover {
+    background: #cc0000;
+}
+
+/* ===== MOBILE ===== */
+@media(max-width: 900px){
+    .bus-wrapper {
+        flex-direction: column;
+    }
+
+    .bus-image img {
+        width: 100%;
+    }
+}
+</style>
+
+
+<div class="container">
+
+    <div class="bus-wrapper">
+
+        <!-- IMAGE -->
+        <div class="bus-image">
+            {% if bus.image %}
+                <img src="{{ bus.image.url }}">
+            {% else %}
+                <p>Нема фото</p>
+            {% endif %}
+        </div>
+
+        <!-- INFO -->
+        <div class="bus-info">
+
+            <h1>{{ bus.title }}</h1>
+
+            <div class="price">
+                {% if bus.price_per_hour %}
+                    від {{ bus.price_per_hour }} грн/год
+                {% else %}
+                    ціна договірна
+                {% endif %}
+            </div>
+
+            <div class="info-item">
+                Кількість місць: {{ bus.seats }}
+            </div>
+
+            <div class="info-item">
+                {{ bus.price_note }}
+            </div>
+
+            <div class="contact">
+                <h3>Контакти</h3>
+                <p>{{ bus.contact_name }}</p>
+                <p>{{ bus.contact_phone }}</p>
+            </div>
+
+            <!-- 🔥 BUTTON -->
+            <button class="btn-book open-call"
+                    data-phone="{{ bus.contact_phone }}">
+                📞 Замовити автобус
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ===== MODAL ===== -->
+<div id="callModal" class="call-modal">
+    <div class="call-box">
+
+        <span class="close-modal">&times;</span>
+
+        <h2>Зателефонувати</h2>
+
+        <p>Номер телефону:</p>
+
+        <div id="phoneNumber" class="phone-number"></div>
+
+        <a id="callBtn" href="#" class="call-btn">
+            📞 Подзвонити
+        </a>
+
+    </div>
+</div>
+
+
+<script>
+// ===== ELEMENTS =====
+const modal = document.getElementById("callModal");
+const phoneText = document.getElementById("phoneNumber");
+const callBtn = document.getElementById("callBtn");
+
+// ===== OPEN =====
+document.querySelectorAll(".open-call").forEach(btn => {
+    btn.addEventListener("click", () => {
+
+        const phone = btn.dataset.phone || "Нема номера";
+
+        phoneText.innerText = phone;
+        callBtn.href = "tel:" + phone;
+
+        modal.classList.add("active");
+    });
+});
+
+// ===== CLOSE =====
+document.querySelector(".close-modal").onclick = () => {
+    modal.classList.remove("active");
+};
+
+// CLICK OUTSIDE
+modal.onclick = (e) => {
+    if (e.target === modal) {
+        modal.classList.remove("active");
+    }
+};
+</script>
+
+{% endblock %}

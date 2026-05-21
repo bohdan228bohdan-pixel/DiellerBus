@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}Користувач — {{ view_user.username }}{% endblock %}
+
+{% load static %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1100px;margin:40px auto">
+  <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+    <div style="flex:1 1 320px">
+      <div style="background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.45));padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="width:72px;height:72px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:28px">{% if view_user.profile.avatar %}<img src="{{ view_user.profile.avatar.url }}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">{% else %}{{ view_user.username|slice:":1"|upper }}{% endif %}</div>
+          <div>
+            <div style="font-weight:900;font-size:1.15rem">{{ view_user.username }}</div>
+            <div class="muted-small">Email: <a href="mailto:{{ view_user.email }}">{{ view_user.email }}</a></div>
+            <div class="muted-small">Зареєстрований: {{ view_user.date_joined|date:'d.m.Y H:i' }}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <a href="{% url 'main:support_admin_user' view_user.id %}" class="btn btn-sm">Детально</a>
+          <a href="{% url 'main:support_edit_user' view_user.id %}" class="btn btn-sm">Редагувати профіль</a>
+          <a href="/admin/auth/user/{{ view_user.id }}/change/" class="btn btn-secondary btn-sm">Адмінка</a>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;background:#0f0f0f;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)">
+        <div style="font-weight:800;margin-bottom:8px">Коротка інформація</div>
+        <div class="muted-small">Баланс: {% if profile and profile.balance %}{{ profile.balance }} грн{% else %}0 грн{% endif %}</div>
+        <div class="muted-small">Телефон: {% if profile and profile.phone %}{{ profile.phone }}{% else %}Не вказано{% endif %}</div>
+      </div>
+    </div>
+
+    <div style="flex:2 1 620px">
+      <h3 style="margin-top:0">Куплені квитки</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {% if purchased_tickets %}
+          {% for t in purchased_tickets %}
+            <div style="background:#0f0f0f;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;gap:12px">
+              <div>
+                <div style="font-weight:800">Квиток #{{ t.id }} — {{ t.from_city }} → {{ t.to_city }}</div>
+                <div class="muted-small">{{ t.travel_date|date:'d.m.Y' }} · {{ t.passengers }} пас. — {% if t.paid %}Оплачено{% else %}Не оплачено{% endif %}</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <a href="{% url 'main:ticket_view' t.id %}" class="btn btn-sm">Переглянути</a>
+                <a href="{% url 'main:ticket_edit' t.id %}" class="btn btn-sm">Редагувати</a>
+                <a href="{% url 'main:download_ticket' t.id %}" class="btn btn-sm">Завантажити</a>
+                <form method="post" action="{% url 'main:support_resend_ticket' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Відправити email</button></form>
+                {% if t.paid %}
+                  <form method="post" action="{% url 'main:ticket_refund' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm" onclick="return confirm('Повернути гроші за квиток?')">Повернути</button></form>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="muted-small">Квитків не знайдено.</div>
+        {% endif %}
+      </div>
+
+      <hr style="margin:18px 0">
+      <h4>Звернення в техпідтримку</h4>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+        {% if tickets %}
+          {% for s in tickets %}
+            <div style="background:#0f0f0f;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <a href="{% url 'main:support_ticket_detail' s.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ s.id }} — {{ s.subject|default:s.preset.title }}</a>
+                <div class="muted-small">{{ s.created_at|date:'d.m.Y H:i' }} · {{ s.get_status_display }}</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <a href="{% url 'main:support_ticket_detail' s.id %}" class="btn btn-sm">Відкрити</a>
+                {% if not s.assigned_to %}
+                  <form method="post" action="{% url 'main:support_admin_take' s.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Взяти</button></form>
+                {% else %}
+                  <div class="muted-small">В обробці: {{ s.assigned_to.username }}</div>
+                {% endif %}
+                {% if s.status != 'closed' %}
+                  <form method="post" action="{% url 'main:support_admin_close' s.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm">Закрити</button></form>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="muted-small">Звернень не знайдено.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

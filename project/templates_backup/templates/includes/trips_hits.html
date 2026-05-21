@@ -1,0 +1,29 @@
+{% load static %}
+<div class="hits-track routes-slider" id="hitsTrack" tabindex="0" aria-label="Список хітів">
+  {% for r in trips|slice:":10" %}
+    <article class="card-mini route-card" data-url="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}">
+      {% if forloop.counter0 < 6 %}
+        <div class="badge-hit">ХІТ</div>
+      {% endif %}
+      <a href="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}" style="color:inherit;text-decoration:none;display:block">
+        {% if r.image_url %}
+          <img src="{{ r.image_url }}" alt="{{ r.from_city }} - {{ r.to_city }}">
+        {% else %}
+          <img src="{% static 'img/5269672762366693828.jpg' %}" alt="{{ r.from_city }} - {{ r.to_city }}">
+        {% endif %}
+
+        <div class="name">{{ r.from_city }} → {{ r.to_city }}</div>
+
+        <div class="price">
+          {% if r.price_display %}
+            <strong>{{ r.price_display }}</strong>
+          {% else %}
+            <strong>Від {{ r.price }} {{ r.currency }}</strong>
+          {% endif %}
+        </div>
+      </a>
+    </article>
+  {% empty %}
+    <div class="small-muted">Поки що немає популярних рейсів.</div>
+  {% endfor %}
+</div>

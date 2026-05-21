@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Продажі — {{ month_name }} {{ year }}{% endblock %}
+{% block head_extra %}
+<style>
+/* Month detail page styling */
+.carrier-month{max-width:1100px;margin:30px auto;padding:16px;color:#fff}
+.month-top{text-align:center;margin-bottom:18px}
+.summary{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.summary-item{background:#0b0b0b;padding:12px 18px;border-radius:10px;min-width:140px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+.summary-item .num{font-weight:800;font-size:1.4rem;color:#ff6b6b}
+.summary-item .label{color:#cfcfcf;font-size:0.95rem;margin-top:6px}
+.actions{display:flex;gap:8px;justify-content:center;margin-bottom:8px}
+.btn-ghost{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff;text-decoration:none;font-weight:700}
+.btn-primary{padding:8px 12px;border-radius:8px;background:linear-gradient(90deg,#ff3b30,#ff6b6b);color:#fff;text-decoration:none;font-weight:800}
+.day-block{margin-top:18px}
+.day-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+.cards{display:flex;flex-direction:column;gap:14px;width:100%}
+.ticket-card{background:#ececec;color:#0b0b0b;border-radius:12px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.25);display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:110px}
+.ticket-left{flex:1;padding-right:12px}
+.ticket-route{font-weight:800;color:#111;margin-bottom:6px;font-size:1.05rem}
+.ticket-meta{color:#333;font-size:13px;margin-bottom:6px}
+.ticket-actions{display:flex;gap:8px;align-items:center}
+.badge{background:#d6d6d6;color:#111;padding:8px 10px;border-radius:8px;font-weight:800;border:1px solid #cfcfcf}
+/* grey button overrides for this page */
+.btn-ghost{background:#e6e6e6;color:#111;border:1px solid #d0d0d0;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:700}
+.btn-primary{background:#cfcfcf;color:#111;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:800;border:1px solid #bfbfbf}
+@media(max-width:900px){.ticket-card{flex-direction:column;align-items:stretch;padding:14px}.ticket-left{padding-right:0}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="carrier-month">
+  <div class="month-top">
+    <h1 style="margin:0">Продажі — {{ month_name }} {{ year }}</h1>
+    <div class="summary">
+      <div class="summary-item"><div class="num">{{ total|floatformat:2 }} грн</div><div class="label">Сума</div></div>
+      <div class="summary-item"><div class="num">{{ total_count }}</div><div class="label">Квитків</div></div>
+    </div>
+    <div class="actions">
+      <a class="btn-ghost" href="{% url 'main:carrier_tickets_month_export_csv' year month %}">Експорт CSV</a>
+      <a class="btn-primary" href="{% url 'main:carrier_tickets_month_export_pdfs' year month %}">Завантажити PDF (zip)</a>
+    </div>
+  </div>
+
+  {% if days %}
+    {% for day, group in days.items %}
+      <div class="day-block">
+        <div class="day-header">
+          <h3 style="margin:0">{{ day|date:"d.m.Y" }} — {{ group.tickets|length }} квитків</h3>
+          <div class="day-sum">Сума: {{ group.total|floatformat:2 }} грн</div>
+        </div>
+        <div class="cards">
+          {% for t in group.tickets %}
+            <div class="ticket-card">
+              <div class="ticket-left">
+                <div class="ticket-route">{{ t.from_city }} → {{ t.to_city }}{% if t.trip and t.trip.title %} · <small>{{ t.trip.title }}</small>{% endif %}</div>
+                <div class="ticket-meta">Клієнт: {{ t.user.username }}{% if t.user.email %} · {{ t.user.email }}{% endif %}</div>
+                <div class="ticket-meta">Контакт: {{ t.contact_phone }}{% if t.contact_email %} · {{ t.contact_email }}{% endif %}</div>
+                <div class="ticket-meta">Дата поїздки: {{ t.travel_date|date:'d.m.Y' }} · Пасажирів: {{ t.passengers_display|default:t.passengers }}</div>
+              </div>
+              <div class="ticket-actions">
+                <div class="badge">{{ t.total_price }} {{ t.currency }}</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <a class="btn-ghost" href="{% url 'main:ticket_view' t.id %}">Деталі</a>
+                  <a class="btn-primary" href="{% url 'main:download_ticket' t.id %}?inline=1">PDF</a>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div style="text-align:center;color:var(--muted);padding:20px;">Немає квитків за цей місяць.</div>
+  {% endif %}
+</div>
+{% endblock %}

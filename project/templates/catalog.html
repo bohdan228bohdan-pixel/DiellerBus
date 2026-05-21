@@ -1,0 +1,7 @@
+{% for bus in buses %}
+    <div>
+        <h2>{{ bus.title }}</h2>
+        <p>{{ bus.price_per_hour }} грн/год</p>
+        <img src="{{ bus.image.url }}" width="300">
+    </div>
+{% endfor %}

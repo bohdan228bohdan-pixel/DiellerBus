@@ -1,0 +1,7 @@
+<form method="post">
+  {% csrf_token %}
+  <input name="email" placeholder="Email" required>
+  <input name="username" placeholder="Username">
+  <input name="password" type="password" placeholder="Password" required>
+  <button type="submit">Зареєструватися</button>
+</form>

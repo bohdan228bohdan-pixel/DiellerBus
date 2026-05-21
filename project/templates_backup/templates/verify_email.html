@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width:420px;margin:80px auto;padding:24px;background:#111;border-radius:12px">
+  <h2 style="color:white">Підтвердження email</h2>
+
+  <p>Ми надіслали 6-значний код на вашу пошту</p>
+
+  {% if error %}
+    <p style="color:red">{{ error }}</p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input
+      type="text"
+      name="code"
+      maxlength="6"
+      placeholder="Введіть код"
+      required
+      style="width:100%;padding:12px;margin-bottom:12px"
+    >
+    <button type="submit">Підтвердити</button>
+  </form>
+</div>
+{% endblock %}

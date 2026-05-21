@@ -1,0 +1,498 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/kvitok.css' %}?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* White ticket theme overrides (kvitokindex only) */
+    :root{
+      --kvitok-accent: #c81b60; /* pink/magenta */
+      --kvitok-border: rgba(200,27,96,0.12);
+      --kvitok-muted: #6b7280;
+    }
+
+    body, .site-main {
+      background: #ffffff !important;
+      color: #111 !important;
+      font-family: 'Montserrat', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial !important;
+    }
+
+    /* Container stays white and compact like the screenshot */
+    .container.ticket-page { background: #ffffff !important; padding: 26px 20px 40px !important; max-width:1200px; }
+    /* hide hero photo for a cleaner, compact white layout like reference */
+    .hero-photo { display: none !important; }
+
+    /* move main title and search slightly up so tickets start lower */
+    .page-top { margin-top: 6px !important; margin-bottom: 8px !important; }
+
+    /* Inputs and selects: white with thin pink border */
+    .form-control, .form-select {
+      background: #fff !important;
+      color: #111 !important;
+      border: 1px solid var(--kvitok-border) !important;
+      border-radius: 4px !important;
+      box-shadow: none !important;
+    }
+    .form-control::placeholder { color: #9aa0a6 !important; }
+
+    /* Search CTA */
+    .search-top .btn-primary, .btn-primary { background: linear-gradient(90deg,var(--kvitok-accent),#ff4f6b) !important; color:#fff !important; border:none !important; font-weight:700 !important; }
+
+    /* Results area: list of white cards with pink outline */
+    .results-panel { background: transparent !important; padding: 0 !important; }
+    .results-list { display:flex; flex-direction:column; gap:18px; }
+    .results-list .trip-card {
+      background: #fff !important;
+      color: #111 !important;
+      border: 2px solid rgba(200,27,96,0.12) !important;
+      border-radius: 10px !important;
+      box-shadow: none !important;
+      padding: 18px 20px !important;
+      display:block;
+    }
+
+    .results-list .trip-card .k { color: var(--kvitok-muted) !important; font-weight:600 !important; }
+    .results-list .trip-card .v { color: #111 !important; font-weight:700 !important; }
+    .results-list .trip-card .sub { color: #6b7280 !important; }
+
+    /* price column align to right like reference */
+    .results-list .trip-card .price-col { text-align: right; }
+
+    /* ensure column headers are visible and spaced */
+    .results-table { margin-top: 8px; }
+    .results-headers { padding: 0 12px; }
+
+    .price { color: var(--kvitok-accent) !important; font-weight:900 !important; }
+
+    /* Buttons on cards */
+    .results-list .buy-now, .results-list .choose-btn {
+      background: var(--kvitok-accent) !important;
+      color: #fff !important;
+      border: none !important;
+      padding: 8px 12px !important;
+      border-radius: 6px !important;
+      font-weight:700 !important;
+    }
+
+    /* Featured tiles */
+    .route-card, .card-mini { background: #fff !important; border:1px solid var(--kvitok-border) !important; color:#111 !important; }
+
+    .badge, .badge.promo { background: var(--kvitok-accent) !important; color:#fff !important; }
+
+    /* Hero caption and titles */
+    .hero-frame-caption { font-size: 14px !important; color: #333 !important; }
+    .page-top .page-title { color: #111 !important; font-weight:800 !important; }
+
+    @media (max-width:600px) {
+      .container.ticket-page { padding: 14px !important; }
+      .page-title { font-size: 22px !important; }
+    }
+  </style>
+{% endblock %}
+
+{% block title %}Квитки — Dieller Bus{% endblock %}
+
+{% block content %}
+<div class="container ticket-page py-4">
+
+  <!-- Hero photo with framed caption -->
+  <div class="hero-photo mb-4" style="background-image: url('{% static "img/5269672762366693828.jpg" %}');">
+    <div class="hero-photo-overlay"></div>
+    <div class="hero-frame-caption">
+      <div class="hero-frame-title">Комфортні рейси Україна — Польща</div>
+      <div class="hero-frame-sub">Зручний розклад, комфортні автобуси і вигідні ціни. Знайдіть свій рейс швидко.</div>
+    </div>
+    <div class="hero-decor-frame"></div>
+  </div>
+
+  <div class="page-top mb-4">
+    <p class="muted-small">Квитки на автобус</p>
+    <h1 class="page-title" id="pageTitle">Квитки</h1>
+  </div>
+
+  <div class="search-highlight mb-3">
+    <div class="search-top d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <div class="hero-label">Швидкий пошук</div>
+        <h3 class="search-title" style="margin:4px 0 8px;">Знайдіть найзручніший рейс — швидко й вигідно</h3>
+        <div class="search-sub" style="max-width:70%;">Пошук за нашою базою: миттєве порівняння рейсів, акції й кращі місця. Клік на квитку веде до покупки.</div>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="document.getElementById('fromCity').focus(); return false;">Розпочати пошук</button>
+      </div>
+    </div>
+
+    <form id="searchForm" class="mb-0" onsubmit="return false;">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <label class="form-label visually-hidden">Звідки</label>
+        <div style="position:relative;">
+          <input id="fromCity" class="form-control" list="citiesList" autocomplete="off" placeholder="Звідки">
+          <div class="suggestions" id="fromSuggestions" style="display:none"></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label visually-hidden">Куди</label>
+        <div style="position:relative;">
+          <input id="toCity" class="form-control" list="citiesList" autocomplete="off" placeholder="Куди">
+          <div class="suggestions" id="toSuggestions" style="display:none"></div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label visually-hidden">Дата</label>
+        <input id="travelDate" type="date" class="form-control">
+      </div>
+      <div class="col-md-1 d-flex align-items-center">
+        <label class="form-label visually-hidden">Пас.</label>
+        <input id="passengers" type="number" min="1" max="6" value="1" class="form-control text-center">
+      </div>
+      <div class="col-md-1 d-grid">
+        <button id="findBtn" type="button" class="btn btn-primary">Знайти</button>
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex align-items-center gap-4">
+      
+
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <select id="currency" class="form-select form-select-sm" style="width:110px;">
+          <option value="UAH">UAH</option>
+          <option value="PLN">PLN</option>
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <datalist id="citiesList"></datalist>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div id="resultsMeta">Натисніть “Знайти”, щоб показати доступні рейси.</div>
+    <div id="resultsBadge" class="badge bg-secondary" style="display:none">0</div>
+  </div>
+
+  <div class="results-table mb-3">
+    <div class="results-headers d-none d-md-flex text-uppercase small muted-small">
+      <div class="col">ВІДПРАВЛЕННЯ</div>
+      <div class="col">В ДОРОЗІ</div>
+      <div class="col">ПРИБУТТЯ</div>
+      <div class="col">ВІЛЬНИХ МІСЦЬ</div>
+      <div class="col text-end">ЦІНА</div>
+    </div>
+  </div>
+
+  <div class="results-panel mb-4">
+    <div id="results" class="results-list"></div>
+  </div>
+
+  <!-- Featured routes carousel (DB-driven) -->
+ 
+
+  <!-- Share banner -->
+  <section class="share-banner my-5">
+    <div class="share-inner">
+      <h3>Поділіться своєю поїздкою і зменшіть витрати</h3>
+      <p>Пропонуйте поїздки як водій і перетворюйте вільні місця на зниження витрат на проїзд. Все просто: опублікуйте свою поїздку, і пасажири розділять з вами витрати на пальне і дорожні збори.</p>
+      <a class="btn btn-light-outline" href="/share/">Поділитися поїздкою</a>
+    </div>
+  </section>
+
+  <form id="buyForm" method="post" action="{% url 'main:' %}" style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="from_city" id="form_from_city">
+    <input type="hidden" name="to_city" id="form_to_city">
+    <input type="hidden" name="passengers" id="form_passengers">
+    <input type="hidden" name="travel_date" id="form_travel_date">
+    <input type="hidden" name="price" id="form_price">
+  </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="kvitok.css"]') && document.querySelector('link[href*="kvitok.css"]').href);
+(function(){
+  const IS_AUTH = {{ user.is_authenticated|yesno:"true,false" }};
+
+  // city lists
+  let UA_CITIES = [];
+  let PL_CITIES = [];
+  let ALL_CITIES = [];
+
+  // elements
+  const fromCity = document.getElementById('fromCity');
+  const toCity = document.getElementById('toCity');
+  const travelDate = document.getElementById('travelDate');
+  const passengers = document.getElementById('passengers');
+  const findBtn = document.getElementById('findBtn');
+  const results = document.getElementById('results');
+  const resultsMeta = document.getElementById('resultsMeta');
+  const resultsBadge = document.getElementById('resultsBadge');
+  const currencySelect = document.getElementById('currency');
+
+  function formatPrice(price, currency){
+    if (!currency || currency === 'UAH') return `${Number(price).toFixed(0)} грн`;
+    if (currency === 'PLN') return `${Number(price).toFixed(0)} zł`;
+    return `${Number(price).toFixed(2)} ${currency}`;
+  }
+
+  function fillSelect(select, list){
+    if (!select) return;
+    const tag = select.tagName ? select.tagName.toUpperCase() : '';
+    if (tag === 'SELECT'){
+      select.innerHTML = '';
+      list.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; select.appendChild(o); });
+    } else if (tag === 'INPUT'){
+      const listId = select.getAttribute('list');
+      if (!listId) return;
+      const datalist = document.getElementById(listId);
+      if (!datalist) return;
+      datalist.innerHTML = '';
+      list.forEach(c => { const o = document.createElement('option'); o.value = c; datalist.appendChild(o); });
+    }
+  }
+
+  // hold objects with country info for nice suggestion rendering
+  let ALL_CITY_OBJECTS = [];
+
+  function countryFullName(code){
+    if (!code) return '';
+    code = String(code).toUpperCase();
+    if (code === 'UA') return 'Україна';
+    if (code === 'PL') return 'Польща';
+    return code;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // attach a simple suggestion dropdown to an input element
+  function attachAutocomplete(inputElem, containerElem, items){
+    if (!inputElem || !containerElem) return;
+    let activeIndex = -1;
+
+    function hide(){ containerElem.style.display = 'none'; activeIndex = -1; containerElem.innerHTML = ''; }
+    function show(){ containerElem.style.display = 'block'; }
+
+    function renderMatches(val){
+      const q = (val || '').trim().toLowerCase();
+      if (!q){ hide(); return; }
+      const matches = items.filter(it => it.name.toLowerCase().startsWith(q) || it.name.toLowerCase().includes(q)).slice(0,8);
+      if (!matches.length){ hide(); return; }
+      containerElem.innerHTML = matches.map((it, idx) => {
+        const name = escapeHtml(it.name);
+        const country = escapeHtml(countryFullName(it.country));
+        const low = it.name.toLowerCase();
+        const start = low.indexOf(q);
+        let highlighted = name;
+        if (start >= 0){ highlighted = escapeHtml(it.name.slice(0,start)) + '<strong class="match">' + escapeHtml(it.name.slice(start,start+q.length)) + '</strong>' + escapeHtml(it.name.slice(start+q.length)); }
+        return `<div class="suggestion-item" role="option" data-idx="${idx}" data-name="${escapeHtml(it.name)}" data-country="${escapeHtml(it.country)}"><div class="suggestion-main">${highlighted}</div><div class="suggestion-sub">${country}</div></div>`;
+      }).join('');
+      // wire click handlers
+      Array.from(containerElem.querySelectorAll('.suggestion-item')).forEach(el => {
+        el.addEventListener('mousedown', function(ev){
+          ev.preventDefault();
+          const name = this.getAttribute('data-name');
+          inputElem.value = name || '';
+          hide();
+          inputElem.focus();
+        });
+      });
+      show();
+    }
+
+    inputElem.addEventListener('input', function(){ renderMatches(this.value); });
+    inputElem.addEventListener('focus', function(){ renderMatches(this.value); });
+    inputElem.addEventListener('blur', function(){ setTimeout(hide, 150); });
+
+    inputElem.addEventListener('keydown', function(e){
+      const itemsEls = containerElem.querySelectorAll('.suggestion-item');
+      if (!itemsEls || !itemsEls.length) return;
+      if (e.key === 'ArrowDown'){
+        e.preventDefault(); activeIndex = Math.min(activeIndex + 1, itemsEls.length - 1);
+        itemsEls.forEach((el,i)=> el.classList.toggle('active', i === activeIndex));
+      } else if (e.key === 'ArrowUp'){
+        e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0);
+        itemsEls.forEach((el,i)=> el.classList.toggle('active', i === activeIndex));
+      } else if (e.key === 'Enter'){
+        if (activeIndex >= 0 && itemsEls[activeIndex]){
+          e.preventDefault(); const it = itemsEls[activeIndex]; inputElem.value = it.getAttribute('data-name') || ''; hide();
+        }
+      } else if (e.key === 'Escape'){
+        hide();
+      }
+    });
+  }
+
+  function fmtDate(d){ if (!d) return ''; try{ const [y,m,dd]=d.split('-'); return `${dd}.${m}.${y}` }catch(e){return d} }
+
+  function renderTripCard(t, pax){
+    const total = t.price * pax;
+    const disabled = (t.free < pax);
+    const hasDiscount = (t.discount && t.discount > 0);
+    return `
+      <div class="trip-card mb-3" data-id="${t.id}">
+        <div class="trip-grid align-items-center">
+          <div class="trip-col">
+            <div class="k">Відправлення</div>
+            <div class="v">${t.depart}</div>
+            <div class="sub">${t.from}<br><small class="muted-small">${t.from_place}</small></div>
+          </div>
+          <div class="trip-col text-center">
+            <div class="k">В дорозі</div>
+            <div class="v">${t.duration || ''}</div>
+            <div class="sub small-muted">${t.carrier || ''}</div>
+          </div>
+          <div class="trip-col">
+            <div class="k">Прибуття</div>
+            <div class="v">${t.arrive}</div>
+            <div class="sub">${t.to}<br><small class="muted-small">${t.to_place}</small></div>
+          </div>
+          <div class="trip-col text-center">
+            <div class="k">Вільних місць</div>
+            <div class="v">${t.free}</div>
+          </div>
+          <div class="trip-col price-col text-end">
+            <div class="k">Ціна</div>
+            ${hasDiscount ? `<div class="muted-small"><del>${formatPrice(t.original_price, t.currency)}</del></div><div class="price text-danger fw-bold">${formatPrice(t.price, t.currency)}</div>` : `<div class="price text-danger fw-bold">${formatPrice(t.price, t.currency)}</div>`}
+            <div class="sub">Разом: <strong>${formatPrice(total, t.currency)}</strong></div>
+            <div class="mt-2"><button class="btn choose-btn" ${disabled ? 'disabled' : ''}>Обрати</button></div>
+          </div>
+        </div>
+
+        <div class="trip-details mt-3" style="display:none">
+          <div class="row">
+            <div class="col-md-8">
+              <h5>Зупинки</h5>
+              <div class="stops-timeline">
+                ${t.stops.map(s => `
+                  <div class="stop-row d-flex align-items-start">
+                    <div class="stop-time me-3">${s.time}</div>
+                    <div class="stop-place">${s.place}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <h5>Інформація</h5>
+              <p><strong>Перевізник:</strong> ${t.carrier}</p>
+              <p><strong>Вільних місць:</strong> <span class="seats-count-right">${t.free}</span></p>
+              <p><strong>Умови повернення:</strong><br><small class="muted-small">Див. умови перевізника</small></p>
+              <div><button class="btn buy-now mt-2" ${disabled ? 'disabled' : ''}>Купити</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadCities(){
+    try{
+      const res = await fetch('/api/cities/');
+      if (res.ok){
+        const data = await res.json();
+        UA_CITIES = (data.UA || []).map(c => c.name);
+        PL_CITIES = (data.PL || []).map(c => c.name);
+
+        // build objects including country code, dedupe by lowercased name (prefer UA)
+        const map = new Map();
+        (data.UA || []).forEach(c => { if (c && c.name) map.set(c.name.toLowerCase(), {name: c.name, country: 'UA'}); });
+        (data.PL || []).forEach(c => { if (c && c.name){ const key = c.name.toLowerCase(); if (!map.has(key)) map.set(key, {name: c.name, country: 'PL'}); } });
+        ALL_CITY_OBJECTS = Array.from(map.values());
+        ALL_CITIES = ALL_CITY_OBJECTS.map(o => o.name);
+
+        // populate datalist for browser fallback
+        const datalist = document.getElementById('citiesList');
+        if (datalist){ datalist.innerHTML = ''; ALL_CITIES.forEach(n => { const o = document.createElement('option'); o.value = n; datalist.appendChild(o); }); }
+
+        // attach autocomplete to inputs (custom dropdown)
+        attachAutocomplete(document.getElementById('fromCity'), document.getElementById('fromSuggestions'), ALL_CITY_OBJECTS);
+        attachAutocomplete(document.getElementById('toCity'), document.getElementById('toSuggestions'), ALL_CITY_OBJECTS);
+      }
+    }catch(e){ console.warn('Failed to load cities', e); }
+  }
+
+  async function doSearch(){
+    const f = fromCity.value; const t = toCity.value; const d = travelDate.value;
+    const pax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
+    if (!f || !t || f === t){ results.innerHTML = ''; resultsMeta.textContent = 'Оберіть різні пункти відправлення та призначення.'; resultsBadge.style.display = 'none'; return; }
+
+    resultsMeta.textContent = `${f} — ${t}${d ? ' на ' + fmtDate(d) : ''}`;
+    resultsBadge.style.display = 'inline-flex';
+
+    let list = [];
+    try{
+      const cur = (currencySelect && currencySelect.value) ? currencySelect.value : '';
+      const url = `/api/trips/?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&date=${encodeURIComponent(d)}&pax=${encodeURIComponent(pax)}${cur ? '&currency=' + encodeURIComponent(cur) : ''}`;
+      const res = await fetch(url);
+        if (res.ok){
+          const data = await res.json();
+          list = (data.trips || []).map(x => ({
+            id: String(x.id), direction: x.direction, from: x.from, from_place: x.from_place || '',
+            to: x.to, to_place: x.to_place || '', depart: x.depart || '', arrive: x.arrive || '',
+            duration: x.duration || '',
+            original_price: Number(x.price) || 0,
+            price: Number(x.price_after_discount) || Number(x.price) || 0,
+            discount: Number(x.discount_percent) || 0,
+            currency: x.currency || 'UAH',
+            free: Number(x.free) || 0, carrier: x.carrier || '', stops: x.stops || []
+          }));
+      }
+    }catch(e){ console.warn('API trips fetch failed', e); }
+
+    resultsBadge.textContent = `${list.length} рейс(ів)`;
+    if (!list.length){ results.innerHTML = '<div class="small-muted">Немає рейсів за цими параметрами.</div>'; return; }
+
+    results.innerHTML = list.map(x => renderTripCard(x, pax)).join('');
+
+    results.querySelectorAll('.trip-card').forEach(card => {
+      const id = card.dataset.id;
+      const chooseBtn = card.querySelector('.choose-btn');
+      const buyNow = card.querySelector('.buy-now');
+      const details = card.querySelector('.trip-details');
+
+      chooseBtn && chooseBtn.addEventListener('click', () => { details.style.display = details.style.display === 'none' ? 'block' : 'none'; details.scrollIntoView({behavior:'smooth', block:'center'}); });
+
+      buyNow && buyNow.addEventListener('click', () => {
+        const pax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
+        const trip = list.find(x => String(x.id) === String(id)); if (!trip) return;
+        if (trip.free < pax){ alert('Недостатньо вільних місць для цієї кількості пасажирів.'); return; }
+
+        if (!IS_AUTH){ window.location.href = '{% url "registerindex" %}?next=' + encodeURIComponent(window.location.pathname + window.location.search); return; }
+
+        document.getElementById('form_from_city').value = trip.from;
+        document.getElementById('form_to_city').value = trip.to;
+        document.getElementById('form_passengers').value = pax;
+        document.getElementById('form_travel_date').value = travelDate.value || '';
+        document.getElementById('form_price').value = Math.round(trip.price || trip.original_price || 0);
+        document.getElementById('buyForm').submit();
+      });
+    });
+  }
+
+  // events
+  findBtn.addEventListener('click', doSearch);
+
+  // init
+  (async function init(){
+    await loadCities();
+    // fill both selects with all available cities (no direction toggle)
+    fillSelect(fromCity, ALL_CITIES);
+    fillSelect(toCity, ALL_CITIES);
+
+    const params = new URLSearchParams(window.location.search);
+    const qFrom = params.get('from'); const qTo = params.get('to'); const qDate = params.get('date') || params.get('travelDate'); const qPax = params.get('pax');
+    const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+    travelDate.value = qDate || `${y}-${m}-${d}`;
+    try{ if (qFrom) fromCity.value = qFrom; if (qTo) toCity.value = qTo; if (qPax) passengers.value = qPax; }catch(e){}
+    if (qFrom && qTo && qFrom !== qTo) doSearch();
+  })();
+
+  // no setDirection: page shows unified city lists and searches without direction toggle
+
+})();
+</script>
+{% endblock %}
+

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+{% block title %}Реєстрація / Вхід — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Compact styles copied/adapted from previous design, now scoped to page */
+.auth-wrap{display:flex;align-items:center;justify-content:center;padding:60px 20px}
+.auth-card{max-width:480px;width:100%;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.25));padding:28px;border-radius:14px;border:1px solid rgba(255,255,255,0.03);backdrop-filter: blur(6px)}
+.auth-card h2{color:#fff;margin-bottom:18px;font-weight:800}
+.form-group{margin-bottom:14px}
+label{color:#ddd;font-weight:600}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:#fff}
+.divider{color:var(--muted);text-align:center;margin:14px 0}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:#fff;color:#111}
+.switch{color:var(--muted);text-align:center;margin-top:10px}
+.error-message{background:#3b0000;color:#ffc9c9;padding:8px;border-radius:8px}
+.success-message{background:#073b09;color:#c9ffd6;padding:8px;border-radius:8px}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="auth-wrap">
+    <div class="auth-card" id="registerBox">
+      <h2>Реєстрація</h2>
+      {% if register_error %}<div class="error-message">{{ register_error }}</div>{% endif %}
+      {% if register_success %}<div class="success-message">{{ register_success }}</div>{% endif %}
+      <form action="{% url 'registerindex' %}" method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="login">Логін</label>
+          <input type="text" id="login" name="login" placeholder="Введіть логін" required />
+        </div>
+        <div class="form-group">
+          <label for="emeil">Email</label>
+          <input type="email" id="emeil" name="emeil" placeholder="example@email.com" required />
+        </div>
+        <div class="form-group">
+          <label for="password">Пароль</label>
+          <input type="password" id="password" name="password" placeholder="Мінімум 8 символів" required />
+        </div>
+        <div class="form-group">
+          <label for="repeatpass">Повторіть пароль</label>
+          <input type="password" id="repeatpass" name="repeatpass" placeholder="Повторіть пароль" required />
+        </div>
+        <button type="submit" class="btn btn-book">Зареєструватись</button>
+      </form>
+      <div class="divider">або</div>
+      <button class="google-btn" onclick="alert('Функція у розробці!')">
+        <!-- svg --> Увійти через Google
+      </button>
+      <div class="switch">Вже маєте акаунт? <a href="#" onclick="showLogin()">Увійти</a></div>
+    </div>
+
+    <div class="auth-card" id="loginBox" style="display:none;">
+      <h2>Вхід</h2>
+      {% if login_error %}<div class="error-message">{{ login_error }}</div>{% endif %}
+      <form action="{% url 'registerindex' %}" method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="login2">Логін</label>
+          <input type="text" id="login2" name="login" placeholder="Введіть логін" required />
+        </div>
+        <div class="form-group">
+          <label for="password2">Пароль</label>
+          <input type="password" id="password2" name="password" placeholder="Введіть пароль" required />
+        </div>
+        <button type="submit" class="btn btn-book">Увійти</button>
+      </form>
+      <div class="divider">або</div>
+      <button class="google-btn" onclick="alert('Функція у розробці!')">Увійти через Google</button>
+      <div class="switch">Не маєте акаунту? <a href="#" onclick="showRegister()">Реєстрація</a></div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showLogin(){document.getElementById('registerBox').style.display='none';document.getElementById('loginBox').style.display='block';}
+  function showRegister(){document.getElementById('registerBox').style.display='block';document.getElementById('loginBox').style.display='none';}
+  {% if login_error %}showLogin();{% endif %}
+</script>
+{% endblock %}

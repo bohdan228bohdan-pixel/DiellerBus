@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Керування рейсами — Перевізник{% endblock %}
+{% block head_extra %}
+<style>
+.carrier-manage{max-width:900px;margin:24px auto;padding:12px;color:#fff}
+.trip-card{background:linear-gradient(180deg,#0f0f10,#0b0b0);border:1px solid rgba(255,255,255,0.04);padding:16px;border-radius:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.trip-left{flex:1;min-width:0}
+.trip-title{font-weight:800;color:#ff6b6b;margin-bottom:6px;word-break:break-word}
+.trip-meta{color:#cfcfcf;font-size:0.95rem}
+.trip-actions{display:flex;gap:8px;align-items:center}
+.btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:700}
+.btn-primary{background:linear-gradient(90deg,#ff3b30,#ff6b6b);color:#fff;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:800;border:1px solid rgba(255,255,255,0.06)}
+.btn-date{background:transparent;color:#fff;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);font-weight:800}
+.btn-view{background:rgba(255,255,255,0.03);color:#fff;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
+.status-on{background:#10b981;color:#fff;padding:6px 10px;border-radius:8px;font-weight:800}
+.status-off{background:#ef4444;color:#fff;padding:6px 10px;border-radius:8px;font-weight:800}
+
+/* Toggle button */
+.toggle-btn{padding:8px 14px;border-radius:999px;font-weight:800;border:1px solid rgba(0,0,0,0.12);min-width:150px;cursor:pointer}
+.toggle-on{background:#10b981;color:#fff;border-color:rgba(255,255,255,0.04)}
+.toggle-off{background:#ef4444;color:#fff;border-color:rgba(255,255,255,0.04)}
+
+/* Mobile layout */
+@media (max-width:720px){
+  .carrier-manage{padding:12px;margin:16px}
+  .trip-card{flex-direction:column;align-items:flex-start;padding:14px}
+  .trip-actions{width:100%;flex-direction:column;align-items:stretch}
+  .trip-actions a,.trip-actions form .toggle-btn{width:100%}
+  .trip-actions .btn-primary,.trip-actions .btn-ghost{width:100%;text-align:center}
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="carrier-manage">
+  <h1 style="margin:0 0 12px 0">Мої рейси</h1>
+  <p style="color:var(--muted);margin-bottom:18px">Тут ви можете позначити рейс як "Не їде" або оновити доступність за датами.</p>
+  {% if trips %}
+    {% for trip in trips %}
+      <div class="trip-card">
+        <div class="trip-left">
+          <div class="trip-title">{{ trip.route.name }} — {{ trip.title|default:trip.date }}</div>
+          <div class="trip-meta">{{ trip.start_city }} → {{ trip.end_city }} · Дата: {{ trip.date|default:'—' }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto">
+          <div>
+            {% if trip.active %}
+              <span class="status-on">Їде</span>
+            {% else %}
+              <span class="status-off">Не їде</span>
+            {% endif %}
+          </div>
+          <div class="trip-actions">
+            <a class="btn-date" href="{% url 'main:carrier_trip_availability' trip.id %}">Налаштувати дати</a>
+            <form method="post" action="{% url 'main:carrier_toggle_trip' trip.id %}" class="toggle-form">{% csrf_token %}
+              <button class="toggle-btn {% if trip.active %}toggle-on{% else %}toggle-off{% endif %}" type="submit" aria-pressed="{% if trip.active %}true{% else %}false{% endif %}">
+                {% if trip.active %}Позначити як "Не їде"{% else %}Позначити як "Їде"{% endif %}
+              </button>
+            </form>
+            <a class="btn-view" href="{% url 'main:carrier_dashboard' %}?trip_id={{ trip.id }}">Переглянути квитки</a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div style="color:var(--muted)">Немає назначених рейсів.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,107 +1,224 @@
-/* Red & Black theme for Dieller Bus */
+/* ===== ROOT ===== */
 :root{
   --bg-dark: #0b0b0b;
   --bg-mid: #141414;
   --accent-red: #E10B00;
   --accent-red-soft: #ff3b3b;
   --muted: #bfbfbf;
-  --glass: rgba(255,255,255,0.03);
-  --glass-2: rgba(255,255,255,0.02);
 }
 
-*{box-sizing:border-box}
-body{
-  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-  background: linear-gradient(180deg, var(--bg-dark), #0f0f0f 40%);
-  color: #fff;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
+/* ===== RESET ===== */
+*{
+  box-sizing:border-box;
   margin:0;
+  padding:0;
 }
 
-/* Subtle animated background: diagonal stripes */
-.hero::before{
-  content:"";
-  position:absolute;inset:0;
-  background-image: linear-gradient(135deg, rgba(255,255,255,0.02) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.02) 75%, transparent 75%, transparent);
-  background-size: 56.57px 56.57px;
-  pointer-events:none;
+body{
+  font-family: 'Poppins', system-ui;
+  background: linear-gradient(180deg, var(--bg-dark), #0f0f0f 40%);
+  color:#fff;
+}
+
+/* ===== ВБИВАЄМО ВСЕ ЩО ТЕМНИТЬ ===== */
+.hero::before,
+.hero::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* ===== HEADER ===== */
+.site-header{
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top:0;
+  z-index:100;
+}
+
+/* ===== HERO ===== */
+.hero{
+  position:relative;
+  height:90vh;
+  overflow:hidden;
+}
+
+/* ===== SLIDER ===== */
+.hero-slider{
+  position:absolute;
+  width:100%;
+  height:100%;
   z-index:0;
 }
 
-.site-header{
-  background: linear-gradient(180deg, rgba(0,0,0,0.6), transparent);
-  padding:18px 0;
-  position:sticky;top:0;z-index:40;
-  border-bottom:1px solid rgba(255,255,255,0.02);
-}
-.brand{font-weight:800;color:#fff;font-size:1.45rem;text-decoration:none}
-.brand-accent{color:var(--accent-red);margin-left:6px;font-weight:900}
-.brand-img-small{width:44px;height:44px;border-radius:8px;object-fit:cover;margin-right:10px}
-
-.navbar .btn-cta{background:var(--accent-red);border:2px solid rgba(255,255,255,0.03);box-shadow:0 8px 20px rgba(225,11,0,0.12);color:#fff}
-.navbar .profile{border:1px solid rgba(255,255,255,0.04);color:#fff}
-
-.hero{position:relative;padding:80px 0 60px;overflow:hidden}
-.hero .overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(225,11,0,0.06), rgba(0,0,0,0.6));mix-blend-mode:overlay;z-index:0}
-.hero-inner{position:relative;z-index:2;display:flex;align-items:center;gap:40px}
-
-.hero-left{flex:1;color:#fff;text-align:left}
-.eyebrow{color:var(--accent-red-soft);font-weight:700;letter-spacing:1px;margin-bottom:12px}
-.title{font-size:3.2rem;font-weight:900;margin:0 0 12px;text-shadow:0 8px 30px rgba(0,0,0,0.7)}
-.lead{color:var(--muted);font-size:1.05rem;margin-bottom:18px}
-
-.hero-ctas .btn{margin-right:12px}
-.btn-book{background:linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));border:none;padding:12px 22px;border-radius:8px;font-weight:700}
-.btn-book:hover{transform:translateY(-3px);box-shadow:0 14px 40px rgba(225,11,0,0.25)}
-.btn-details{border:1px solid rgba(255,255,255,0.08);padding:10px 18px;border-radius:8px}
-
-.hero-right{width:320px}
-.card-card{background:linear-gradient(180deg,var(--bg-mid),#111);padding:18px;border-radius:14px;display:flex;gap:12px;align-items:center;border:1px solid rgba(255,255,255,0.03)}
-.brand-img{width:92px;height:92px;object-fit:cover;border-radius:12px;border:2px solid rgba(255,255,255,0.04)}
-.card-info h3{margin:0;color:var(--accent-red);font-weight:800}
-.card-info p{margin:0;color:var(--muted)}
-
-.features{padding:50px 0}
-.feature{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.02);height:100%}
-.feature .icon{font-size:28px;margin-bottom:10px}
-.feature h4{color:var(--accent-red);font-weight:800}
-.feature p{color:var(--muted)}
-
-.cta{padding:40px 0}
-.cta-block{background:linear-gradient(90deg, rgba(225,11,0,0.08), rgba(0,0,0,0.6));padding:30px;border-radius:16px;text-align:center;border:1px solid rgba(255,255,255,0.02)}
-.btn-cta-large{background:var(--accent-red);color:#fff;padding:12px 26px;border-radius:10px;font-weight:800}
-
-.site-footer{padding:18px 0;border-top:1px solid rgba(255,255,255,0.02);color:var(--muted)}
-.site-footer a{color:var(--accent-red-soft);text-decoration:none}
-.site-footer h5{color:#fff;font-weight:800}
-.site-footer .muted-small{color:var(--muted);font-size:0.95rem}
-.footer-links{list-style:none;padding:0;margin:0}
-.footer-links li{margin:6px 0}
-.footer-links a{color:var(--muted);text-decoration:none}
-.footer-bottom{border-top:1px solid rgba(255,255,255,0.02);padding-top:12px}
-
-/* Floating contact */
-.fab-contact{position:fixed;right:18px;bottom:18px;background:var(--accent-red);color:#fff;padding:12px 14px;border-radius:999px;box-shadow:0 14px 40px rgba(225,11,0,0.22);z-index:60;border:none}
-
-/* generic container max-width */
-.container{max-width:1180px}
-
-/* responsive */
-@media (max-width:991px){
-  .hero-inner{flex-direction:column;align-items:flex-start}
-  .hero-right{width:100%}
-  .title{font-size:2.6rem}
-}
-@media (max-width:576px){
-  .title{font-size:2.1rem}
-  .lead{font-size:0.98rem}
-  .brand{font-size:1.2rem}
+.slide{
+  position:absolute;
+  width:100%;
+  height:100%;
+  background-size:cover;
+  background-position:center;
+  opacity:0;
+  transition: opacity 1s ease-in-out;
 }
 
-/* small animations */
-.btn-book{transition:transform .25s ease, box-shadow .25s ease}
-.brand:hover{transform:scale(1.03);transition:transform .2s}
+.slide.active{
+  opacity:1;
+}
 
-/* accessibility focus styles */
-.btn:focus{outline:3px solid rgba(225,11,0,0.25);outline-offset:2px}
+/* ===== ГОЛОВНИЙ ФІКС ТЕМНОТИ ===== */
+.hero .overlay{
+  position:absolute;
+  inset:0;
+
+  /* 🔥 МАКСИМАЛЬНО ЛЕГКЕ затемнення */
+  background: rgba(0,0,0,0.25);
+
+  /* ❌ критично */
+  mix-blend-mode: normal !important;
+
+  z-index:1;
+}
+
+/* ===== CONTENT ===== */
+.hero-content{
+  position:relative;
+  z-index:5;
+  text-align:center;
+  top:50%;
+  transform:translateY(-50%);
+  padding:20px;
+}
+
+.hero-content h1{
+  font-size:60px;
+  font-weight:900;
+}
+
+.accent{
+  color:var(--accent-red);
+}
+
+.hero-content p{
+  color:#ccc;
+  margin-top:10px;
+  font-size:18px;
+}
+
+/* ===== КНОПКИ (ФІКС ВИДИМОСТІ) ===== */
+.btn-book,
+.scroll-btn,
+.call-btn{
+  position:relative;
+  z-index:999; /* 🔥 завжди зверху */
+
+  display:inline-block;
+
+  background: linear-gradient(135deg,#ff2a2a,#ff0000);
+  color:#fff;
+
+  border:none;
+  padding:14px 32px;
+  border-radius:30px;
+
+  font-weight:700;
+  cursor:pointer;
+
+  box-shadow:0 0 20px rgba(255,0,0,0.7);
+
+  transition: all 0.3s ease;
+}
+
+.btn-book:hover,
+.scroll-btn:hover,
+.call-btn:hover{
+  transform:translateY(-3px);
+  box-shadow:0 0 40px rgba(255,0,0,1);
+}
+
+.btn-book:active{
+  transform:scale(0.95);
+}
+
+/* ===== BUS CARD ===== */
+.bus-card{
+  background:#151515;
+  border-radius:12px;
+  overflow:hidden;
+  transition:0.3s;
+}
+
+.bus-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 0 25px rgba(255,0,0,0.4);
+}
+
+/* ===== MODAL ===== */
+.call-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.8);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  opacity:0;
+  pointer-events:none;
+
+  transition:0.3s;
+  z-index:9999;
+}
+
+.call-modal.active{
+  opacity:1;
+  pointer-events:all;
+}
+
+.call-box{
+  background:#111;
+  padding:40px;
+  border-radius:15px;
+  text-align:center;
+
+  border:1px solid #222;
+
+  box-shadow:0 0 40px rgba(255,0,0,0.4);
+}
+
+.phone-number{
+  font-size:22px;
+  color:#ff2a2a;
+  margin:20px 0;
+}
+
+/* ===== FOOTER ===== */
+.site-footer{
+  border-top:1px solid rgba(255,255,255,0.05);
+  padding:20px;
+  color:#aaa;
+}
+
+/* ===== АНТИ-ТУХНЕННЯ (КРИТИЧНО) ===== */
+.hero,
+.hero *{
+  opacity:1 !important;
+  filter:none !important;
+}
+
+/* ===== FIX КНОПОК ===== */
+button,
+a{
+  position:relative;
+  z-index:10;
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .hero-content h1{
+    font-size:40px;
+  }
+
+  .hero-content p{
+    font-size:16px;
+  }
+}

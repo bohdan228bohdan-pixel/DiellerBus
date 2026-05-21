@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page.title }} — {{ site_config.shop_name|default:'Dieller Bus' }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:920px;margin:48px auto;padding:28px;background:#ffffff;border-radius:10px;box-shadow:0 6px 22px rgba(0,0,0,0.12);color:#111;font-family:inherit;">
+  <h1 style="margin-bottom:16px;color:#111">{{ page.title }}</h1>
+  <div style="color:#222;line-height:1.6">
+    {{ page.content|safe }}
+  </div>
+</div>
+{% endblock %}

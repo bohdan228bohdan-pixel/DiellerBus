@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Згоди та питання — Dieller Bus{% endblock %}
+
+{% block content %}
+<style>
+  .agreements-wrap{max-width:1100px;margin:40px auto;padding:20px}
+  .agreements-grid{display:flex;gap:24px}
+  .agreements-toc{flex:0 0 280px;border-right:1px solid #f0f0f0;padding-right:18px}
+  .agreements-toc a{display:block;padding:8px 6px;color:#007bff;text-decoration:none}
+  .agreements-toc a:hover{background:#f8f9fa}
+  .agreements-content{flex:1;padding-left:18px}
+  .agreement-section{padding:18px 0;border-bottom:1px solid #f0f0f0}
+  .agreement-section h3{margin-top:0}
+  @media(max-width:900px){.agreements-grid{flex-direction:column}.agreements-toc{border-right:none;padding-right:0}}
+</style>
+
+<div class="agreements-wrap">
+  <h2>Згоди та часті питання</h2>
+  <p class="muted-small">Нижче зібрані ліцензійні згоди та відповіді на типові питання, пов'язані з оформленням квитків.</p>
+
+  <div class="agreements-grid">
+    <aside class="agreements-toc">
+      <nav>
+        {% for s in sections %}
+          <a href="#{{ s.id }}">{{ s.title }}</a>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <section class="agreements-content">
+      {% for s in sections %}
+        <div id="{{ s.id }}" class="agreement-section">
+          <h3>{{ s.title }}</h3>
+          <div class="agreement-body">{{ s.content|safe }}</div>
+        </div>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+
+{% endblock %}

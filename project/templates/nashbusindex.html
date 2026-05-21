@@ -1,682 +1,502 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Каталог автобусів — Dieller Bus{% endblock %}
-
-{% block head_extra %}
-<style>
-  /* Reset & base */
-  * {
-    margin: 0; padding: 0; box-sizing: border-box;
-  }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #0a0a0a;
-    color: #8b0000;
-    line-height: 1.6;
-  }
-  a {
-    color: #8b0000; 
-    text-decoration: none;
-    transition: color 0.3s ease;
-  }
-  a:hover,
-  a:focus {
-    color: #b22222;
-    outline: none;
-  }
-  img {
-    max-width: 100%; display: block;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(139,0,0,0.5);
-  }
-
-  /* Header */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 24px;
-    background: #0a0a0a;
-    box-shadow: 0 2px 6px rgba(139,0,0,0.5);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .logo {
-    font-weight: 900;
-    font-size: 1.8rem;
-    color: #8b0000;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    letter-spacing: 1.5px;
-    text-shadow: 0 0 4px #b22222;
-  }
-  nav ul {
-    list-style: none;
-    display: flex;
-    gap: 20px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: #8b0000;
-  }
-  nav ul li {
-    white-space: nowrap;
-  }
-  nav ul li a {
-    padding: 4px 0;
-    color: #8b0000;
-  }
-  nav ul li a:hover,
-  nav ul li a:focus {
-    color: #b22222;
-  }
-  .lang-switch {
-    border: 1.5px solid #8b0000;
-    border-radius: 6px;
-    padding: 3px 8px;
-    color: #8b0000;
-    font-weight: 700;
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  .lang-switch:hover,
-  .lang-switch:focus {
-    background-color: #8b0000;
-    color: #0a0a0a;
-  }
-
-  /* Hero Section */
-  .hero {
-    position: relative;
-    background: url('{% static "img/hero-bus.jpg" %}') center center/cover no-repeat;
-    height: 360px;
-    color: #8b0000;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 0 16px;
-    text-shadow: 0 0 5px #b22222;
-  }
-  .hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-color: rgba(10,10,10,0.85);
-    z-index: 0;
-    border-radius: 0 0 24px 24px;
-  }
-  .hero-content {
-    position: relative;
-    z-index: 1;
-    max-width: 480px;
-    margin: 0 auto;
-  }
-  .hero h1 {
-    font-size: 2.6rem;
-    font-weight: 900;
-    margin-bottom: 10px;
-  }
-  .hero h1 strong {
-    color: #b22222;
-  }
-  .hero p {
-    font-size: 1.1rem;
-    margin-bottom: 20px;
-    line-height: 1.4;
-  }
-  .hero .phones {
-    font-size: 1rem;
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    align-items: center;
-    flex-wrap: wrap;
-    color: #b22222;
-  }
-  .hero .phones span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    font-weight: 700;
-  }
-  .hero .phones span svg {
-    fill: #b22222;
-    width: 18px;
-    height: 18px;
-  }
-  .hero .catalog-link {
-    margin-top: 30px;
-    font-size: 1.1rem;
-    font-weight: 900;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: #8b0000;
-    text-shadow: 0 0 8px #b22222;
-    text-decoration: none;
-    border: 2px solid #8b0000;
-    padding: 10px 22px;
-    border-radius: 24px;
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  .hero .catalog-link:hover,
-  .hero .catalog-link:focus {
-    background-color: #8b0000;
-    color: #0a0a0a;
-    text-shadow: none;
-  }
-  .hero .catalog-link svg {
-    width: 22px;
-    height: 22px;
-    stroke: #8b0000;
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    fill: none;
-    animation: bounceArrow 2s infinite;
-  }
-  @keyframes bounceArrow {
-    0%, 100% {transform: translateY(0);}
-    50% {transform: translateY(4px);}
-  }
-
-  /* Bus Catalog */
-  .bus-catalog {
-    max-width: 1000px;
-    margin: 40px auto 60px;
-    padding: 0 16px;
-  }
-  .bus-catalog h2 {
-    text-align: center;
-    color: #8b0000;
-    font-size: 2.4rem;
-    margin-bottom: 40px;
-    font-weight: 900;
-    text-shadow: 0 0 6px #b22222;
-    letter-spacing: 1.2px;
-  }
-  .bus-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
-    gap: 24px;
-  }
-  .bus-card {
-    background-color: #121212;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(139,0,0,0.5);
-    overflow: hidden;
-    cursor: pointer;
-    transition: box-shadow 0.3s ease, transform 0.3s ease;
-    text-decoration: none;
-    color: #8b0000;
-    display: flex;
-    flex-direction: column;
-    user-select: none;
-  }
-  .bus-card:hover,
-  .bus-card:focus {
-    box-shadow: 0 18px 40px rgba(178,34,34,0.7);
-    transform: translateY(-6px);
-    outline: none;
-  }
-  .bus-card img {
-    width: 100%;
-    height: 140px;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-    border-bottom: 2px solid #8b0000;
-  }
-  .bus-card:hover img,
-  .bus-card:focus img {
-    transform: scale(1.05);
-  }
-  .bus-info {
-    padding: 18px 16px;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
-  }
-  .bus-info h3 {
-    margin: 0 0 8px;
-    font-size: 1.3rem;
-    color: #b22222;
-    font-weight: 900;
-    text-shadow: 0 0 4px #8b0000;
-  }
-  .bus-info h5 {
-    margin: 0;
-    font-weight: 600;
-    font-size: 1rem;
-    color: #aaa;
-  }
-
-  /* How we work Section */
-  .how-we-work {
-    max-width: 900px;
-    margin: 40px auto 60px;
-    padding: 0 16px;
-    text-align: center;
-  }
-  .how-we-work h2 {
-    font-size: 2rem;
-    font-weight: 900;
-    margin-bottom: 14px;
-    position: relative;
-    display: inline-block;
-    color: #8b0000;
-    text-shadow: 0 0 6px #b22222;
-  }
-  .how-we-work h2::after {
-    content: "";
-    display: block;
-    height: 3px;
-    width: 60px;
-    background: #8b0000;
-    margin: 12px auto 0;
-    border-radius: 3px;
-    box-shadow: 0 0 8px #b22222;
-  }
-  .steps {
-    margin-top: 36px;
-    display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    gap: 28px;
-  }
-  .step {
-    flex: 1 1 180px;
-    max-width: 180px;
-    color: #8b0000;
-  }
-  .step .icon-wrapper {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 16px;
-    border: 3px solid #8b0000;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #8b0000;
-    font-size: 28px;
-    text-shadow: 0 0 8px #b22222;
-  }
-  .step h3 {
-    font-weight: 900;
-    font-size: 1.1rem;
-    margin-bottom: 12px;
-  }
-  .step p {
-    font-weight: 500;
-    font-size: 0.95rem;
-    color: #bbb;
-    line-height: 1.4;
-  }
-
-  /* Why Choose Us Section */
-  .why-choose-us {
-    position: relative;
-    background: url('{% static "img/footer-bg.jpg" %}') center center/cover no-repeat;
-    color: #8b0000;
-    padding: 60px 16px 80px;
-    text-shadow: 0 0 6px #b22222;
-  }
-  .why-choose-us::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(10,10,10,0.8);
-    z-index: 0;
-    border-radius: 24px 24px 0 0;
-  }
-  .why-choose-us .content {
-    position: relative;
-    max-width: 900px;
-    margin: 0 auto;
-    text-align: center;
-    z-index: 1;
-  }
-  .why-choose-us h2 {
-    font-size: 2rem;
-    font-weight: 900;
-    margin-bottom: 16px;
-    position: relative;
-  }
-  .why-choose-us h2::after {
-    content: "";
-    display: block;
-    height: 3px;
-    width: 60px;
-    background: #8b0000;
-    margin: 10px auto 20px;
-    border-radius: 3px;
-    box-shadow: 0 0 10px #b22222;
-  }
-  .reasons-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
-    gap: 28px;
-  }
-  .reason {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  .reason-icon {
-    width: 48px;
-    height: 48px;
-    border: 2.5px solid #8b0000;
-    border-radius: 50%;
-    color: #8b0000;
-    font-size: 24px;
-    flex-shrink: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-shadow: 0 0 8px #b22222;
-  }
-  .reason-text {
-    flex-grow: 1;
-    text-align: left;
-  }
-  .reason-text h3 {
-    font-weight: 900;
-    font-size: 1.1rem;
-    color: #b22222;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    text-shadow: 0 0 4px #8b0000;
-  }
-  .reason-text p {
-    font-weight: 500;
-    font-size: 0.95rem;
-    line-height: 1.4;
-    color: #ccc;
-  }
-
-  /* Top red strip */
-  .top-strip {
-    width: 100%;
-    height: 6px;
-    background: #8b0000;
-  }
-
-  /* Banner with buttons */
-  .banner {
-    position: relative;
-    width: 100%;
-    height: 200px;
-    background: url('{% static "img/5285488700261338656.jpg" %}') center/cover no-repeat;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding: 12px 24px;
-    border-radius: 0 0 24px 24px;
-    box-shadow: 0 0 20px #8b0000;
-  }
-  .banner::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(10,10,10,0.8);
-    border-radius: 0 0 24px 24px;
-  }
-  .banner .menu {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .banner .menu a {
-    background: rgba(139,0,0,0.75);
-    padding: 8px 18px;
-    color: #fff;
-    font-weight: 900;
-    border-radius: 24px;
-    text-decoration: none;
-    transition: 0.3s;
-    white-space: nowrap;
-    box-shadow: 0 4px 12px rgba(139,0,0,0.7);
-    letter-spacing: 1px;
-  }
-  .banner .menu a:hover,
-  .banner .menu a:focus {
-    background: #b22222;
-    box-shadow: 0 5px 16px #b22222;
-    outline: none;
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .hero {
-      height: 300px;
-    }
-    .hero h1 {
-      font-size: 2rem;
-    }
-    .hero p {
-      font-size: 1rem;
-    }
-    .bus-catalog {
-      margin: 30px auto 50px;
-    }
-    .bus-catalog h2 {
-      font-size: 2rem;
-      margin-bottom: 32px;
-    }
-    .bus-list {
-      grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
-      gap: 20px;
-    }
-    .bus-card img {
-      height: 120px;
-    }
-    .how-we-work {
-      margin: 30px auto 50px;
-    }
-    .how-we-work h2 {
-      font-size: 1.7rem;
-    }
-    .steps {
-      gap: 20px;
-    }
-    .step {
-      max-width: 140px;
-    }
-    .why-choose-us {
-      padding: 50px 16px 60px;
-    }
-    .why-choose-us h2 {
-      font-size: 1.7rem;
-      margin-bottom: 12px;
-    }
-    .reasons-grid {
-      gap: 20px;
-      grid-template-columns: 1fr;
-    }
-    .reason-icon {
-      width: 40px;
-      height: 40px;
-      font-size: 20px;
-      border-width: 2px;
-    }
-    .banner {
-      height: 160px;
-      padding: 8px 16px;
-      box-shadow: 0 0 16px #8b0000;
-    }
-    .banner .menu a {
-      padding: 6px 14px;
-      font-size: 0.9rem;
-    }
-  }
-  @media (max-width: 400px) {
-    .hero h1 {
-      font-size: 1.6rem;
-    }
-    .hero .phones {
-      flex-direction: column;
-      gap: 12px;
-    }
-    .bus-catalog h2 {
-      font-size: 1.6rem;
-    }
-    .bus-list {
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
-    .bus-card img {
-      height: 100px;
-    }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="top-strip"></div>
 
+<style>
+/* ===== RESET ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
+/* ===== GLOBAL ===== */
+body {
+  background: #0d0d0d;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+}
 
-<section class="hero" role="banner" aria-label="Головний банер">
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ===== HERO SLIDER ===== */
+.hero-banner {
+  position: relative;
+  height: 95vh;
+  overflow: hidden;
+}
+
+.hero-slider {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.slide {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 1s ease-in-out, transform 6s linear;
+  transform: scale(1.1);
+
+  /* 🔥 ВАЖЛИВО — робимо світліше */
+  filter: brightness(1.15) contrast(1.05);
+}
+
+.slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ===== OVERLAY (ЗМЕНШЕНИЙ) ===== */
+.overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+
+  /* 🔥 було 0.7 / 0.95 — стало значно легше */
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.65)
+  );
+
+  z-index: 1;
+}
+
+/* ===== CONTENT ===== */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 20px;
+}
+
+.hero-content h1 {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.accent {
+  color: #ff2a2a;
+}
+
+.hero-content p {
+  color: #ddd; /* трохи світліший текст */
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+/* ===== PHONES ===== */
+.phones {
+  display: flex;
+  justify-content: center;
+  gap: 25px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.phones div {
+  padding: 10px 15px;
+  border: 1px solid #333;
+  border-radius: 20px;
+  transition: 0.3s;
+  background: rgba(0,0,0,0.3); /* щоб читабельно було */
+}
+
+.phones div:hover {
+  border-color: #ff2a2a;
+}
+
+/* ===== SCROLL BUTTON ===== */
+.scroll-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 12px 30px;
+  background: #ff2a2a;
+  border-radius: 30px;
+  transition: 0.3s;
+}
+
+.scroll-btn:hover {
+  background: #cc0000;
+}
+
+/* ===== STEPS ===== */
+.steps {
+  padding: 70px 20px;
+  text-align: center;
+  background: #111;
+}
+
+.steps h2 {
+  margin-bottom: 50px;
+  font-size: 32px;
+}
+
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 25px;
+}
+
+.step {
+  padding: 30px;
+  border: 1px solid #222;
+  border-radius: 12px;
+  transition: 0.3s;
+  opacity: 0;
+  transform: translateY(40px);
+}
+
+.step.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.step:hover {
+  border-color: #ff2a2a;
+  transform: translateY(-5px);
+}
+
+.step-icon {
+  font-size: 40px;
+  margin-bottom: 15px;
+}
+
+/* ===== CATALOG ===== */
+.catalog {
+  padding: 70px 40px;
+}
+
+.catalog h2 {
+  text-align: center;
+  margin-bottom: 50px;
+  font-size: 32px;
+}
+
+.bus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+}
+
+.bus-card {
+  background: #151515;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: 0.3s;
+  opacity: 0;
+  transform: translateY(40px);
+}
+
+.bus-card.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bus-card:hover {
+  transform: translateY(-7px);
+  box-shadow: 0 0 25px rgba(255,0,0,0.4);
+}
+
+.bus-card img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.bus-info {
+  padding: 20px;
+}
+
+.bus-info h3 {
+  color: #ff2a2a;
+}
+
+.bus-info p {
+  color: #aaa;
+}
+
+.price {
+  font-weight: bold;
+  color: #fff;
+}
+
+/* ===== BUTTON ===== */
+.btn {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: #ff2a2a;
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.btn:hover {
+  background: #cc0000;
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width: 1000px){
+  .bus-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .step-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+  /* ===== CALL MODAL ===== */
+  .call-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.3s;
+    z-index: 9999;
+  }
+  .call-modal .call-box {
+    background: #111;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    width: 320px;
+    border: 1px solid #222;
+  }
+  .call-modal .close-modal{position:absolute;top:8px;right:12px;font-size:22px;cursor:pointer}
+  .call-modal .phone-number{font-size:20px;margin:12px 0;color:#ff2a2a}
+  .call-modal .call-btn{display:inline-block;padding:10px 18px;background:#ff2a2a;color:#fff;border-radius:20px;text-decoration:none}
+
+@media(max-width: 600px){
+  .bus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-content h1 {
+    font-size: 40px;
+  }
+}
+</style>
+
+<!-- ===== HERO ===== -->
+<section class="hero-banner">
+
+  <div class="hero-slider">
+    <div class="slide active" style="background-image:url('{% static "img/Без названия1.jpg" %}')"></div>
+    <div class="slide" style="background-image:url('{% static "img/***2.jpg" %}')"></div>
+    <div class="slide" style="background-image:url('{% static "img/***3.jpg" %}')"></div>
+  </div>
+
+  <div class="overlay"></div>
+
   <div class="hero-content">
-    <h1><strong>Dieller</strong> Bus</h1>
-    <p>Пасажирські перевезення по Україні та Польщі:<br>вирішуємо будь-які ЗАМОВЛЕННЯ !</p>
-    <p>Телефонуйте сьогодні:</p>
-    <div class="phones" aria-label="Телефонні номери">
-      <span><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2c-9.05-.5-16.42-8.87-16.92-16.92A2 2 0 016.1 3h3a2 2 0 012 1.72c.13 1.21.46 2.38.97 3.47a2 2 0 01-.45 2.11L10 11a16 16 0 007 7l.7-.7a2 2 0 012.11-.45c1.09.5 2.26.83 3.47.97a2 2 0 011.72 2z"/></svg></span>
-      <span><strong>Vodafone:)</strong> 050-176-30-30</span>
-      <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2" fill="none"/><path d="M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></span>
+    <h1><span class="accent">Dieller</span> Bus</h1>
+
+    <p>
+      ***<br>
+      ***
+    </p>
+
+    <div class="phones">
+      <div>📞 050 176-30-30</div>
+      <div>📱 *** ***-**-**</div>
+      <div>☎ *** ***-**-**</div>
     </div>
-    <a href="#catalog" class="catalog-link" aria-label="Перейти до каталогу автобусів">
-      Каталог автобусів
-      <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+
+    <a href="#catalog" class="scroll-btn">
+      Каталог автобусів ↓
     </a>
   </div>
+
 </section>
 
-<section id="catalog" class="bus-catalog" aria-label="Каталог автобусів">
-  <h2>Каталог автобусів</h2>
-  <div class="bus-list">
-    <a href="{% url 'mercedes2' %}" class="bus-card" aria-label="Детальніше про автобус Mercedes O404">
-      <img src="{% static 'img/mercedes.jpg' %}" alt="Mercedes O404 темно-синій" />
-      <div class="bus-info">
-        <h3>Mercedes O404</h3>
-        <h5>темно-синій</h5>
-      </div>
-    </a>
-    <a href="{% url 'neoplanred' %}" class="bus-card" aria-label="Детальніше про автобус Neolan N316 червоний">
-      <img src="{% static 'img/5269672762366693910.jpg' %}" alt="Neolan N316 червоний" />
-      <div class="bus-info">
-        <h3>Neolan N316</h3>
-        <h5>червоний</h5>
-      </div>
-    </a>
-    <a href="{% url 'neolplanwhite' %}" class="bus-card" aria-label="Детальніше про автобус Neolan N316 білий">
-      <img src="{% static 'img/neoplanwhite.jpg' %}" alt="Neolan N316 білий" />
-      <div class="bus-info">
-        <h3>Neolan N316</h3>
-        <h5>білий</h5>
-      </div>
-    </a>
-
-    <a href="{% url 'bova' %}" class="bus-card" aria-label="Детальніше про автобус Bova коричнева">
-      <img src="{% static 'img/bova.jpg' %}" alt="Bova коричнева" />
-      <div class="bus-info">
-        <h3>Bova</h3>
-        <h5>коричнева</h5>
-      </div>
-    </a>
-
-    <a href="{% url 'eos' %}" class="bus-card" aria-label="Детальніше про автобус Eos e-200 білий">
-      <img src="{% static 'img/eos.jpg' %}" alt="Eos e-200 білий" />
-      <div class="bus-info">
-        <h3>Eos e-200</h3>
-        <h5>білий</h5>
-      </div>
-    </a>
-  </div>
-</section>
-
-<section class="how-we-work" aria-label="Як з нами працювати">
+<!-- ===== STEPS ===== -->
+<section class="steps">
   <h2>Як з нами працювати</h2>
-  <div class="steps">
+
+  <div class="step-grid">
+
     <div class="step">
-      <div class="icon-wrapper" aria-hidden="true">🚌</div>
+      <div class="step-icon">🚌</div>
       <h3>Вибираєте автобус</h3>
-      <p>Придивіться автобус за смаком</p>
+      <p>Оберіть транспорт</p>
     </div>
+
     <div class="step">
-      <div class="icon-wrapper" aria-hidden="true">📞</div>
-      <h3>Телефонуйте менеджеру</h3>
-      <p>Наш фахівець уточнює з вами деталі поїздки</p>
+      <div class="step-icon">📞</div>
+      <h3>Телефонуєте</h3>
+      <p>Уточнюємо деталі</p>
     </div>
+
     <div class="step">
-      <div class="icon-wrapper" aria-hidden="true">📅</div>
-      <h3>Бронюйте квиток</h3>
-      <p>Після узгодження деталей оплачуєте</p>
+      <div class="step-icon">📅</div>
+      <h3>Бронюєте</h3>
+      <p>Фіксуємо дату</p>
     </div>
+
     <div class="step">
-      <div class="icon-wrapper" aria-hidden="true">🤝</div>
-      <h3>Подаємо транспорт на автостанцію</h3>
-      <p>Отримуєте послугу відповідно до ваших побажань</p>
+      <div class="step-icon">🚐</div>
+      <h3>Їдете</h3>
+      <p>Отримуєте послугу</p>
     </div>
+
   </div>
 </section>
 
-<section class="why-choose-us" aria-label="Чому вибирають нас?">
-  <div class="content">
-    <h2>Чому вибирають нас?</h2>
-    <div class="reasons-grid">
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">🤝</div>
-        <div class="reason-text">
-          <h3>Партнерство</h3>
-          <p>Ми можемо працювати на постійній основі і організація пасажирських перевезень здійснюється з усією дозволеною документацією (страховки, ліцензії, путівки)</p>
-        </div>
+<!-- ===== CATALOG ===== -->
+<section id="catalog" class="catalog">
+  <h2>Каталог автобусів</h2>
+
+  <div class="bus-grid">
+
+    {% for bus in buses %}
+    <div class="bus-card">
+
+      {% if bus.image %}
+        <img src="{{ bus.image.url }}">
+      {% else %}
+        <img src="{% static 'img/placeholder-bus.jpg' %}">
+      {% endif %}
+
+      <div class="bus-info">
+        <h3>{{ bus.title }}</h3>
+        <p>{{ bus.seats }} місць</p>
+
+        <p class="price">
+          {% if bus.price_per_hour %}
+            від {{ bus.price_per_hour }} грн/год
+          {% else %}
+            ціна договірна
+          {% endif %}
+        </p>
+
+        <a href="{{ bus.get_absolute_url }}" class="btn">
+          Деталі
+        </a>
+
+        <!-- Замовити кнопку: відкриває модал з телефоном -->
+        <button type="button" class="btn order-btn open-call" data-phone="{{ bus.contact_phone }}" style="margin-left:8px">📞 Замовити</button>
       </div>
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">💰</div>
-        <div class="reason-text">
-          <h3>Доступні ціни</h3>
-          <p>Недорого взяти квиток на наші автобуси можна для регулярних перевезень до Пулав та Луцька. Також можливо замовити автобус за номерами телефонів</p>
-        </div>
-      </div>
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">✔️</div>
-        <div class="reason-text">
-          <h3>Комфорт</h3>
-          <p>Автобуси обладнані всіма необхідними: міні-тулети, грубка і кондиціонер, комфортні крісла, ремені безпеки.</p>
-        </div>
-      </div>
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">8</div>
-        <div class="reason-text">
-          <h3>10 років досвіду</h3>
-          <p>Ми працюємо більше 10 років, наш досвід – це запорука вашого спокою і задоволення!</p>
-        </div>
-      </div>
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">👨‍✈️</div>
-        <div class="reason-text">
-          <h3>Кращі водії</h3>
-          <p>Наші водії мають величезний досвід міжнародних поїздок і відкриті візи, всі супутні документи оформлюємо швидко і якісно.</p>
-        </div>
-      </div>
-      <div class="reason">
-        <div class="reason-icon" aria-hidden="true">🚌</div>
-        <div class="reason-text">
-          <h3>Великий автопарк</h3>
-          <p>Транспорт завжди в ідеальному стані: автобуси (50 місць)</p>
-        </div>
-      </div>
+
     </div>
+    {% endfor %}
+
   </div>
 </section>
+
+<script>
+// ===== SLIDER =====
+let slides = document.querySelectorAll('.slide');
+let index = 0;
+
+function nextSlide() {
+  slides[index].classList.remove('active');
+  index = (index + 1) % slides.length;
+  slides[index].classList.add('active');
+}
+
+setInterval(nextSlide, 4000);
+
+
+// ===== SMOOTH SCROLL =====
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', function(e){
+    e.preventDefault();
+    document.querySelector(this.getAttribute('href'))
+      .scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+
+// ===== SCROLL ANIMATION =====
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      entry.target.classList.add('show');
+    }
+  });
+}, { threshold: 0.2 });
+
+document.querySelectorAll('.bus-card, .step').forEach(el => {
+  observer.observe(el);
+});
+
+
+// ===== HOVER EFFECT (легкий tilt) =====
+document.querySelectorAll('.bus-card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    let rect = card.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+
+    let centerX = rect.width / 2;
+    let centerY = rect.height / 2;
+
+    let rotateX = (y - centerY) / 20;
+    let rotateY = (centerX - x) / 20;
+
+    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  });
+
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'rotateX(0) rotateY(0)';
+  });
+});
+</script>
+
+<!-- CALL MODAL (catalog) -->
+<div id="catalogCallModal" class="call-modal" style="display:none; align-items:center; justify-content:center;">
+  <div class="call-box">
+    <span class="close-modal">&times;</span>
+    <h2>Зателефонувати</h2>
+    <p>Номер телефону:</p>
+    <div id="catalogPhoneNumber" class="phone-number" style="color:#ff2a2a;margin:14px 0;font-size:20px"></div>
+    <a id="catalogCallBtn" href="#" class="call-btn">📞 Подзвонити</a>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const modal = document.getElementById('catalogCallModal');
+    const phoneText = document.getElementById('catalogPhoneNumber');
+    const callBtn = document.getElementById('catalogCallBtn');
+
+    document.querySelectorAll('.open-call').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const phone = btn.dataset.phone || 'Нема номера';
+        phoneText.innerText = phone;
+        callBtn.href = 'tel:' + phone;
+        modal.style.display = 'flex';
+        setTimeout(()=> modal.style.opacity = '1', 20);
+      });
+    });
+
+    // close handlers
+    const close = modal.querySelector('.close-modal');
+    if (close) close.addEventListener('click', () => { modal.style.opacity = '0'; setTimeout(()=> modal.style.display = 'none', 220); });
+    modal.addEventListener('click', (e) => { if (e.target === modal) { modal.style.opacity = '0'; setTimeout(()=> modal.style.display = 'none', 220); } });
+  })();
+</script>
+
 {% endblock %}

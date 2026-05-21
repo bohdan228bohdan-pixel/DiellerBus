@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Редагування профілю — {{ view_user.username }}{% endblock %}
+
+{% load static %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto">
+  <h3>Редагувати профіль: {{ view_user.username }}</h3>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1 1 320px">
+        <label class="muted-small">Логін</label>
+        {{ user_form.username }}
+        <label class="muted-small">Email</label>
+        {{ user_form.email }}
+        <div style="margin-top:8px">{{ user_form.is_active }} <label>Активний</label></div>
+      </div>
+      <div style="flex:1 1 320px">
+        <label class="muted-small">Телефон</label>
+        {{ profile_form.phone }}
+        <label class="muted-small">Аватар</label>
+        {{ profile_form.avatar }}
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-sm">Зберегти</button>
+      <a href="{% url 'main:support_admin_user' view_user.id %}" class="btn btn-secondary btn-sm">Скасувати</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

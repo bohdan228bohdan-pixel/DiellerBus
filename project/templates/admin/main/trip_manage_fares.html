@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Управління тарифами — {{ trip }}{% endblock %}
+
+{% block content %}
+  <h1 style="margin-bottom:8px">Управління тарифами — {{ trip }}</h1>
+  <p>Заповніть ціни (ціна за квиток). Порожнє поле видалить тариф.</p>
+  <form method="post">{% csrf_token %}
+    <table class="table table-bordered table-sm" style="width:auto;min-width:480px;">
+      <thead>
+        <tr>
+          <th>З \ До</th>
+          {% for c in cols %}
+            <th style="min-width:120px">{{ c.name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in matrix %}
+          <tr>
+            <th style="font-weight:700">{{ row.from_city.name }}</th>
+            {% for cell in row.cells %}
+              <td style="vertical-align:middle">
+                <input type="text" name="price_{{ cell.from_id }}_{{ cell.to_id }}" value="{{ cell.price }}" style="width:110px;text-align:right;padding:6px;border-radius:6px;border:1px solid #ddd" />
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="margin-top:14px">
+      <button type="submit" class="default">Зберегти</button>
+      <a class="button" href="{% url 'admin:main_trip_changelist' %}">Повернутись до переліку рейсів</a>
+    </div>
+  </form>
+
+{% endblock %}

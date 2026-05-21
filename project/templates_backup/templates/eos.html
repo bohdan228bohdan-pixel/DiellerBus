@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+{% block title %}Mercedes — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<style>
+  .model-hero{background-image: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("{% static 'img/mercedes-hero.jpg' %}");background-size:cover;background-position:center;padding:72px 0;color:#fff}
+  .model-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.45));padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+  .model-image{width:100%;height:auto;border-radius:8px;object-fit:cover}
+  @media (max-width:767px){ .model-hero{padding:48px 0} }
+</style>
+{% endblock %}
+
+{% block content %}
+  <section class="model-hero" data-aos="zoom-in">
+    <div class="container text-center">
+      <h1 class="display-5" style="font-weight:900">Mercedes — комфортні рейси</h1>
+      <p class="lead" style="color:var(--muted)">Комфортні салони, надійність та місце для всіх речей — ідеальний вибір для тривалої поїздки.</p>
+      <a href="{% url 'main:' %}" class="btn btn-book mt-3">Забронювати квиток</a>
+    </div>
+  </section>
+
+  <section class="container my-5">
+    <div class="row g-4 align-items-center">
+      <div class="col-md-6">
+        <div class="model-card">
+          <img src="{% static 'img/eos.jpg' %}" alt="Mercedes" class="model-image">
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="model-card">
+          <h2 style="color:var(--accent-red)">Деталі та переваги</h2>
+          <p style="color:var(--muted)">Місць: 52 · Кондиціонер · Wi‑Fi · Великий багажник · Комфортні сидіння</p>
+          <ul class="list-unstyled" style="color:var(--muted)">
+            <li>✔️ Безпечні маршрути і професійні водії</li>
+            <li>✔️ Гнучкі умови оплати</li>
+            <li>✔️ Підтримка клієнтів 24/7</li>
+          </ul>
+          <a href="{% url 'main:' %}" class="btn btn-book mt-3">Перейти до бронювання</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container my-5" data-aos="fade-up">
+    <h3 style="color:var(--accent-red);text-align:center;margin-bottom:20px">Як з нами працювати</h3>
+    <div class="row g-3">
+      <div class="col-sm-6 col-md-3">
+        <div class="step">
+          <div class="icon-wrapper">🚍</div>
+          <h4>Оберіть автобус</h4>
+          <p style="color:var(--muted)">Підійде автобус за маршрутом та комфортом.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <div class="step">
+          <div class="icon-wrapper">📞</div>
+          <h4>Зв'яжіться з менеджером</h4>
+          <p style="color:var(--muted)">Уточніть час і місця.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <div class="step">
+          <div class="icon-wrapper">💳</div>
+          <h4>Оплатіть</h4>
+          <p style="color:var(--muted)">Готівка або безготівковий розрахунок.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <div class="step">
+          <div class="icon-wrapper">🎫</div>
+          <h4>Подорожуйте</h4>
+          <p style="color:var(--muted)">Насолоджуйтесь комфортом у дорозі.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+                                <li>готівковий або безготівковий розрахунок</li>
+                                <li>ліцензію на пасажирські перевезення</li>
+                                <li>комфортні автобуси в ідеальному стані</li>
+                        </ul>
+                </div>
+                <a href="#" class="btn">Прорахувати вартість (безкоштовно)</a>
+        </div>
+</div>
+
+<!-- ===== Як з нами працювати ===== -->
+<!-- Додаємо секції з nashbusindex.html -->
+<section class="how-we-work" aria-label="Як з нами працювати">
+    <h2>Як з нами працювати</h2>
+    <div class="steps">
+        <div class="step">
+            <div class="icon-wrapper" aria-hidden="true">🚍</div>
+            <h3>Вибираєте автобус</h3>
+            <p>Оберіть автобус, який вам підходить за маршрутом, комфортом та ціною.</p>
+        </div>
+        <div class="step">
+            <div class="icon-wrapper" aria-hidden="true">📞</div>
+            <h3>Телефонуйте менеджеру</h3>
+            <p>Наш менеджер допоможе з деталями, підкаже щодо вільних місць та відповість на всі питання.</p>
+        </div>
+        <div class="step">
+            <div class="icon-wrapper" aria-hidden="true">📅</div>
+            <h3>Бронюєте квиток</h3>
+            <p>Після узгодження деталей ви бронюєте квиток і оплачуєте зручним способом.</p>
+        </div>
+        <div class="step">
+            <div class="icon-wrapper" aria-hidden="true">🤝</div>
+            <h3>Подаємо транспорт</h3>
+            <p>В день поїздки автобус подається на автостанцію, і ви вирушаєте у комфортну подорож.</p>
+        </div>
+    </div>
+</section>
+
+<section class="why-choose-us" aria-label="Чому вибирають нас?">
+    <div class="content">
+        <h2>Чому вибирають нас?</h2>
+        <div class="reasons-grid">
+            <div class="reason">
+                <div class="reason-icon" aria-hidden="true">🤝</div>
+                <div class="reason-text">
+                    <h3>Партнерство</h3>
+                    <p>Працюємо офіційно, маємо всі необхідні документи, страхування та ліцензії.</p>
+                </div>
+            </div>
+            <div class="reason">
+                <div class="reason-icon" aria-hidden="true">💰</div>
+
+                <div class="reason-text">
+

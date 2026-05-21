@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Переадресація на оплату — Dieller Bus{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="card p-4 text-center">
+    <h3>Переадресація на LiqPay...</h3>
+    <p>Якщо оплата не почнеться автоматично, натисніть кнопку "Оплатити" нижче.</p>
+    <form id="liqpayForm" method="post" action="{{ liqpay_url }}">
+      <input type="hidden" name="data" value="{{ data }}">
+      <input type="hidden" name="signature" value="{{ signature }}">
+      <button type="submit" class="btn btn-success">Оплатити</button>
+    </form>
+  </div>
+</div>
+
+<script>document.getElementById('liqpayForm').submit();</script>
+{% endblock %}

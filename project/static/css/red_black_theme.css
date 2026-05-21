@@ -30,10 +30,40 @@ body{
 }
 
 .site-header{
-  background: linear-gradient(180deg, rgba(0,0,0,0.6), transparent);
-  padding:18px 0;
-  position:sticky;top:0;z-index:40;
-  border-bottom:1px solid rgba(255,255,255,0.02);
+  background: var(--accent-red) !important;
+  padding: 14px 0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+/* Header typography and colors (pure white text, red CTAs) */
+.site-header .navbar, .site-header .container {
+  font-family: 'Montserrat', 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+}
+.navbar .nav-link, .site-header .navbar-brand, .brand {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+.navbar .nav-link:hover, .navbar .nav-link:focus {
+  color: #ffffff !important;
+  opacity: 0.92;
+}
+.navbar-toggler { border-color: rgba(255,255,255,0.10); }
+/* Ensure toggler icon is visible across light/dark pages by using an inline SVG background (uses currentColor) */
+.navbar-toggler .navbar-toggler-icon,
+.navbar-toggler-icon {
+  filter: none !important;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+}
+
+/* Force red buttons in header and across site to be vivid red and bold */ 
+.navbar .btn-cta, .btn-book, .find-btn, .btn-cta-large, .btn-book, .btn-primary, .choose-btn {
+  background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 800 !important;
+  box-shadow: 0 8px 20px rgba(225,11,0,0.12);
 }
 .brand{font-weight:800;color:#fff;font-size:1.45rem;text-decoration:none}
 .brand-accent{color:var(--accent-red);margin-left:6px;font-weight:900}
@@ -105,6 +135,39 @@ body{
 
 /* accessibility focus styles */
 .btn:focus{outline:3px solid rgba(225,11,0,0.25);outline-offset:2px}
+
+/* ===== Global button overrides for consistent red-black styling ===== */
+.btn{
+  border-radius:10px;
+  padding:.45rem .9rem;
+  background: linear-gradient(90deg,var(--accent-red), var(--accent-red-soft));
+  color:#fff !important;
+  border:none !important;
+  font-weight:800 !important;
+  box-shadow:0 8px 20px rgba(225,11,0,0.12) !important;
+}
+
+.btn-outline-light{
+  background:transparent !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,0.08) !important;
+  box-shadow:none !important;
+}
+
+.btn-outline-secondary{
+  background:transparent !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,0.06) !important;
+}
+
+.btn-sm{padding:.35rem .6rem;font-weight:800}
+
+/* Small floating/back button used on pages to go back */
+.back-button-wrap{position:fixed;top:74px;left:18px;z-index:1400}
+.btn-back{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;background:#0f0f0f;border:2px solid var(--accent-red);color:var(--accent-red-soft);font-size:18px;box-shadow:0 8px 22px rgba(0,0,0,0.45)}
+.btn-back:hover{transform:translateY(-2px);background:linear-gradient(90deg,rgba(225,11,0,0.06),rgba(0,0,0,0.35));color:#fff}
+
+@media(max-width:720px){.back-button-wrap{top:64px;left:12px}.btn-back{width:40px;height:40px;font-size:17px}}
 
 /* =========================================================
    Ticket search & results UI (kvitokindex) — added
@@ -302,4 +365,72 @@ body{
   border-radius:12px;
   padding:10px 14px;
   font-weight:900;
+}
+
+/* ===== GLOBAL HERO FIX (ANTI-DARK BUG) ===== */
+
+/* УБИВАЄ ВСІ затемнення */
+.hero .overlay,
+.overlay {
+  background: rgba(0,0,0,0.2) !important; /* було темно — тепер легке */
+  mix-blend-mode: normal !important;
+}
+
+/* РОБИМО КАРТИНКУ ЯСКРАВІШОЮ */
+.slide {
+  filter: brightness(1.2) contrast(1.05) !important;
+}
+
+/* ЩОБ НІЧОГО НЕ ПЕРЕКРИВАЛО */
+.hero-content {
+  position: relative;
+  z-index: 10 !important;
+}
+
+/* СЛАЙДЕР ПІД НИЗОМ */
+.hero-slider,
+.slide {
+  z-index: 0 !important;
+}
+
+/* ІНКОЛИ BOOTSTRAP ЛАМАЄ */
+.hero::before,
+.hero::after {
+  display: none !important;
+}
+.slide {
+  filter: brightness(1.4) !important;
+}
+
+/* Dark panels: replacement for white cards used across templates */
+.panel-dark,
+.card-dark{
+  background: linear-gradient(180deg, #0f0f0f, #0b0b0b) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.03) !important;
+  padding: 12px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+}
+.panel-dark a, .card-dark a{color:var(--accent-red-soft) !important; font-weight:800}
+.panel-dark .muted-small, .card-dark .muted-small{color:var(--muted) !important}
+.panel-dark .badge, .card-dark .badge{box-shadow:none}
+
+/* small utility to ensure links inside dark cards are readable */
+.panel-dark .panel-link{color:#fff !important; font-weight:800}
+
+/* Profile & panel buttons: framed and touch-friendly on mobile */
+.panel-dark .btn{
+  background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)) !important;
+  color: #fff !important;
+  border: 2px solid rgba(255,255,255,0.04) !important;
+  padding: 10px 14px !important;
+  font-weight:800 !important;
+}
+
+/* Make buttons larger on small screens for touch targets */
+@media (max-width: 720px){
+  .btn{padding:12px 16px !important;font-size:1rem !important}
+  .panel-dark .btn{width:100%;display:block;text-align:center}
+  .support-filters .btn{padding:12px 16px;font-size:1rem}
 }

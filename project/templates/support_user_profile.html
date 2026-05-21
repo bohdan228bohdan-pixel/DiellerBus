@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Профіль користувача — {{ profile_user.username }}{% endblock %}
+
+{% load static %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto">
+  <h3>Профіль: {{ profile_user.username }}</h3>
+  <div class="muted-small">Email: <a href="mailto:{{ profile_user.email }}">{{ profile_user.email }}</a></div>
+  <div class="muted-small">Зареєстрований: {{ profile_user.date_joined|date:'d.m.Y H:i' }}</div>
+
+  <hr>
+  <h5>Куплені квитки</h5>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+    {% if tickets %}
+      {% for t in tickets %}
+        <div class="panel-dark" style="padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)">
+          <div style="font-weight:800">Квиток #{{ t.id }} — {{ t.from_city }} → {{ t.to_city }}</div>
+          <div class="muted-small">{{ t.travel_date|date:'d.m.Y' }} · {{ t.passengers }} пас. — {% if t.paid %}Оплачено{% else %}Не оплачено{% endif %}</div>
+          <div style="margin-top:8px;text-align:right">
+            <a href="{% url 'main:ticket_view' t.id %}" class="btn btn-sm">Переглянути</a>
+            <a href="{% url 'main:ticket_edit' t.id %}" class="btn btn-secondary btn-sm">Редагувати</a>
+            {% if t.paid %}
+              <form method="post" action="{% url 'main:ticket_refund' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm" onclick="return confirm('Повернути кошти за квиток?')">Повернути</button></form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="muted-small">Квитків не знайдено.</div>
+    {% endif %}
+  </div>
+
+  <hr>
+  <h5>Звернення в техпідтримку</h5>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+    {% if support_tickets %}
+      {% for s in support_tickets %}
+        <div style="background:#0f0f0f;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)">
+          <a href="{% url 'main:support_ticket_detail' s.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ s.id }} — {{ s.subject|default:s.preset.title }}</a>
+          <div class="muted-small">{{ s.created_at|date:'d.m.Y H:i' }} · {{ s.get_status_display }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="muted-small">Звернень не знайдено.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

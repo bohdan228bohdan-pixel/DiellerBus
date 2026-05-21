@@ -22,6 +22,7 @@ __pycache__/
 *.pyc
 media/
 *.log
+project/local_settings.py
 
 # IDEs
 .vscode/

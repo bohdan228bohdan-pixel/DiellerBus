@@ -1,11 +1,199 @@
-.info-block {
-    max-width: 1100px;
-    margin: 600px auto 250px;  /* збільшено відступ від верху */
-    display: grid;
-    grid-template-columns: repeat(4,1fr);
-    gap: 30px;
-    text-align: center;
-    padding: 0 20px;
-    position: relative;
-    z-index: 1;
+/* KVITOK: Dark red/black "photo" style rewrite
+     File: project/static/css/kvitok.css (merged from staticfiles)
+     Purpose: black + red "photo" look with diagonal stripe background,
+                        pronounced hero, pill search controls, logo card on right
+*/
+
+/* ---------- variables ---------- */
+:root{
+    --bg-black: #0a0a0a;                /* main page bg */
+    --panel-black: #0f0f0f;             /* cards / inputs */
+    --glass: rgba(255,255,255,0.02);
+    --muted-white: rgba(255,255,255,0.78);
+    --muted-weak: rgba(255,255,255,0.48);
+    --accent-red: #e11b11;              /* vivid red */
+    --accent-red-deep: #b80a08;         /* deep red for shadows */
+    --accent-red-soft: #ff4f6b;         /* light red gradient */
+    --accent-pink: #ff6f8f;
+    --card-border: rgba(225,11,0,0.12);
+    --radius: 14px;
+    --glass-strong: rgba(255,255,255,0.025);
+    --shadow: 0 12px 36px rgba(0,0,0,0.6);
+    --focus: rgba(225,11,0,0.14);
+    --stripe-light: rgba(255,255,255,0.015);
 }
+
+/* ---------- page base & diagonal photo-like stripes ---------- */
+html, body {
+    height: 100%;
+    background-color: var(--bg-black);
+    color: #fff;
+    font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: 0;
+}
+
+/* diagonal stripes overlay like on the screenshot (subtle) */
+body::before{
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        repeating-linear-gradient(
+            135deg,
+            var(--stripe-light) 0px,
+            var(--stripe-light) 10px,
+            transparent 10px,
+            transparent 40px
+        ),
+        linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.18));
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ensure main content sits above stripes */
+.app, .site-container { position: relative; z-index: 1; }
+
+/* ---------- links ---------- */
+a { color: var(--accent-pink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------- header ---------- */
+.header {
+    padding: 22px 36px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.04));
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+.brand { font-weight:900; color:#fff; font-size:20px; display:flex; align-items:center; gap:10px; }
+.brand-img-small{ width:44px; height:44px; object-fit:cover; border-radius:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+
+/* ---------- hero / top panel ---------- */
+.hero {
+    max-width: 1200px;
+    margin: 44px auto;
+    padding: 48px 32px;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 28px;
+    align-items: start;
+}
+
+.hero-left {
+    padding-right: 12px;
+}
+
+/* small red label */
+.hero-label {
+    display:inline-block;
+    color: var(--accent-red);
+    font-weight:800;
+    font-size:13px;
+    margin-bottom: 12px;
+    letter-spacing: 0.6px;
+}
+
+/* main title — bold and large like in screenshot */
+.hero-title {
+    font-size: 56px;
+    line-height: 1.02;
+    font-weight: 900;
+    color: #fff;
+    margin: 0 0 18px 0;
+    text-shadow: 0 6px 18px rgba(0,0,0,0.7);
+}
+
+/* smaller sub description */
+.hero-sub {
+    color: var(--muted-weak);
+    font-size: 15px;
+    margin-bottom: 22px;
+    max-width: 74%;
+}
+
+/* CTA group */
+.hero-ctas {
+    display:flex;
+    gap:12px;
+    align-items:center;
+    margin-bottom: 22px;
+}
+
+.btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight:800;
+    cursor:pointer;
+    border: 0;
+    transition: transform .08s ease, box-shadow .12s ease;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+
+/* primary red CTA */
+.btn-primary {
+    background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft));
+    color:#fff;
+    padding: 12px 20px;
+    font-size: 15px;
+    box-shadow: 0 10px 30px rgba(225,11,0,0.12);
+}
+.btn-primary:hover { transform: translateY(-2px); filter: brightness(1.03); }
+
+/* secondary dark CTA */
+.btn-ghost {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+    color:#fff;
+    border: 1px solid rgba(255,255,255,0.04);
+    padding: 10px 16px;
+}
+
+/* ---------- right logo card (hero-card) ---------- */
+.hero-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(0,0,0,0.12));
+    border: 1px solid rgba(255,255,255,0.03);
+    border-radius: 14px;
+    padding: 16px;
+    display:flex;
+    gap:12px;
+    align-items:center;
+    box-shadow: var(--shadow);
+    min-height: 120px;
+}
+
+/* logo thumbnail */
+.hero-card .logo-thumb {
+    width:86px;
+    height:86px;
+    border-radius:12px;
+    overflow:hidden;
+    background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(255,255,255,0.02));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+}
+
+/* hero-card text */
+.hero-card h4 { margin:0; color: var(--accent-red); font-weight:900; font-size:20px; }
+.hero-card p { margin:0; color:var(--muted-weak); font-size:13px; }
+
+/* ---------- search panel (pill style) ---------- */
+.search-panel {
+    margin-top: 18px;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    background: transparent;
+}
+
+/* ... (content trimmed in patch for brevity) ... */
+
+/* end of merged overrides */
+/* end of file */

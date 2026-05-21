@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Оформлення квитка — Dieller Bus{% endblock %}
+
+{% block content %}
+
+{% block head_extra %}
+<style>
+  .checkout-wrap{max-width:920px;margin:48px auto;padding:24px}
+  .checkout-card{display:flex;gap:28px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,0.08);color:#111}
+  .checkout-summary{flex:0 0 320px;border-right:1px solid #f0f0f0;padding-right:18px}
+  .checkout-form{flex:1;padding-left:18px}
+  .accent-pink{color:#c81b60}
+  label{font-weight:600;color:#333}
+  .form-control{border:1px solid #e6e6e6;border-radius:8px;padding:10px}
+  .pay-btn{background:#c81b60;color:#fff;padding:12px 18px;border-radius:10px;border:none;font-weight:700}
+  @media(max-width:800px){.checkout-card{flex-direction:column}.checkout-summary{border-right:none;padding-right:0}}
+</style>
+{% endblock %}
+
+<div class="checkout-wrap">
+  <h2 style="margin-bottom:16px">Оформлення квитка</h2>
+
+  <div class="checkout-card">
+    <div class="checkout-summary">
+      <h4 class="accent-pink">{{ selected_from|default:trip.start_city }} → {{ selected_to|default:trip.end_city }}</h4>
+      <div style="margin-top:8px;color:#666">Дата: <strong>{{ travel_date }}</strong></div>
+      <div style="margin-top:6px;color:#666">Пасажирів: <strong>{{ pax }}</strong></div>
+      <div style="margin-top:6px;color:#666">Ціна за квиток: <strong>{{ price_per_ticket }} {{ display_currency|default:trip.currency }}</strong></div>
+
+      <div style="margin-top:16px;padding:12px;background:#fafafa;border-radius:8px">
+        <div style="color:#444">Сума до оплати</div>
+        <div style="font-size:22px;font-weight:800;margin-top:6px">{{ total }} {{ display_currency|default:trip.currency }}</div>
+      </div>
+    </div>
+
+    <div class="checkout-form">
+      <form method="post" id="checkoutForm">
+        {% csrf_token %}
+        <input type="hidden" name="passengers" value="{{ pax }}">
+        <input type="hidden" name="from" value="{{ selected_from|default:'' }}">
+        <input type="hidden" name="to" value="{{ selected_to|default:'' }}">
+
+        <div id="passengerFields"></div>
+
+        <div class="mb-3">
+          <label>E-mail (отримати квиток)</label>
+          <input type="email" name="email" class="form-control" value="{{ user_email }}" required>
+        </div>
+        <div class="mb-3">
+          <label>Телефон (опційно)</label>
+          <input type="text" name="phone" class="form-control" placeholder="Телефон">
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+          <label style="display:flex;align-items:center;gap:8px;margin-right:12px">
+            <input type="checkbox" id="accept_agreements" name="accept_agreements" required>
+            <span>Я приймаю <a href="{% url 'main:agreements' %}" id="agreementsLink" style="color:#007bff;text-decoration:underline">ліцензійні згоди</a></span>
+          </label>
+          <button class="pay-btn" type="submit">Перейти до оплати (LiqPay)</button>
+          <a href="{{ trip.get_absolute_url|default:'#' }}" class="btn" style="background:#f3f3f3;color:#333;border-radius:8px;padding:10px 14px;text-decoration:none">Назад</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const pax = {{ pax|default:1 }};
+  const container = document.getElementById('passengerFields');
+  for (let i=0;i<pax;i++){
+    const idx = i+1;
+    const div = document.createElement('div');
+    div.className = 'row g-2 mb-2';
+    div.innerHTML = `
+      <div class="col-md-6">
+        <label class="form-label">Ім'я пасажира ${idx}</label>
+        <input class="form-control" name="passenger_first" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Прізвище пасажира ${idx}</label>
+        <input class="form-control" name="passenger_last">
+      </div>
+    `;
+    // inputs keep their base names so Django can use request.POST.getlist('passenger_first')
+    // no modification needed here
+    container.appendChild(div);
+  }
+})();
+
+// prevent submit when agreements not checked (defensive for older browsers)
+document.getElementById('checkoutForm').addEventListener('submit', function(e){
+  var cb = document.getElementById('accept_agreements');
+  if (cb && !cb.checked){
+    e.preventDefault();
+    alert('Будь ласка, прийміть ліцензійні згоди перед оплатою.');
+    cb.scrollIntoView({behavior:'smooth',block:'center'});
+    return false;
+  }
+});
+</script>
+
+{% endblock %}

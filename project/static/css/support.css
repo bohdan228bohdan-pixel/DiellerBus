@@ -1,0 +1,173 @@
+/* Support page styles — dark red/black theme */
+:root{
+  --support-bg-dark: #070607;
+  --support-panel-dark: #0f0f10;
+  --support-border-dark: #2b2b2b;
+  --support-muted: #c9c9c9;
+  --support-accent: #e11d24; /* red */
+  --support-cta: linear-gradient(90deg,#e11d24,#c91b20);
+  --support-success: #10b981;
+}
+
+.support-container{background:linear-gradient(180deg, rgba(0,0,0,0.95), rgba(10,10,10,0.99));padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 12px 40px rgba(0,0,0,0.6);color:#fff}
+
+/* Strong fallback to avoid white-on-white: force dark background and light text inside this container */
+.support-container{background-color:#0b0b0b !important;color:#ffffff !important}
+.support-container a, .support-container p, .support-container h2, .support-container h5, .support-container label, .support-container .muted-small{color:#ffffff !important}
+.support-container .muted-small{color:#c9c9c9 !important}
+.support-container .btn{color:#ffffff !important}
+
+/* Ensure all form controls are dark with readable text, even if widgets lack classes */
+.support-container input,
+.support-container select,
+.support-container textarea,
+.support-container .form-control {
+  background: #0f0f10 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  padding: 10px !important;
+  border-radius: 8px !important;
+}
+.support-container input::placeholder,
+.support-container textarea::placeholder {
+  color: rgba(255,255,255,0.62) !important;
+}
+.support-container select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-position: calc(100% - 18px) center !important;
+  background-repeat: no-repeat !important;
+  background-size: 10px 10px !important;
+}
+
+/* Make panels and list items clearly separated */
+.support-container .panel-dark{background:#0d0d0d !important;border:1px solid rgba(255,255,255,0.03) !important}
+.support-container .panel-link{color:#fff !important;text-decoration:none}
+.support-container .panel-link:hover{color:var(--support-accent) !important}
+
+/* Support admin filter buttons (visible on dark backgrounds) */
+.support-filters .btn{
+  padding:10px 14px;
+  border-radius:12px;
+  font-weight:800;
+  color:#fff !important;
+  background:rgba(225,29,36,0.12);
+  border:2px solid rgba(225,29,36,0.14);
+  box-shadow:0 8px 26px rgba(0,0,0,0.6);
+}
+.support-filters .btn:hover{
+  background: linear-gradient(90deg, var(--accent-red, #E10B00), var(--accent-red-soft, #ff3b3b));
+  color:#fff !important;
+  transform:translateY(-2px);
+}
+.support-filters .btn:active{transform:translateY(0)}
+.support-filters .btn:focus{outline:3px solid rgba(225,11,0,0.12);outline-offset:2px}
+
+/* Strong override: force vivid red/black buttons in admin list and filters */
+.support-filters .btn,
+.support-admin-list .ticket-card .btn,
+.ticket-card .btn {
+  background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)) !important;
+  color: #fff !important;
+  border: 1px solid rgba(0,0,0,0.35) !important;
+  box-shadow: 0 12px 30px rgba(225,11,0,0.22) !important;
+  opacity: 1 !important;
+  filter: none !important;
+  transform: translateZ(0);
+}
+
+.support-admin-list .ticket-card .btn.btn-outline-light,
+.support-admin-list .ticket-card form > button.btn-outline-light {
+  background: linear-gradient(90deg, var(--accent-red), var(--accent-red-soft)) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.ticket-card .btn-danger{
+  background: linear-gradient(90deg,#c0392b,#e74c3c) !important;
+  color:#fff !important;
+  border:none !important;
+  box-shadow:0 10px 30px rgba(192,57,43,0.22) !important;
+}
+
+/* Hover / focus states */
+.support-filters .btn:hover,
+.support-admin-list .ticket-card .btn:hover,
+.ticket-card .btn:hover{
+  transform: translateY(-3px) !important;
+  box-shadow: 0 18px 36px rgba(225,11,0,0.28) !important;
+}
+
+.support-admin-list .ticket-card .btn:focus,
+.support-filters .btn:focus{outline:3px solid rgba(225,11,0,0.14) !important;outline-offset:2px}
+
+/* Preset buttons */
+.btn-outline-light{border:1px solid rgba(255,255,255,0.08);color:#fff;padding:8px 14px;border-radius:10px;background:transparent}
+.btn-outline-light:hover{background:rgba(225,11,0,0.06);transform:translateY(-1px)}
+
+.btn-preset{background:#1b1b1c;color:#fff;border:none;padding:10px 14px;border-radius:10px;border:1px solid var(--support-border-dark)}
+
+/* CTA button prominent */
+.btn-cta{background:var(--support-cta);color:#fff;border:none;padding:12px 18px;border-radius:12px;font-weight:700;box-shadow:0 12px 30px rgba(225,29,36,0.12);transition:transform .12s ease,box-shadow .12s ease}
+.btn-cta:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(225,29,36,0.18)}
+
+/* Messages */
+.messages{display:flex;flex-direction:column;gap:12px}
+.message{max-width:84%;padding:14px;border-radius:12px;color:#f3f4f6;background:transparent;border:1px solid rgba(255,255,255,0.03);box-shadow:0 6px 22px rgba(0,0,0,0.6)}
+.message-meta{font-size:13px;color:var(--support-muted);margin-bottom:8px}
+.message-body{font-size:15px;color:#fff;white-space:pre-wrap}
+
+.message.from-admin{align-self:flex-start;background:linear-gradient(180deg, rgba(225,29,36,0.06), rgba(225,29,36,0.02));border:1px solid rgba(225,29,36,0.06)}
+.message.from-user{align-self:flex-end;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+
+/* Attachments */
+.message .attachment{margin-top:8px;border-radius:8px;max-width:360px;display:block}
+.message .attachment img{width:100%;height:auto;border-radius:8px;display:block}
+
+/* Form */
+form .form-control{background:#0f0f10;border:1px solid var(--support-border-dark);color:#fff;padding:10px;border-radius:8px}
+
+.btn-send{display:inline-flex;align-items:center;gap:8px}
+
+/* Avatar */
+.avatar-small{width:44px;height:44px;border-radius:50%;display:inline-block;overflow:hidden;background:#1b1b1c;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.sender-with-avatar{display:flex;gap:12px;align-items:flex-start}
+.sender-with-avatar .message{max-width:72%}
+
+/* Support CTA on kvitokindex and site */
+.support-cta{position:fixed;right:18px;bottom:18px;background:var(--support-cta);color:#fff;border:none;padding:12px 14px;border-radius:14px;font-weight:800;z-index:1200;box-shadow:0 18px 60px rgba(225,29,36,0.18)}
+.support-cta:hover{transform:translateY(-3px)}
+
+/* Admin list tweaks */
+.support-admin-list .ticket-card{background:#1a1a1b;padding:12px;border-radius:10px;border:1px solid var(--support-border-dark)}
+
+/* Responsive */
+@media(max-width:720px){
+  .support-container{margin:14px;padding:16px}
+  .message{max-width:100%}
+  .sender-with-avatar .message{max-width:100%}
+}
+
+/* Accessibility */
+.btn-cta:focus{outline:3px solid rgba(29,78,216,0.12);outline-offset:3px}
+
+/* Small helpers */
+.muted-small{color:var(--support-muted)}
+
+/* Status badges */
+.status-badge{display:inline-block;padding:6px 10px;border-radius:10px;color:#fff;font-weight:800;margin-left:8px;font-size:13px}
+.status-new{background:#6b7280}
+.status-in_progress{background:linear-gradient(90deg,#f59e0b,#d97706)}
+.status-closed{background:linear-gradient(90deg,#10b981,#059669)}
+
+/* Highlight ticket header info */
+.ticket-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.ticket-meta{color:var(--support-muted);font-size:14px}
+.ticket-assigned{font-weight:700;color:#fff;background:linear-gradient(90deg, rgba(225,29,36,0.12), rgba(225,29,36,0.06));padding:6px 10px;border-radius:8px}
+
+/* Verification page helpers */
+.verify-panel{max-width:460px;margin:40px auto;padding:26px;border-radius:12px;border:1px solid var(--support-border-dark);background:#0f0f10}
+.code-inputs{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.code-inputs input{width:44px;height:54px;border-radius:8px;border:1px solid var(--support-border);text-align:center;font-size:22px;font-weight:700}
+.verify-help{color:var(--support-muted);text-align:center;margin-top:10px}

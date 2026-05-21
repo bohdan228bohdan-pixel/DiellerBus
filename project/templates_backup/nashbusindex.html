@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Каталог автобусів — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<!-- (тут можна залишити ваш CSS; я припустив, що весь ваш стиль вже в base або в окремому блоці) -->
+{% endblock %}
+
+{% block content %}
+<div class="top-strip"></div>
+
+<section class="hero" role="banner" aria-label="Головний банер">
+  <div class="hero-content">
+    <h1><strong>Dieller</strong> Bus</h1>
+    <p>Пасажирські перевезення по Україні та Польщі:<br>вирішуємо б��дь‑які ЗАМОВЛЕННЯ!</p>
+    <a href="#catalog" class="catalog-link" aria-label="Перейти до каталогу автобусів">Каталог автобусів
+      <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+    </a>
+  </div>
+</section>
+
+<section id="catalog" class="bus-catalog" aria-label="Каталог автобусів">
+  <h2>Каталог автобусів</h2>
+
+  {% if buses %}
+    <div class="bus-list" role="list">
+      {% for bus in buses %}
+        <article class="bus-card" role="listitem" aria-labelledby="bus-title-{{ forloop.counter }}">
+          <a href="{{ bus.get_absolute_url }}" class="stretched-link" aria-label="Детальніше {{ bus.title }}">
+            {% if bus.image %}
+              <img src="{{ bus.image.url }}" alt="{{ bus.title }}" />
+            {% else %}
+              <img src="{% static 'img/placeholder-bus.jpg' %}" alt="Фото не доступне" />
+            {% endif %}
+            <div class="bus-info">
+              <h3 id="bus-title-{{ forloop.counter }}">{{ bus.title }}</h3>
+              <h5>{{ bus.seats }} місць</h5>
+              <p class="muted">
+                {% if bus.price_per_hour %}
+                  {{ bus.price_per_hour }} грн/год
+                {% else %}
+                  Ціна за годину: за домовленістю
+                {% endif %}
+                · {{ bus.price_note }}
+              </p>
+              <p class="muted">Контакт: {{ bus.contact_name }} — {{ bus.contact_phone }}</p>
+              <div style="margin-top:10px">
+                <a href="{{ bus.get_absolute_url }}" class="btn btn-book">Деталі / Забронювати</a>
+              </div>
+            </div>
+          </a>
+        </article>
+      {% endfor %}
+    </div>
+
+    {# Pagination controls (якщо у view встановлено paginate_by) #}
+    {% if is_paginated %}
+      <nav aria-label="Пагінація">
+        <ul class="pagination">
+          {% if page_obj.has_previous %}
+            <li><a href="?page={{ page_obj.previous_page_number }}">« Попередня</a></li>
+          {% else %}
+            <li class="disabled">« Попередня</li>
+          {% endif %}
+
+          <li class="current">Сторінка {{ page_obj.number }} з {{ page_obj.paginator.num_pages }}</li>
+
+          {% if page_obj.has_next %}
+            <li><a href="?page={{ page_obj.next_page_number }}">Наступна »</a></li>
+          {% else %}
+            <li class="disabled">Наступна »</li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+
+  {% else %}
+    <p>Автобуси тимчасово відсутні. Спробуйте пізніше.</p>
+  {% endif %}
+</section>
+
+<section class="why-choose-us" aria-label="Чому вибирають нас?">
+  <!-- ваша секція Why choose us (залиш��е як є) -->
+</section>
+{% endblock %}

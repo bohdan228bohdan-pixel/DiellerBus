@@ -9,3 +9,7 @@ whitenoise==6.12.0
 stripe==15.1.0
 
 
+reportlab
+
+
+

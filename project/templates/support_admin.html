@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Адмін — Техпідтримка{% endblock %}
+
+{% load static %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1100px;margin:40px auto">
+  <h2>Панель техпідтримки</h2>
+  <p class="muted-small">Тут відображаються відкриті звернення. Натисніть на звернення щоб побачити чат.</p>
+
+  <div class="support-filters" style="margin:12px 0">
+    <a href="?status=new" class="btn btn-sm me-2">Не в роботі</a>
+    <a href="?status=in_progress" class="btn btn-sm me-2">В роботі</a>
+    <a href="?status=closed" class="btn btn-sm me-2">Закриті</a>
+  </div>
+
+  <div class="support-admin-list" style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+    {% for t in tickets %}
+      <div class="ticket-card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <a href="{% url 'main:support_ticket_detail' t.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ t.id }} — {{ t.subject|default:t.preset.title }}</a>
+          <div class="muted-small">Користувач: <a href="{% url 'main:support_admin_user' t.user.id %}">{{ t.user.username }}</a> · {{ t.created_at|date:'d.m.Y H:i' }}</div>
+          <div class="muted-small">Останнє повідомлення: {{ t.last_message_at|date:'d.m.Y H:i' }}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div>
+            {% if t.status == 'new' %}<span class="badge bg-secondary">Не в роботі</span>{% elif t.status == 'in_progress' %}<span class="badge bg-warning text-dark">В роботі</span>{% else %}<span class="badge bg-success">Закрито</span>{% endif %}
+          </div>
+          <div>
+            {% if not t.assigned_to %}
+              <form method="post" action="{% url 'main:support_admin_take' t.id %}">{% csrf_token %}<button class="btn btn-sm">Взяти</button></form>
+            {% else %}
+              <div class="muted-small">В обробці: {{ t.assigned_to.username }}</div>
+            {% endif %}
+          </div>
+          <div>
+            {% if t.status != 'closed' %}
+              <form method="post" action="{% url 'main:support_admin_close' t.id %}">{% csrf_token %}<button class="btn btn-danger">Закрити</button></form>
+            {% endif %}
+          </div>
+            <div>
+              <a href="{% url 'main:support_ticket_detail' t.id %}" class="btn btn-sm">Чат</a>
+            </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="muted-small">Звернень не знайдено.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

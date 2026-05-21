@@ -1,0 +1,184 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dieller Bus - Пасажирські перевезення Луцьк-Пулави. Комфортні автобуси, доступні ціни, безпечні подорожі.">
+  <title>Dieller Bus</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- External libraries (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
+  <!-- Project styles -->
+  <link rel="stylesheet" href="{% static 'css/red_black_theme.css' %}">
+  <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+  <script defer src="{% static 'js/animations.js' %}"></script>
+
+  <style>
+    /* Home routes section */
+    .routes{padding:40px 0}
+    .routes-title{
+      text-align:center;
+      font-weight:900;
+      letter-spacing:1px;
+      color:var(--accent-red-soft);
+      margin:0 0 10px;
+    }
+    .routes-sub{
+      text-align:center;
+      color:var(--muted);
+      margin:0 0 18px;
+    }
+    .route-card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.30));
+      border:1px solid rgba(255,255,255,0.04);
+      border-radius:16px;
+      overflow:hidden;
+      height:100%;
+    }
+    .route-card img{width:100%;height:220px;object-fit:cover;display:block}
+    .route-body{padding:14px}
+    .route-name{font-weight:900;margin:0;color:#fff;text-align:center}
+    .route-desc{color:var(--muted);font-size:14px;margin:10px 0 0;text-align:center}
+    /* Homepage compact search (redirects to kvitokindex with params) */
+    .home-search{margin-top:20px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.18));border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.04)}
+    .home-search .home-grid{display:grid;grid-template-columns:1fr 44px 1fr 180px 140px 120px;gap:10px;align-items:center}
+    @media(max-width:992px){.home-search .home-grid{grid-template-columns:1fr 44px 1fr;align-items:stretch}}
+    @media(max-width:576px){.home-search .home-grid{grid-template-columns:1fr}}
+    .home-search input,.home-search select{width:100%;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:#0f0f0f;color:#fff;padding:10px 12px}
+    .home-search .home-find{height:46px;border-radius:10px;border:none;font-weight:900;background:linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));color:#fff;padding:0 14px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container d-flex align-items-center justify-content-between">
+      <a class="brand" href="#">Dieller<span>Bus</span></a>
+
+      <nav class="nav-actions">
+        {% if user.is_authenticated %}
+          <a href="{% url 'main:profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
+        {% else %}
+          <a href="{% url 'main:registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="hero">
+      <div class="overlay"></div>
+      <div class="container hero-inner">
+        <div class="hero-left" data-aos="fade-right">
+          <p class="eyebrow">Маршрут</p>
+          <h1 class="title">Луцьк — Пулави</h1>
+          <p class="lead">Комфортні рейси: Луцьк — Ковель — Ягодин — Хелм — Люблін — Пулави. Зручний розклад та безпечні поїздки.</p>
+
+          <div class="hero-ctas">
+            <a href="{% url 'kvitokindex' %}" class="btn btn-primary btn-book">Забронювати квиток</a>
+            <a href="{% url 'nashbusindex' %}" class="btn btn-outline-light btn-details">Наші автобуси</a>
+          </div>
+          
+          <!-- Compact homepage search (redirects to ticket page) -->
+          <form class="home-search" action="{% url 'kvitokindex' %}" method="get" role="search" aria-label="Пошук рейсу">
+            <div class="home-grid" role="group" aria-label="Параметри пошуку">
+              <input name="from" type="text" placeholder="Відправлення (місто)" aria-label="Звідки">
+              <button type="button" class="swap-btn" onclick="const a=this.previousElementSibling.value,b=this.nextElementSibling.value;this.previousElementSibling.value=b;this.nextElementSibling.value=a;">⇄</button>
+              <input name="to" type="text" placeholder="Куди (місто)" aria-label="Куди">
+              <input name="date" type="date" aria-label="Дата">
+              <select name="dir" aria-label="Напрям">
+                <option value="UA_PL">Україна → Польща</option>
+                <option value="PL_UA">Польща → Україна</option>
+              </select>
+              <button class="home-find" type="submit" aria-label="Знайти">Знайти</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="hero-right" data-aos="zoom-in">
+          <div class="card-card">
+            <img src="{% static 'img/logo.jpg' %}" alt="Логотип" class="brand-img">
+            <div class="card-info">
+              <h3>Dieller</h3>
+              <p>Комфорт. Безпека. Швидкість.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features container" data-aos="fade-up">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="feature">
+            <div class="icon">🚍</div>
+            <h4>Сучасні автобуси</h4>
+            <p>Зручні сидіння, кондиціонування, Wi‑Fi на борту.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="feature">
+            <div class="icon">⏱️</div>
+            <h4>Точний розклад</h4>
+            <p>Плануйте поїздку впевнено — ми дбаємо про час.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="feature">
+            <div class="icon">🔒</div>
+            <h4>Безпека</h4>
+            <p>Досвідчені водії та регулярні техогляди.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- НАШІ МАРШРУТИ -->
+    <section class="routes container" data-aos="fade-up">
+      <h2 class="routes-title">НАШІ МАРШРУТИ</h2>
+      <p class="routes-sub">Маршрути розроблені так, щоб ви могли подорожувати з максимальним комфортом і без зайвих турбот.</p>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="route-card">
+            <!-- фото ти підставиш сам -->
+            <img src="{% static 'img/Пулави.jpg' %}" alt="Луцьк — Пулави">
+            <div class="route-body">
+              <h3 class="route-name">ЛУЦЬК → ПУЛАВИ</h3>
+              <p class="route-desc">Рейс Луцьк → Пулави — зручний спосіб дістатися до Польщі. Комфортні автобуси, зручний графік та підтримка.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta container" data-aos="fade-up">
+      <div class="cta-block">
+        <h2>Готові вирушити в подорож?</h2>
+        <p>Забронюйте місце зараз — швидко та зручно.</p>
+        <a href="{% url 'kvitokindex' %}" class="btn btn-cta-large">Забронювати квиток</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container d-flex justify-content-between align-items-center">
+      <div>© Dieller Bus — Всі права захищені</div>
+      <div class="socials">📞 <a href="#">Контакти</a></div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      AOS.init({ once: true, duration: 800 });
+    });
+  </script>
+</body>
+</html>

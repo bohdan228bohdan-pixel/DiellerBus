@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Налаштування доступності — {{ trip.title|default:trip.date }}{% endblock %}
+{% block head_extra %}
+<style>
+.container-small{max-width:820px;margin:24px auto;padding:12px;color:#fff}
+.day-row{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;margin-bottom:8px;background:linear-gradient(180deg,#0f0f10,#0b0b0);border:1px solid rgba(255,255,255,0.02);box-sizing:border-box}
+.day-left{font-weight:700}
+.btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:700}
+.btn-primary{background:linear-gradient(90deg,#ff3b30,#ff6b6b);color:#fff;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:800;border:1px solid rgba(255,255,255,0.06)}
+
+/* Switch style: pill with color */
+.switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer}
+.switch input{display:none}
+.switch .pill{min-width:110px;padding:8px 12px;border-radius:999px;color:#fff;font-weight:800;text-align:center;user-select:none}
+.switch.on .pill{background:#10b981}
+.switch.off .pill{background:#ef4444}
+
+/* Days list */
+.days-list{display:flex;flex-direction:column;gap:8px}
+
+@media(max-width:720px){
+  .day-row{flex-direction:column;align-items:flex-start;padding:10px}
+  .day-left{margin-bottom:8px}
+  .switch .pill{min-width:120px}
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-small">
+  <h1 style="margin:0 0 8px 0">Доступність рейсу</h1>
+  <div style="color:var(--muted);margin-bottom:12px">Рейс: <strong>{{ trip.route.name }} — {{ trip.title|default:trip.date }}</strong></div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button id="reverse-dates" type="button" class="btn-ghost">Змінити порядок дат</button>
+      <a class="btn-ghost" href="{% url 'main:carrier_manage_trips' %}">Повернутись</a>
+    </div>
+
+    <div class="days-list">
+    {% for d in days %}
+      <div class="day-row">
+        <div class="day-left">{{ d.date|date:"d.m.Y" }}</div>
+        <div>
+          <label class="switch {% if d.available %}on{% else %}off{% endif %}">
+            <input type="checkbox" name="available_dates" value="{{ d.date|date:'Y-m-d' }}" {% if d.available %}checked{% endif %} />
+            <span class="pill">{% if d.available %}Їде{% else %}Не їде{% endif %}</span>
+          </label>
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-primary" type="submit">Зберегти</button>
+      <a class="btn-ghost" href="{% url 'main:carrier_manage_trips' %}">Повернутись</a>
+    </div>
+  </form>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function(){
+    // Toggle visuals when checkbox changes
+    document.querySelectorAll('.switch').forEach(function(sw){
+      var cb = sw.querySelector('input[type="checkbox"]');
+      var pill = sw.querySelector('.pill');
+      function update(){
+        if(cb.checked){ sw.classList.add('on'); sw.classList.remove('off'); pill.textContent = 'Їде'; }
+        else { sw.classList.remove('on'); sw.classList.add('off'); pill.textContent = 'Не їде'; }
+      }
+      // initialize
+      update();
+      // clicking the label toggles checkbox — update after event loop
+      sw.addEventListener('click', function(){ setTimeout(update, 10); });
+    });
+
+    // Reverse order of date rows
+    var revBtn = document.getElementById('reverse-dates');
+    if(revBtn){
+      revBtn.addEventListener('click', function(){
+        var container = document.querySelector('.days-list');
+        if(!container) return;
+        var items = Array.from(container.children).reverse();
+        items.forEach(function(it){ container.appendChild(it); });
+      });
+    }
+  });
+  </script>
+</div>
+{% endblock %}

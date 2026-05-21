@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Звернення #{{ ticket.id }} — Техпідтримка{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/support.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container support-container" style="max-width:1100px;margin:40px auto;display:grid;grid-template-columns:1fr 340px;gap:18px">
+  <div>
+    <div class="ticket-header">
+      <div>
+        <h3>Звернення #{{ ticket.id }}</h3>
+        <div class="ticket-meta">{{ ticket.subject|default:ticket.preset.title }} · {{ ticket.created_at|date:'d.m.Y H:i' }}
+          <span class="status-badge status-{{ ticket.status|default:'new' }}">{{ ticket.get_status_display }}</span>
+          {% if ticket.assigned_to %}<span class="ticket-assigned">Обробляє: {{ ticket.assigned_to.username }}</span>{% endif %}
+        </div>
+      </div>
+      <div>
+          {% if user.is_staff %}
+          {% if ticket.status != 'in_progress' %}
+            <form method="post" action="{% url 'main:support_admin_take' ticket.id %}">{% csrf_token %}<button class="btn btn-sm">Взяти у роботу</button></form>
+          {% endif %}
+          {% if ticket.status != 'closed' %}
+            <form method="post" action="{% url 'main:support_admin_close' ticket.id %}">{% csrf_token %}<button class="btn btn-danger">Закрити</button></form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="messages" style="margin-top:18px;display:flex;flex-direction:column;gap:12px">
+      {% for m in messages %}
+        <div class="message-row {% if m.is_from_admin %}from-admin{% else %}from-user{% endif %}">
+          <div class="sender-with-avatar">
+            {% if m.sender and m.sender.profile.avatar %}
+              <div class="avatar-small"><img src="{{ m.sender.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover"></div>
+            {% else %}
+              <div class="avatar-small">{% if m.sender %}{{ m.sender.username|slice:":1"|upper }}{% else %}С{% endif %}</div>
+            {% endif %}
+
+            <div class="message {% if m.is_from_admin %}from-admin{% else %}from-user{% endif %}">
+              <div class="message-meta">
+                {% if m.sender %}
+                  <strong class="sender-name">{{ m.sender.username }}</strong>
+                  {% if m.is_from_admin %}<span style="margin-left:8px;background:#e6f2ff;color:#0369a1;padding:4px 8px;border-radius:6px;font-size:12px;font-weight:700">Від техпідтримки</span>{% endif %}
+                {% else %}
+                  <strong class="sender-name">Система</strong>
+                {% endif %}
+                <span class="message-time">· {{ m.created_at|date:'d.m.Y H:i' }}</span>
+              </div>
+              <div class="message-body">{{ m.text|linebreaksbr }}
+                {% if m.attachment %}
+                  <div class="attachment"><a href="{{ m.attachment.url }}" target="_blank"><img src="{{ m.attachment.url }}" alt="attachment"></a></div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div style="margin-top:16px">
+      <form id="sendMessageForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-2">{{ form.text }}</div>
+        <div class="mb-2"><input type="file" name="attachment" accept="image/*" class="form-control"/></div>
+        <div style="margin-top:8px">
+          <button type="submit" class="btn btn-cta btn-send">Відправити</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <aside>
+    {% if user.is_staff and ticket.status != 'closed' %}
+      {% if ticket.assigned_to == user or user.is_superuser %}
+        <div class="panel-dark" style="padding:12px;border-radius:10px;">
+          <h5>Профіль користувача</h5>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+            {% if ticket.user.profile.avatar %}
+              <img src="{{ ticket.user.profile.avatar.url }}" alt="avatar" style="width:64px;height:64px;border-radius:8px;object-fit:cover">
+            {% else %}
+              <div class="avatar-small" style="width:64px;height:64px">{{ ticket.user.username|slice:":1"|upper }}</div>
+            {% endif %}
+            <div>
+              <div style="font-weight:700">{{ ticket.user.username }}</div>
+              <div class="muted-small">{{ ticket.user.email }}</div>
+            </div>
+          </div>
+
+          <hr>
+          <div class="muted-small">Телефон: {{ ticket.user.profile.phone|default:'не вказано' }}</div>
+          <div class="muted-small">Баланс: {{ ticket.user.profile.balance }}</div>
+          <div style="margin-top:8px">
+            <a href="{% url 'main:support_admin_user' ticket.user.id %}" class="btn btn-outline-light btn-sm">Детальніше</a>
+          </div>
+          {% if user.is_staff %}
+            <div style="margin-top:10px">
+              {% comment %} Attach ticket form for staff: allow attaching existing ticket by id {% endcomment %}
+              <form method="post" action="{% url 'main:support_admin_attach' ticket.id %}" style="display:flex;gap:8px;align-items:center">
+                {% csrf_token %}
+                <input name="attach_ticket_id" placeholder="ID квитка" class="form-control form-control-sm" style="width:100px" />
+                <button class="btn btn-outline-light btn-sm" type="submit">Прив'язати квиток</button>
+              </form>
+            </div>
+            <div style="margin-top:8px">
+              <div class="muted-small">Щоб повернути квиток: прив'яжіть його ID вище, потім натисніть «Повернути квиток».</div>
+              {% if can_refund and ticket.ticket %}
+                <div style="margin-top:8px">
+                  <form method="post" action="{% url 'main:ticket_refund' ticket.ticket.id %}">{% csrf_token %}
+                    <button class="btn btn-danger btn-sm" type="submit">Повернути квиток</button>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const form = document.getElementById('sendMessageForm');
+  const messagesContainer = document.querySelector('.messages');
+  const sendUrl = '{% url "main:support_api_send_message" ticket.id %}';
+  const ticketId = '{{ ticket.id }}';
+
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+  }
+
+  function appendMessage(m){
+    const row = document.createElement('div');
+    row.className = 'message-row ' + (m.is_from_admin ? 'from-admin' : 'from-user');
+    const inner = [];
+    inner.push('<div class="sender-with-avatar">');
+    if (m.sender_avatar){
+      inner.push('<div class="avatar-small"><img src="'+m.sender_avatar+'" style="width:100%;height:100%;object-fit:cover"></div>');
+    } else {
+      inner.push('<div class="avatar-small">' + (m.sender ? m.sender.charAt(0).toUpperCase() : 'С') + '</div>');
+    }
+    inner.push('<div class="message ' + (m.is_from_admin ? 'from-admin' : 'from-user') + '">');
+    inner.push('<div class="message-meta"><strong class="sender-name">' + (m.sender||'Система') + '</strong> <span class="message-time">· ' + (m.created_at||'') + '</span></div>');
+    inner.push('<div class="message-body">' + (m.text ? m.text.replace(/\n/g,'<br/>') : '') + '</div>');
+    if (m.attachment) inner.push('<div class="attachment" style="margin-top:6px"><a href="'+m.attachment+'" target="_blank"><img src="'+m.attachment+'" style="max-width:160px;max-height:120px;border-radius:6px"></a></div>');
+    inner.push('</div></div>');
+    row.innerHTML = inner.join('\n');
+    messagesContainer.appendChild(row);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  // WebSocket connection (fallback to AJAX for attachments)
+  let socket = null;
+  function openSocket(){
+    if (!window.WebSocket) return null;
+    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = scheme + '://' + window.location.host + '/ws/support/ticket/' + ticketId + '/';
+    try{ socket = new WebSocket(url); }catch(e){ socket = null; return; }
+    socket.onmessage = function(ev){
+      try{
+        const data = JSON.parse(ev.data);
+        if (data.type === 'init'){
+          // render any initial messages
+          if (data.messages && data.messages.length){
+            data.messages.forEach(function(m){ appendMessage(m); });
+          }
+        } else if (data.type === 'new_message'){
+          appendMessage(data.message);
+        }
+      }catch(e){ }
+    };
+    socket.onopen = function(){};
+    socket.onclose = function(){};
+  }
+
+  try{ openSocket(); }catch(e){}
+
+  if (form){
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      const fileInput = form.querySelector('input[type=file]');
+      const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+
+      // prefer WebSocket for text-only messages
+      const text = (form.querySelector('textarea[name="text"]') && form.querySelector('textarea[name="text"]').value) || '';
+      if (socket && socket.readyState === 1 && !hasFile){
+        socket.send(JSON.stringify({action:'send_message', text: text}));
+        form.querySelector('textarea[name="text"]').value = '';
+        return;
+      }
+
+      // fallback to AJAX (supports attachments)
+      const fd = new FormData(form);
+      try{
+        const resp = await fetch(sendUrl, {method:'POST', credentials:'same-origin', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: fd});
+        const data = await resp.json();
+        if (data && data.ok && data.message){
+          appendMessage(data.message);
+          form.reset();
+        } else if (data && data.error){
+          alert('Помилка: ' + data.error);
+        }
+      }catch(err){
+        console.error(err);
+        alert('Не вдалося відправити повідомлення');
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

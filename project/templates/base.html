@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="ук">
+<html lang="uk">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,6 +8,7 @@
   <title>{% block title %}Dieller Bus{% endblock %}</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
   <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
@@ -20,9 +21,9 @@
   <header class="site-header">
     <nav class="navbar navbar-expand-lg navbar-dark" aria-label="Main navigation">
       <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="{% url 'home' %}">
-          <img src="{% static 'img/5269672762366693828.jpg' %}" alt="logo" class="brand-img-small"> 
-          <span class="brand">Dieller <span class="brand-accent">Bus</span></span>
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'main:home' %}">
+          <img src="{% static 'img/logo.jpg' %}" alt="logo" class="brand-img-small"> 
+          <span class="brand">{{ site_config.shop_name|default:'Dieller Bus' }}</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
@@ -30,19 +31,26 @@
 
         <div class="collapse navbar-collapse" id="mainNav">
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-            <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">Головна</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'nashbusindex' %}">Каталог</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'kvitokindex' %}">Квитки</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:agreements' %}">Згоди / Питання</a></li>
             {% if user.is_authenticated %}
-              <li class="nav-item d-lg-none"><a class="nav-link" href="{% url 'profile' %}">Профіль</a></li>
+              <li class="nav-item d-lg-none"><a class="nav-link" href="{% url 'main:profile' %}">Профіль</a></li>
             {% endif %}
           </ul>
 
           <div class="d-flex align-items-center ms-lg-3">
             {% if user.is_authenticated %}
-              <a href="{% url 'profile' %}" class="btn btn-outline-light me-2 profile">👤 {{ user.username }}</a>
+              <a href="{% url 'main:support_home' %}" class="btn btn-outline-light me-2">🛠 Замовлення на тех підтримку</a>
+              {% if user.is_staff %}
+                <a href="{% url 'main:support_worker_queue' %}" class="btn btn-outline-light me-2">🔧 Черга підтримки</a>
+              {% endif %}
+              <a href="{% url 'main:profile' %}" class="btn btn-outline-light me-2 profile">👤 {{ user.username }}</a>
+              <a href="{% url 'main:logout' %}" class="btn btn-outline-light">Вийти</a>
             {% else %}
-              <a href="{% url 'registerindex' %}" class="btn btn-cta me-2">Зареєструватись</a>
+              <a href="{% url 'main:registerindex' %}" class="btn btn-cta me-2">Зареєструватись</a>
+              <a href="{% url 'main:registerindex' %}" class="btn btn-outline-light">Увійти</a>
             {% endif %}
           </div>
         </div>
@@ -51,6 +59,7 @@
   </header>
 
   <main class="site-main">
+    {% include 'includes/back_button.html' %}
     {% block content %}{% endblock %}
   </main>
 
@@ -64,21 +73,25 @@
         <div class="col-md-4 mb-3">
           <h5>Швидкі посилання</h5>
           <ul class="footer-links">
-            <li><a href="{% url 'nashbusindex' %}">Каталог</a></li>
-            <li><a href="{% url 'kvitokindex' %}">Квитки</a></li>
-            <li><a href="{% url 'registerindex' %}">Реєстрація</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'main:static_page' 'technical-questions' %}">Технічні питання</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'main:static_page' 'refund-policy' %}">Повернення коштів</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
           </ul>
         </div>
         <div class="col-md-4 mb-3 text-md-end">
           <h5>Контакти</h5>
-          <div class="muted-small">Тел: <a href="tel:+380000000000">+38 (000) 000-00-00</a></div>
-          <div class="socials mt-2">📧 <a href="mailto:info@dieller.bus">info@dieller.bus</a></div>
+          <div class="muted-small">Тел: <a href="tel:{{ site_config.contact_phone|default:'+380000000000' }}">{{ site_config.contact_phone|default:'+38 (000) 000-00-00' }}</a></div>
+          <div class="socials mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'info@dieller.bus' }}">{{ site_config.contact_email|default:'info@dieller.bus' }}</a></div>
         </div>
       </div>
 
       <div class="footer-bottom mt-3 d-flex justify-content-between">
         <div>© Dieller Bus — Всі права захищені</div>
         <div class="muted-small">Made with ❤️</div>
+        <div class="muted-small lang-switcher"><a href="{% url 'main:set_language' %}?language=uk">Українська</a> | <a href="{% url 'main:set_language' %}?language=en">English</a></div>
       </div>
     </div>
   </footer>
@@ -96,6 +109,8 @@
   
   <!-- Floating contact button -->
   <a class="fab-contact" href="tel:+380000000000" aria-label="Contact us">📞</a>
+
+  {% include 'includes/support_widget.html' %}
 
   <script>
     try{ gsap.from('.brand', {y:-8, opacity:0, duration:0.6, ease:'power2.out'}); }catch(e){}
