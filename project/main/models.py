@@ -4,6 +4,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
+import uuid
 from django.utils import timezone
 from django.conf import settings
 
@@ -392,7 +393,15 @@ class TripDayAvailability(models.Model):
 class Bus(models.Model):
     title = models.CharField("Назва/марка", max_length=200)
     slug = models.SlugField("Слаг", max_length=220, unique=True, blank=True)
-    image = models.ImageField("Фото автобуса", upload_to="buses/", blank=True, null=True)
+    def _bus_image_upload_to(instance, filename):
+        # generate a safe, mostly-unique filename for uploaded bus images
+        base, dot, ext = filename.rpartition('.')
+        ext = ext or 'jpg'
+        safe = (instance.slug or slugify(getattr(instance, 'title', 'bus')) or 'bus')
+        unique = uuid.uuid4().hex[:8]
+        return f"buses/{safe}_{unique}.{ext}"
+
+    image = models.ImageField("Фото автобуса", upload_to=_bus_image_upload_to, blank=True, null=True)
     seats = models.PositiveIntegerField("Кількість місць", default=50)
     contact_name = models.CharField("Контактна особа", max_length=120, blank=True)
     contact_phone = models.CharField("Телефон для замовлення", max_length=32, help_text="Формат: +380XXXXXXXXX або локальний")
