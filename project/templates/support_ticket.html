@@ -5,6 +5,16 @@
 
 {% block head_extra %}
   <link rel="stylesheet" href="{% static 'css/support.css' %}">
+  <style>
+    @media(max-width:900px){
+      .support-container{grid-template-columns:1fr !important; display:block !important; padding:16px !important}
+      .messages{max-height:400px;overflow:auto}
+      .ticket-header{flex-direction:column}
+      aside{width:100%;margin-top:18px}
+      .sender-with-avatar{display:flex;gap:8px}
+      .attachment img{max-width:100%;height:auto}
+    }
+  </style>
 {% endblock %}
 
 {% block content %}
