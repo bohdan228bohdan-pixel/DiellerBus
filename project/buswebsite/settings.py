@@ -39,8 +39,16 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-^qn)$tc2yr4dpo
 # in production to disable Django debug pages and enable stricter headers.
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-# ALLOWED_HOSTS should be explicitly set in production (comma-separated)
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+# ALLOWED_HOSTS should be explicitly set in production (comma-separated).
+# Default to the project's production domains so the app works if env var is
+# not set during an initial deploy.
+_raw_allowed = os.environ.get('ALLOWED_HOSTS', 'diellerbus.com,www.diellerbus.com,diellerbus.onrender.com')
+ALLOWED_HOSTS = [h.strip() for h in _raw_allowed.split(',') if h.strip()]
+
+# Populate CSRF_TRUSTED_ORIGINS from ALLOWED_HOSTS (use https://<host>),
+# unless an explicit env var is provided.
+_raw_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', ','.join(['https://' + h for h in ALLOWED_HOSTS if h and h != '*']))
+CSRF_TRUSTED_ORIGINS = [u.strip() for u in _raw_csrf.split(',') if u.strip()]
 
 
 # Application definition
