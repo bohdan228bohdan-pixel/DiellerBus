@@ -41,7 +41,7 @@
     {% if support_tickets %}
       {% for s in support_tickets %}
         <div style="background:#0f0f0f;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)">
-          <a href="{% url 'main:support_ticket_detail' s.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ s.id }} — {{ s.subject|default:s.preset.title }}</a>
+          <a href="{% url 'main:support_ticket_detail' s.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ s.id }} — {% if s.subject %}{{ s.subject }}{% elif s.preset %}{{ s.preset.title }}{% endif %}</a>
           <div class="muted-small">{{ s.created_at|date:'d.m.Y H:i' }} · {{ s.get_status_display }}</div>
         </div>
       {% endfor %}

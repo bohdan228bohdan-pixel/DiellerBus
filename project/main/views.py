@@ -2828,16 +2828,63 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    # Try to register a TTF font for Cyrillic if available (Windows default)
+    # Try to register a TTF font for Cyrillic if available (Windows or common Linux paths)
     regular_font = 'Helvetica'
     bold_font = 'Helvetica-Bold'
     try:
+        # Windows fonts (if running on Windows)
         if os.path.exists(r'C:\Windows\Fonts\arial.ttf'):
             pdfmetrics.registerFont(TTFont('Arial', r'C:\Windows\Fonts\arial.ttf'))
             regular_font = 'Arial'
         if os.path.exists(r'C:\Windows\Fonts\arialbd.ttf'):
             pdfmetrics.registerFont(TTFont('Arial-Bold', r'C:\Windows\Fonts\arialbd.ttf'))
             bold_font = 'Arial-Bold'
+
+        # Common Linux fonts (DejaVu / Noto) often present on Linux containers (Render, Docker)
+        try:
+            linux_candidates = [
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+                '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+                '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+                '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+            ]
+            for p in linux_candidates:
+                if os.path.exists(p):
+                    name = os.path.splitext(os.path.basename(p))[0]
+                    try:
+                        pdfmetrics.registerFont(TTFont(name, p))
+                        # prefer explicit DejaVu/Noto names for regular/bold mapping
+                        if 'bold' in name.lower() or 'b' in name.lower() and name.lower().endswith('b'):
+                            bold_font = name
+                        else:
+                            regular_font = name
+                    except Exception:
+                        pass
+
+        except Exception:
+            pass
+
+        # Also accept project-provided fonts under static/fonts (if any)
+        try:
+            fonts_dir = os.path.join(settings.BASE_DIR, 'static', 'fonts')
+            reg = os.path.join(fonts_dir, 'DejaVuSans.ttf')
+            reg_b = os.path.join(fonts_dir, 'DejaVuSans-Bold.ttf')
+            if os.path.exists(reg):
+                try:
+                    pdfmetrics.registerFont(TTFont('DejaVuSans', reg))
+                    regular_font = 'DejaVuSans'
+                except Exception:
+                    pass
+            if os.path.exists(reg_b):
+                try:
+                    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', reg_b))
+                    bold_font = 'DejaVuSans-Bold'
+                except Exception:
+                    pass
+        except Exception:
+            pass
     except Exception:
         pass
 

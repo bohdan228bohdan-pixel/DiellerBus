@@ -374,9 +374,9 @@ a {
     <div class="bus-card">
 
       {% if bus.image %}
-        <img src="{{ bus.image.url }}">
+        <img src="{{ bus.image.url }}" alt="{{ bus.title }}" onerror="this.onerror=null;this.src='{% static 'img/neoplanwhite.jpg' %}';">
       {% else %}
-        <img src="{% static 'img/placeholder-bus.jpg' %}">
+        <img src="{% static 'img/neoplanwhite.jpg' %}" alt="Нема фото">
       {% endif %}
 
       <div class="bus-info">

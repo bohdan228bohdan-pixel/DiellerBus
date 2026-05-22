@@ -10,10 +10,10 @@
 {% block content %}
 <div class="container support-container" style="max-width:1100px;margin:40px auto;display:grid;grid-template-columns:1fr 340px;gap:18px">
   <div>
-    <div class="ticket-header">
+        <div class="ticket-header">
       <div>
         <h3>Звернення #{{ ticket.id }}</h3>
-        <div class="ticket-meta">{{ ticket.subject|default:ticket.preset.title }} · {{ ticket.created_at|date:'d.m.Y H:i' }}
+        <div class="ticket-meta">{% if ticket.subject %}{{ ticket.subject }}{% elif ticket.preset %}{{ ticket.preset.title }}{% endif %} · {{ ticket.created_at|date:'d.m.Y H:i' }}
           <span class="status-badge status-{{ ticket.status|default:'new' }}">{{ ticket.get_status_display }}</span>
           {% if ticket.assigned_to %}<span class="ticket-assigned">Обробляє: {{ ticket.assigned_to.username }}</span>{% endif %}
         </div>
@@ -35,7 +35,7 @@
         <div class="message-row {% if m.is_from_admin %}from-admin{% else %}from-user{% endif %}">
           <div class="sender-with-avatar">
             {% if m.sender and m.sender.profile.avatar %}
-              <div class="avatar-small"><img src="{{ m.sender.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover"></div>
+              <div class="avatar-small"><img src="{{ m.sender.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';"></div>
             {% else %}
               <div class="avatar-small">{% if m.sender %}{{ m.sender.username|slice:":1"|upper }}{% else %}С{% endif %}</div>
             {% endif %}
@@ -52,7 +52,7 @@
               </div>
               <div class="message-body">{{ m.text|linebreaksbr }}
                 {% if m.attachment %}
-                  <div class="attachment"><a href="{{ m.attachment.url }}" target="_blank"><img src="{{ m.attachment.url }}" alt="attachment"></a></div>
+                  <div class="attachment"><a href="{{ m.attachment.url }}" target="_blank"><img src="{{ m.attachment.url }}" alt="attachment" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';"></a></div>
                 {% endif %}
               </div>
             </div>
@@ -80,7 +80,7 @@
           <h5>Профіль користувача</h5>
           <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
             {% if ticket.user.profile.avatar %}
-              <img src="{{ ticket.user.profile.avatar.url }}" alt="avatar" style="width:64px;height:64px;border-radius:8px;object-fit:cover">
+              <img src="{{ ticket.user.profile.avatar.url }}" alt="avatar" style="width:64px;height:64px;border-radius:8px;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';">
             {% else %}
               <div class="avatar-small" style="width:64px;height:64px">{{ ticket.user.username|slice:":1"|upper }}</div>
             {% endif %}

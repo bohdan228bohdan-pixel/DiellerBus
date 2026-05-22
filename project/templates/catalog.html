@@ -2,6 +2,10 @@
     <div>
         <h2>{{ bus.title }}</h2>
         <p>{{ bus.price_per_hour }} грн/год</p>
-        <img src="{{ bus.image.url }}" width="300">
+        {% if bus.image %}
+            <img src="{{ bus.image.url }}" alt="{{ bus.title }}" width="300" onerror="this.onerror=null;this.src='{% static 'img/neoplanwhite.jpg' %}';">
+        {% else %}
+            <img src="{% static 'img/neoplanwhite.jpg' %}" alt="Нема фото" width="300">
+        {% endif %}
     </div>
 {% endfor %}

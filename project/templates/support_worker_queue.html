@@ -22,7 +22,7 @@
           <div class="ticket-row">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <div>
-                <a href="{% url 'main:support_ticket_detail' t.id %}"><strong>#{{ t.id }}</strong></a> — {{ t.subject|default:t.preset.title }}
+                <a href="{% url 'main:support_ticket_detail' t.id %}"><strong>#{{ t.id }}</strong></a> — {% if t.subject %}{{ t.subject }}{% elif t.preset %}{{ t.preset.title }}{% endif %}
                 <div class="muted-small">{{ t.user.username }} · {{ t.get_status_display }} · {{ t.last_message_at|date:'d.m.Y H:i' }}</div>
               </div>
               <div>
@@ -44,7 +44,7 @@
       <h5>Мої звернення</h5>
       {% for mt in my_tickets %}
         <div style="padding:8px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
-          <a href="{% url 'main:support_ticket_detail' mt.id %}">#{{ mt.id }} — {{ mt.subject|default:mt.preset.title }}</a>
+          <a href="{% url 'main:support_ticket_detail' mt.id %}">#{{ mt.id }} — {% if mt.subject %}{{ mt.subject }}{% elif mt.preset %}{{ mt.preset.title }}{% endif %}</a>
           <div class="muted-small">Останнє: {{ mt.last_message_at|date:'d.m.Y H:i' }}</div>
         </div>
       {% empty %}

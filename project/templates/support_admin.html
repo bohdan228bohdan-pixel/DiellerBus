@@ -22,7 +22,7 @@
     {% for t in tickets %}
       <div class="ticket-card" style="display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <a href="{% url 'main:support_ticket_detail' t.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ t.id }} — {{ t.subject|default:t.preset.title }}</a>
+          <a href="{% url 'main:support_ticket_detail' t.id %}" style="font-weight:800;color:#fff;text-decoration:none">#{{ t.id }} — {% if t.subject %}{{ t.subject }}{% elif t.preset %}{{ t.preset.title }}{% endif %}</a>
           <div class="muted-small">Користувач: <a href="{% url 'main:support_admin_user' t.user.id %}">{{ t.user.username }}</a> · {{ t.created_at|date:'d.m.Y H:i' }}</div>
           <div class="muted-small">Останнє повідомлення: {{ t.last_message_at|date:'d.m.Y H:i' }}</div>
         </div>
