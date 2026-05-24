@@ -451,6 +451,185 @@ def resend_password_change_code(request):
         return JsonResponse({"ok": True, "message": "Код надіслано"})
     except Exception:
         return JsonResponse({"ok": False, "message": "Сталася помилка"}, status=500)
+
+
+# ========================
+# Password reset (anonymous) using 6-digit code stored in session
+# ========================
+
+def password_reset_request(request):
+    """Anonymous: submit email, server sends 6-digit code and stores it in session.
+
+    This flow keeps state in the user's session (no new DB model) so the user
+    must use the same browser to complete the reset.
+    """
+    from django.contrib import messages as _messages
+    import datetime as _dt
+    logger = logging.getLogger(__name__)
+
+    if request.method == 'POST':
+        email = (request.POST.get('email') or '').strip()
+        if not email:
+            return render(request, 'registration/password_reset_form.html', {'error': 'Введіть email'})
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            # For privacy, don't reveal whether account exists — show same UI path
+            # but log an info entry so admins can inspect if needed.
+            logger.info('Password reset requested for unknown email: %s', email)
+            # still create a minimal session marker so user sees the verify page
+            request.session['password_reset'] = {'user_id': None, 'code': None, 'expires_at': None}
+            return redirect('main:password_reset_verify')
+
+        code = str(random.randint(100000, 999999))
+        expires_ts = timezone.now().timestamp() + 3600  # 1 hour
+        request.session['password_reset'] = {
+            'user_id': user.id,
+            'code': code,
+            'expires_at': int(expires_ts),
+        }
+
+        sent = False
+        try:
+            html = render_to_string('emails/verification_email.html', {'code': code})
+            msg = EmailMessage(
+                "Код для відновлення пароля — Dieller Bus",
+                f"Ваш код для відновлення пароля: {code}",
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+            )
+            msg.attach_alternative(html, "text/html")
+            msg.send(fail_silently=False)
+            sent = True
+        except Exception as exc:
+            logger.exception('Failed to send password reset email (primary): %s', exc)
+            try:
+                send_mail(
+                    "Код для відновлення пароля — Dieller Bus",
+                    f"Ваш код для відновлення пароля: {code}",
+                    getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                    [user.email],
+                    fail_silently=False,
+                )
+                sent = True
+            except Exception as exc2:
+                logger.exception('Fallback password reset email failed: %s', exc2)
+
+        if not sent:
+            # Let the user know something went wrong so they can contact support
+            _messages.error(request, 'Не вдалося надіслати код — перевірте налаштування пошти або зверніться в підтримку')
+            return render(request, 'registration/password_reset_form.html')
+
+        return redirect('main:password_reset_verify')
+
+    return render(request, 'registration/password_reset_form.html')
+
+
+def password_reset_verify(request):
+    """Page where user enters 6-digit code and new password.
+
+    Uses session-stored code created by `password_reset_request`.
+    """
+    from django.contrib import messages as _messages
+    import datetime as _dt
+    logger = logging.getLogger(__name__)
+
+    pr = request.session.get('password_reset')
+    if not pr:
+        return redirect('main:password_reset')
+
+    user = None
+    try:
+        if pr.get('user_id'):
+            user = User.objects.get(id=pr.get('user_id'))
+    except User.DoesNotExist:
+        user = None
+
+    email = user.email if user else ''
+
+    if request.method == 'POST':
+        code = (request.POST.get('code') or '').strip()
+        new1 = request.POST.get('new_password1') or ''
+        new2 = request.POST.get('new_password2') or ''
+
+        # validate session and expiry
+        try:
+            expires_at = int(pr.get('expires_at') or 0)
+            if expires_at and timezone.now().timestamp() > expires_at:
+                request.session.pop('password_reset', None)
+                return render(request, 'registration/password_reset_form.html', {'error': 'Термін дії коду минув. Запросіть новий код.'})
+        except Exception:
+            pass
+
+        if not code or not pr.get('code') or code != pr.get('code'):
+            return render(request, 'registration/password_reset_verify.html', {'error': 'Невірний код', 'email': email})
+
+        if not new1 or new1 != new2:
+            return render(request, 'registration/password_reset_verify.html', {'error': 'Паролі не співпадають', 'email': email})
+
+        if not user:
+            return render(request, 'registration/password_reset_verify.html', {'error': 'Користувача не знайдено', 'email': email})
+
+        try:
+            user.set_password(new1)
+            user.save(update_fields=['password'])
+            request.session.pop('password_reset', None)
+            auth_login(request, user)
+            return redirect('main:profile')
+        except Exception as exc:
+            logger.exception('Failed to set new password: %s', exc)
+            _messages.error(request, 'Не вдалося змінити пароль — спробуйте знову пізніше')
+            return render(request, 'registration/password_reset_verify.html', {'email': email})
+
+    return render(request, 'registration/password_reset_verify.html', {'email': email})
+
+
+@require_POST
+def resend_password_reset_code(request):
+    logger = logging.getLogger(__name__)
+    pr = request.session.get('password_reset')
+    if not pr or not pr.get('user_id'):
+        return JsonResponse({'ok': False, 'message': 'Сесія не знайдена'}, status=400)
+
+    try:
+        user = User.objects.get(id=pr.get('user_id'))
+    except User.DoesNotExist:
+        return JsonResponse({'ok': False, 'message': 'Користувача не знайдено'}, status=400)
+
+    code = str(random.randint(100000, 999999))
+    pr['code'] = code
+    pr['expires_at'] = int(timezone.now().timestamp() + 3600)
+    request.session['password_reset'] = pr
+
+    sent = False
+    try:
+        html = render_to_string('emails/verification_email.html', {'code': code})
+        msg = EmailMessage(
+            "Код для відновлення пароля — Dieller Bus",
+            f"Ваш код для відновлення пароля: {code}",
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+        )
+        msg.attach_alternative(html, "text/html")
+        msg.send(fail_silently=False)
+        sent = True
+    except Exception as exc:
+        logger.exception('Failed to resend password reset email (primary): %s', exc)
+        try:
+            send_mail(
+                "Код для відновлення пароля — Dieller Bus",
+                f"Ваш код для відновлення пароля: {code}",
+                getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                [user.email],
+                fail_silently=False,
+            )
+            sent = True
+        except Exception as exc2:
+            logger.exception('Fallback resend failed: %s', exc2)
+
+    if not sent:
+        return JsonResponse({'ok': False, 'message': 'Не вдалося надіслати код'}, status=500)
+    return JsonResponse({'ok': True, 'message': f'Код надіслано на {user.email}'})
 @login_required
 def support_home(request):
     presets = SupportPresetQuestion.objects.all().order_by('order')

@@ -42,39 +42,10 @@ urlpatterns = [
         views.request_password_change,
         name="password_change",
     ),
-    # built-in Django password reset flow (email -> confirm -> complete)
-    path(
-        "password-reset/",
-        auth_views.PasswordResetView.as_view(
-            template_name="registration/password_reset_form.html",
-            email_template_name="registration/password_reset_email.html",
-            subject_template_name="registration/password_reset_subject.txt",
-            success_url=reverse_lazy("main:password_reset_done"),
-        ),
-        name="password_reset",
-    ),
-    path(
-        "password-reset/done/",
-        auth_views.PasswordResetDoneView.as_view(
-            template_name="registration/password_reset_done.html"
-        ),
-        name="password_reset_done",
-    ),
-    path(
-        "reset/<uidb64>/<token>/",
-        auth_views.PasswordResetConfirmView.as_view(
-            template_name="registration/password_reset_confirm.html",
-            success_url=reverse_lazy("main:password_reset_complete"),
-        ),
-        name="password_reset_confirm",
-    ),
-    path(
-        "reset/done/",
-        auth_views.PasswordResetCompleteView.as_view(
-            template_name="registration/password_reset_complete.html"
-        ),
-        name="password_reset_complete",
-    ),
+    # custom code-based password reset flow (email -> 6-digit code -> new password)
+    path("password-reset/", views.password_reset_request, name="password_reset"),
+    path("password-reset/verify/", views.password_reset_verify, name="password_reset_verify"),
+    path("password-reset/resend/", views.resend_password_reset_code, name="resend_password_reset"),
 
     # payments/tickets
     path("create-ticket/", views.create_ticket, name="create_ticket"),
