@@ -50,6 +50,7 @@
                 <a href="{% url 'main:ticket_edit' t.id %}" class="btn btn-sm">Редагувати</a>
                 <a href="{% url 'main:download_ticket' t.id %}" class="btn btn-sm">Завантажити</a>
                 <form method="post" action="{% url 'main:support_resend_ticket' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Відправити email</button></form>
+                <form method="post" action="{% url 'main:support_admin_send_rebook' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Надіслати лист перебронювання</button></form>
                 {% if t.paid %}
                   <form method="post" action="{% url 'main:ticket_refund' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm" onclick="return confirm('Повернути гроші за квиток?')">Повернути</button></form>
                 {% endif %}

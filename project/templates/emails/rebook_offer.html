@@ -1,0 +1,13 @@
+<html>
+  <body style="font-family:Arial, sans-serif;color:#222;line-height:1.4">
+    <h2 style="color:#0b84ff">Пропозиція перебронювання</h2>
+    <p>Доброго дня,</p>
+    <p>Ми пропонуємо вам перебронювати ваш квиток <strong>№{{ ticket.id }}</strong> ({{ ticket.from_city }} → {{ ticket.to_city }} — {{ ticket.travel_date|date:'d.m.Y' }}) на інший доступний рейс.</p>
+
+    <p><a href="{{ rebook_url }}" style="display:inline-block;padding:10px 14px;background:#0b84ff;color:#fff;border-radius:6px;text-decoration:none">Перебронювати квиток</a></p>
+
+    <p>Якщо маєте запитання — відповідайте на цей лист або відкрийте звернення у профілі.</p>
+
+    <p>З повагою,<br>Команда Dieller Bus</p>
+  </body>
+</html>

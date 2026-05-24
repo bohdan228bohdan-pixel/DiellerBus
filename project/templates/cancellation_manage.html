@@ -14,17 +14,17 @@
     <input type="hidden" name="sig" value="{{ sig }}">
 
     <div class="form-check">
-      <input class="form-check-input" type="radio" name="action" id="refund" value="refund" checked>
+      <input class="form-check-input" type="radio" name="action" id="refund" value="refund" {% if preselected_action == '' or preselected_action == 'refund' %}checked{% endif %}>
       <label class="form-check-label" for="refund">Повернення коштів</label>
     </div>
 
     <div class="form-check mt-2">
-      <input class="form-check-input" type="radio" name="action" id="rebook" value="rebook">
+      <input class="form-check-input" type="radio" name="action" id="rebook" value="rebook" {% if preselected_action == 'rebook' %}checked{% endif %}>
       <label class="form-check-label" for="rebook">Перебронювати квиток на інший рейс</label>
     </div>
 
     <div class="form-check mt-2">
-      <input class="form-check-input" type="radio" name="action" id="contact" value="contact">
+      <input class="form-check-input" type="radio" name="action" id="contact" value="contact" {% if preselected_action == 'contact' %}checked{% endif %}>
       <label class="form-check-label" for="contact">Зв'язок зі службою підтримки</label>
     </div>
 

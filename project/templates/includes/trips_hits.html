@@ -1,11 +1,11 @@
 {% load static %}
 <div class="hits-track routes-slider" id="hitsTrack" tabindex="0" aria-label="Список хітів">
   {% for r in trips|slice:":10" %}
-    <article class="card-mini route-card" data-url="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}">
+    <article class="card-mini route-card" data-url="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}{% if request.GET.exchange_ticket %}?exchange_ticket={{ request.GET.exchange_ticket }}{% endif %}">
       {% if forloop.counter0 < 6 %}
         <div class="badge-hit">ХІТ</div>
       {% endif %}
-      <a href="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}" style="color:inherit;text-decoration:none;display:block">
+      <a href="{% if r.trip_id %}{% url 'buy_trip' r.trip_id %}{% else %}{{ r.url|default:'#' }}{% endif %}{% if request.GET.exchange_ticket %}?exchange_ticket={{ request.GET.exchange_ticket }}{% endif %}" style="color:inherit;text-decoration:none;display:block">
         {% if r.image_url %}
           <img src="{{ r.image_url }}" alt="{{ r.from_city }} - {{ r.to_city }}">
         {% else %}

@@ -50,6 +50,35 @@ ALLOWED_HOSTS = [h.strip() for h in _raw_allowed.split(',') if h.strip()]
 _raw_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', ','.join(['https://' + h for h in ALLOWED_HOSTS if h and h != '*']))
 CSRF_TRUSTED_ORIGINS = [u.strip() for u in _raw_csrf.split(',') if u.strip()]
 
+# When running with DEBUG enabled, allow common local development hosts so
+# the development server and local editors can access the site without
+# triggering DisallowedHost errors (for example, 127.0.0.1:8000).
+if DEBUG:
+    for _local in ('127.0.0.1', 'localhost'):
+        if _local not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.insert(0, _local)
+
+# Ensure production domain is present in ALLOWED_HOSTS so pushes that don't set
+# the env var still allow the public site to run. Also ensure CSRF trusted
+# origins include the https:// form of the site.
+for _host in ('diellerbus.com', 'www.diellerbus.com'):
+    try:
+        if _host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_host)
+    except Exception:
+        pass
+
+try:
+    if not any('diellerbus.com' in u for u in CSRF_TRUSTED_ORIGINS):
+        CSRF_TRUSTED_ORIGINS.append('https://diellerbus.com')
+        if 'www.diellerbus.com' not in ''.join(CSRF_TRUSTED_ORIGINS):
+            CSRF_TRUSTED_ORIGINS.append('https://www.diellerbus.com')
+except Exception:
+    try:
+        CSRF_TRUSTED_ORIGINS = (CSRF_TRUSTED_ORIGINS or []) + ['https://diellerbus.com', 'https://www.diellerbus.com']
+    except Exception:
+        CSRF_TRUSTED_ORIGINS = ['https://diellerbus.com', 'https://www.diellerbus.com']
+
 
 # Application definition
 

@@ -144,7 +144,7 @@ def _qr_png_bytes(data, size=220):
 from .models import EmailVerification
 from django.http import JsonResponse
 from .models import City, Route, RouteStop, Trip, TripStop, TripDayAvailability, TripFare
-from django.db.models import Q, Exists, OuterRef
+from django.db.models import Q, Exists, OuterRef, Count, Sum
 from .models import StaticPage, SiteConfig, PasswordChangeRequest
 from django.db.models import Count
 from django.contrib.auth.hashers import make_password
@@ -542,6 +542,90 @@ def support_admin_list(request):
 
 
 @login_required
+def support_admin_cancel_trip(request):
+    """Staff view: choose a Trip and a date to mark as cancelled and notify buyers.
+
+    Marks `TripDayAvailability.available=False` for the selected date and sends
+    an email to every paid ticket for that trip+date with links to rebook/refund.
+    """
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+
+    trips = Trip.objects.all().order_by('date', 'id')
+    trip_id = request.GET.get('trip_id') or request.POST.get('trip_id')
+    selected_trip = None
+    dates = []
+    if trip_id:
+        try:
+            selected_trip = Trip.objects.filter(pk=int(trip_id)).first()
+        except Exception:
+            selected_trip = None
+
+    if selected_trip:
+        # collect dates with sold tickets for this trip
+        dates_qs = Ticket.objects.filter(trip=selected_trip).values('travel_date').annotate(count=Count('id')).order_by('travel_date')
+        for d in dates_qs:
+            if d.get('travel_date'):
+                dates.append({'date': d['travel_date'], 'count': d.get('count') or 0})
+        # include trip.date if set and missing
+        try:
+            if getattr(selected_trip, 'date', None) and not any(x['date'] == selected_trip.date for x in dates):
+                dates.insert(0, {'date': selected_trip.date, 'count': Ticket.objects.filter(trip=selected_trip, travel_date=selected_trip.date).count()})
+        except Exception:
+            pass
+
+    if request.method == 'POST':
+        # perform cancellation
+        try:
+            trip_pk = int(request.POST.get('trip_id'))
+            date_str = (request.POST.get('date') or '').strip()
+            # accept YYYY-MM-DD or DD.MM.YYYY
+            try:
+                cancel_date = datetime.date.fromisoformat(date_str)
+            except Exception:
+                try:
+                    cancel_date = datetime.datetime.strptime(date_str, '%d.%m.%Y').date()
+                except Exception:
+                    cancel_date = None
+
+            trip = Trip.objects.filter(pk=trip_pk).first()
+            if not trip or not cancel_date:
+                messages.error(request, 'Невірні параметри')
+                return redirect('main:support_admin_cancel_trip')
+
+            # mark unavailable for that date
+            TripDayAvailability.objects.update_or_create(trip=trip, date=cancel_date, defaults={'available': False})
+
+            # notify ticket holders
+            tickets = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True)
+            sent = 0
+            for t in tickets:
+                try:
+                    sig = _ticket_signature(t)
+                    base = request.build_absolute_uri(reverse('main:cancellation_manage', args=[t.id]))
+                    cancel_url = f"{base}?sig={sig}"
+                    # provide a direct rebook link to search page with exchange_ticket param
+                    rebook_url = request.build_absolute_uri(reverse('main:kvitokindex')) + f"?exchange_ticket={t.id}"
+                    refund_url = f"{cancel_url}&action=refund"
+                    subject = f"Скасовано рейс {t.from_city} → {t.to_city} — {cancel_date.strftime('%d.%m.%Y')}"
+                    html = render_to_string('emails/cancellation_email.html', {'ticket': t, 'cancel_url': cancel_url, 'rebook_url': rebook_url, 'refund_url': refund_url, 'trip': trip, 'date': cancel_date})
+                    msg = EmailMessage(subject, html, settings.DEFAULT_FROM_EMAIL, [t.contact_email or (t.user.email if getattr(t, 'user', None) else None)])
+                    msg.content_subtype = 'html'
+                    msg.send(fail_silently=True)
+                    sent += 1
+                except Exception:
+                    continue
+
+            messages.info(request, f'Рейс позначено як скасований на {cancel_date}. Повідомлень надіслано: {sent}.')
+            return redirect('main:support_admin_cancel_trip')
+        except Exception:
+            messages.error(request, 'Сталася помилка при скасуванні')
+            return redirect('main:support_admin_cancel_trip')
+
+    return render(request, 'support_admin_cancel_trip.html', {'trips': trips, 'selected_trip': selected_trip, 'dates': dates})
+
+
+@login_required
 def support_admin_take(request, ticket_id):
     if not request.user.is_staff:
         return HttpResponse(status=403)
@@ -554,6 +638,35 @@ def support_admin_take(request, ticket_id):
     except Exception:
         pass
     return redirect('main:support_ticket_detail', ticket.id)
+
+
+@login_required
+def support_admin_send_rebook(request, ticket_id):
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    try:
+        sig = _ticket_signature(ticket)
+        # redirect user to search page with exchange_ticket param
+        rebook_url = request.build_absolute_uri(reverse('main:kvitokindex')) + f"?exchange_ticket={ticket.id}"
+        subject = f"Пропозиція перебронювання — квиток #{ticket.id}"
+        html = render_to_string('emails/rebook_offer.html', {'ticket': ticket, 'rebook_url': rebook_url})
+        msg = EmailMessage(subject, html, settings.DEFAULT_FROM_EMAIL, [ticket.contact_email or (ticket.user.email if getattr(ticket, 'user', None) else None)])
+        msg.content_subtype = 'html'
+        msg.send(fail_silently=True)
+        # create support ticket entry for traceability
+        preset = SupportPresetQuestion.objects.filter(title__icontains='переброн').first()
+        st = SupportTicket.objects.create(user=ticket.user, subject=f'Перебронювання квитка #{ticket.id}', ticket=ticket, preset=preset)
+        SupportMessage.objects.create(ticket=st, sender=request.user, text='Надіслано пропозицію перебронювання (ініційовано техпідтримкою).', is_from_admin=True)
+        messages.info(request, 'Лист з пропозицією перебронювання надіслано')
+    except Exception:
+        messages.error(request, 'Не вдалося надіслати лист')
+    referer = request.META.get('HTTP_REFERER')
+    if referer:
+        return redirect(referer)
+    return redirect('main:support_admin')
 
 
 @login_required
@@ -1295,7 +1408,24 @@ def profile(request):
     else:
         form = ProfileForm(instance=profile)
 
-    tickets = Ticket.objects.filter(user=request.user, paid=True).order_by('-created_at')
+    # Exclude tickets for which an explicit per-day availability record marks the trip as unavailable
+    try:
+        tickets = (
+            Ticket.objects.filter(user=request.user, paid=True)
+            .annotate(
+                is_canceled=Exists(
+                    TripDayAvailability.objects.filter(
+                        trip_id=OuterRef('trip_id'),
+                        date=OuterRef('travel_date'),
+                        available=False,
+                    )
+                )
+            )
+            .filter(is_canceled=False)
+            .order_by('-created_at')
+        )
+    except Exception:
+        tickets = Ticket.objects.filter(user=request.user, paid=True).order_by('-created_at')
     support_tickets = SupportTicket.objects.filter(user=request.user, is_archived=False).order_by('-last_message_at')
 
     # attach signature to each ticket for preview/download links
@@ -2022,6 +2152,39 @@ def payment_success(request):
             except Exception:
                 pass
 
+    # If this payment was part of an exchange flow, apply credit for the old ticket
+    try:
+        exch_old_id = None
+        try:
+            exch_old_id = request.session.pop('exchange_old_ticket_id', None)
+        except Exception:
+            exch_old_id = None
+        if exch_old_id and ticket and ticket.paid:
+            try:
+                from .models import Payment
+                old_ticket = Ticket.objects.filter(pk=int(exch_old_id)).first()
+                if old_ticket:
+                    refund_amount = float(old_ticket.total_price or 0.0)
+                    # ledger: create negative payment record (manual refund via balance)
+                    try:
+                        Payment.objects.create(ticket=None, user=old_ticket.user, amount=-abs(refund_amount), currency=(old_ticket.currency or 'UAH'), status='refunded', provider='exchange', data={'by': request.user.username if request.user.is_authenticated else 'system', 'old_ticket': old_ticket.id, 'new_ticket': ticket.id})
+                    except Exception:
+                        pass
+                    try:
+                        profile = old_ticket.user.profile
+                        profile.balance = (profile.balance or 0) + refund_amount
+                        profile.save(update_fields=['balance'])
+                    except Exception:
+                        pass
+                    try:
+                        old_ticket.delete()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     return render(request, "payment_success.html", {"ticket": ticket, "processed": processed})
 
 
@@ -2342,6 +2505,16 @@ def buy_trip(request, trip_id):
         pass
     cur = (trip.currency or 'UAH').lower()
 
+    # Check seats availability for the selected date (prevent oversell)
+    try:
+        sold = Ticket.objects.filter(trip=trip, travel_date=travel_date).aggregate(total=Sum('passengers'))['total'] or 0
+        seats_left = (trip.seats or 0) - int(sold or 0)
+        if seats_left < pax:
+            messages.error(request, 'Недостатньо вільних місць на цей рейс')
+            return redirect('main:kvitokindex')
+    except Exception:
+        pass
+
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{
@@ -2373,6 +2546,13 @@ def buy_trip(request, trip_id):
     )
     try:
         request.session['last_ticket_id'] = ticket.id
+        # if this purchase is an exchange, remember the original ticket id in session
+        try:
+            exch = request.GET.get('exchange_ticket')
+            if exch:
+                request.session['exchange_old_ticket_id'] = int(exch)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -2691,6 +2871,16 @@ def checkout(request, trip_id):
     posted_from = (request.POST.get('from') or request.POST.get('selected_from') or display_from)
     posted_to = (request.POST.get('to') or request.POST.get('selected_to') or display_to)
 
+    # Seats availability check (prevent oversell)
+    try:
+        sold = Ticket.objects.filter(trip=trip, travel_date=travel_date).aggregate(total=Sum('passengers'))['total'] or 0
+        seats_left = (trip.seats or 0) - int(sold or 0)
+        if seats_left < pax:
+            messages.error(request, 'Недостатньо вільних місць на цей рейс')
+            return redirect('main:kvitokindex')
+    except Exception:
+        pass
+
     ticket = Ticket.objects.create(
         user=request.user,
         trip=trip,
@@ -2711,6 +2901,12 @@ def checkout(request, trip_id):
     )
     try:
         request.session['last_ticket_id'] = ticket.id
+        try:
+            exch = request.POST.get('exchange_ticket') or request.GET.get('exchange_ticket')
+            if exch:
+                request.session['exchange_old_ticket_id'] = int(exch)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -3655,7 +3851,8 @@ def cancellation_manage(request, ticket_id):
             pass
         return render(request, 'cancellation_manage_confirm.html', {'ticket': ticket, 'action': 'contact'})
 
-    return render(request, 'cancellation_manage.html', {'ticket': ticket, 'sig': sig})
+    preselected = request.GET.get('action') or ''
+    return render(request, 'cancellation_manage.html', {'ticket': ticket, 'sig': sig, 'preselected_action': preselected})
 
 
 @login_required

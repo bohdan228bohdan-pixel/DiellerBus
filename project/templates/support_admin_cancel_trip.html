@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Скасування рейсу — Адмін{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h2>Скасувати рейс на конкретну дату</h2>
+  <p>Оберіть рейс і дату — система позначить цю дату як недоступну та надішле повідомлення пасажирам.</p>
+
+  <form method="get" class="mb-3">
+    <label>Оберіть рейс</label>
+    <select name="trip_id" class="form-control" onchange="this.form.submit()">
+      <option value="">-- виберіть рейс --</option>
+      {% for tr in trips %}
+        <option value="{{ tr.id }}" {% if selected_trip and selected_trip.id == tr.id %}selected{% endif %}>{{ tr.route.name }} — {{ tr.title or tr.date }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if selected_trip %}
+    <h4>Дати з проданими квитками</h4>
+    <ul>
+      {% for d in dates %}
+        <li>
+          {{ d.date }} — куплено: {{ d.count }}
+          <form method="post" style="display:inline;margin-left:12px">
+            {% csrf_token %}
+            <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
+            <input type="hidden" name="date" value="{{ d.date }}">
+            <button class="btn btn-danger btn-sm" type="submit">Скасувати на цю дату</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <hr>
+    <h4>Скасувати на довільну дату</h4>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
+      <div class="form-group">
+        <label>Дата (YYYY-MM-DD або DD.MM.YYYY)</label>
+        <input type="text" name="date" class="form-control" placeholder="2026-06-01 або 01.06.2026">
+      </div>
+      <button class="btn btn-danger mt-2" type="submit">Скасувати</button>
+    </form>
+  {% else %}
+    <p>Оберіть рейс, щоб побачити дати з продажами.</p>
+  {% endif %}
+</div>
+{% endblock %}

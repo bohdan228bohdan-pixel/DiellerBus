@@ -18,9 +18,12 @@
     <h5>Нове звернення</h5>
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
-      {# preset field removed from UI per user request; users can enter Subject manually #}
       <div class="mb-2">
-        {{ form.subject.label_tag }}
+        <label>Тип запиту</label>
+        {{ form.preset }}
+      </div>
+      <div class="mb-2">
+        <label>Тема (коротко)</label>
         {{ form.subject }}
       </div>
       <!-- Ticket selector removed per UI request -->

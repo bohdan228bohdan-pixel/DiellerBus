@@ -1,0 +1,19 @@
+<html>
+  <body style="font-family:Arial, sans-serif;color:#222;line-height:1.4">
+    <h2 style="color:#c0392b">Увага — скасовано рейс</h2>
+    <p>Доброго дня,</p>
+    <p>На жаль, рейс <strong>{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</strong> на дату <strong>{{ date|date:"d.m.Y" }}</strong> був скасований.</p>
+
+    <p>У вас є дві опції:</p>
+    <ul>
+      <li><a href="{{ rebook_url }}" style="display:inline-block;padding:10px 14px;background:#0b84ff;color:#fff;border-radius:6px;text-decoration:none">Перебронювати квиток</a> — виберіть інший рейс/дату та, при потребі, доплатіть/отримайте повернення.</li>
+      <li><a href="{{ refund_url }}" style="display:inline-block;padding:10px 14px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none">Повернути кошти</a> — створити запит на повернення.</li>
+    </ul>
+
+    <p>Або відкрийте сторінку керування квитком, щоб побачити деталі: <a href="{{ cancel_url }}">перейти до управління</a>.</p>
+
+    <p>Якщо потрібна допомога — зверніться у техпідтримку через ваш профіль.</p>
+
+    <p>З повагою,<br>Команда Dieller Bus</p>
+  </body>
+</html>
