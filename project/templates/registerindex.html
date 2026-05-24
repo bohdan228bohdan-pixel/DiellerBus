@@ -18,6 +18,8 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,2
 .switch{color:var(--muted);text-align:center;margin-top:10px}
 .error-message{background:#3b0000;color:#ffc9c9;padding:8px;border-radius:8px}
 .success-message{background:#073b09;color:#c9ffd6;padding:8px;border-radius:8px}
+.forgot-link{color:#1a73e8;font-weight:700;text-decoration:none}
+.forgot-link:hover{text-decoration:underline}
 </style>
 {% endblock %}
 
@@ -69,6 +71,9 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,2
         <div class="form-group">
           <label for="password2">Пароль</label>
           <input type="password" id="password2" name="password" placeholder="Введіть пароль" required />
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <a href="{% url 'main:password_reset' %}" class="forgot-link">Забули пароль?</a>
         </div>
         <button type="submit" class="btn btn-book">Увійти</button>
       </form>

@@ -11,7 +11,9 @@
     <select name="trip_id" class="form-control" onchange="this.form.submit()">
       <option value="">-- виберіть рейс --</option>
       {% for tr in trips %}
-        <option value="{{ tr.id }}" {% if selected_trip and selected_trip.id == tr.id %}selected{% endif %}>{{ tr.route.name }} — {{ tr.title or tr.date }}</option>
+        <option value="{{ tr.id }}" {% if selected_trip and selected_trip.id == tr.id %}selected{% endif %}>
+          {{ tr.route.name }} — {% if tr.title %}{{ tr.title }}{% else %}{{ tr.date|date:"d.m.Y" }}{% endif %}
+        </option>
       {% endfor %}
     </select>
   </form>
