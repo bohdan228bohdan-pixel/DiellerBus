@@ -35,7 +35,7 @@ import io
 import csv
 import zipfile
 from django.urls import reverse
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.template.loader import render_to_string
 import hmac
 import os
@@ -347,7 +347,7 @@ def request_password_change(request):
             # send verification email
             try:
                 html = render_to_string('emails/verification_email.html', {'code': code})
-                msg = EmailMessage(
+                msg = EmailMultiAlternatives(
                     "Підтвердження зміни пароля — Dieller Bus",
                     f"Ваш код підтвердження: {code}",
                     settings.DEFAULT_FROM_EMAIL,
@@ -428,7 +428,7 @@ def resend_password_change_code(request):
 
         try:
             html = render_to_string('emails/verification_email.html', {'code': code})
-            msg = EmailMessage(
+            msg = EmailMultiAlternatives(
                 "Підтвердження зміни пароля — Dieller Bus",
                 f"Ваш код підтвердження: {code}",
                 settings.DEFAULT_FROM_EMAIL,
@@ -492,7 +492,7 @@ def password_reset_request(request):
         sent = False
         try:
             html = render_to_string('emails/verification_email.html', {'code': code})
-            msg = EmailMessage(
+            msg = EmailMultiAlternatives(
                 "Код для відновлення пароля — Dieller Bus",
                 f"Ваш код для відновлення пароля: {code}",
                 settings.DEFAULT_FROM_EMAIL,
@@ -604,7 +604,7 @@ def resend_password_reset_code(request):
     sent = False
     try:
         html = render_to_string('emails/verification_email.html', {'code': code})
-        msg = EmailMessage(
+        msg = EmailMultiAlternatives(
             "Код для відновлення пароля — Dieller Bus",
             f"Ваш код для відновлення пароля: {code}",
             settings.DEFAULT_FROM_EMAIL,
@@ -1996,7 +1996,7 @@ def registerindex(request):
                 # Send verification email (best-effort)
                 try:
                     html = render_to_string('emails/verification_email.html', {'code': code})
-                    msg = EmailMessage(
+                    msg = EmailMultiAlternatives(
                         "Підтвердження email — Dieller Bus",
                         f"Ваш код підтвердження: {code}",
                         settings.DEFAULT_FROM_EMAIL,
@@ -2102,7 +2102,7 @@ def resend_verification_code(request):
 
         try:
             html = render_to_string('emails/verification_email.html', {'code': code})
-            msg = EmailMessage(
+            msg = EmailMultiAlternatives(
                 "Підтвердження email — Dieller Bus",
                 f"Ваш код підтвердження: {code}",
                 settings.DEFAULT_FROM_EMAIL,
