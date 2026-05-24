@@ -216,6 +216,14 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <no-reply@example.com>")
 
+# Prefer using the SMTP login as the default sender address when provided
+# This makes outgoing messages originate from the configured mailbox
+try:
+    if EMAIL_HOST_USER:
+        DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+except Exception:
+    pass
+
 # Stripe
 STRIPE_PUBLIC_KEY = ""
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
