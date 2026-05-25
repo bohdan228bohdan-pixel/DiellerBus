@@ -741,16 +741,40 @@ def support_admin_cancel_trip(request):
             selected_trip = None
 
     if selected_trip:
-        # collect dates with sold tickets for this trip
-        dates_qs = Ticket.objects.filter(trip=selected_trip).values('travel_date').annotate(count=Count('id')).order_by('travel_date')
+        # collect dates with sold (paid) tickets for this trip and sum passengers
+        dates_qs = (
+            Ticket.objects.filter(trip=selected_trip, paid=True)
+            .values('travel_date')
+            .annotate(count=Count('id'), passengers=Sum('passengers'))
+        )
         for d in dates_qs:
-            if d.get('travel_date'):
-                dates.append({'date': d['travel_date'], 'count': d.get('count') or 0})
-        # include trip.date if set and missing
+            dt = d.get('travel_date')
+            if not dt:
+                continue
+            # skip dates already marked unavailable/cancelled
+            try:
+                if TripDayAvailability.objects.filter(trip=selected_trip, date=dt, available=False).exists():
+                    continue
+            except Exception:
+                pass
+            dates.append({'date': dt, 'count': d.get('count') or 0, 'passengers': d.get('passengers') or 0})
+
+        # optionally include the Trip.date if set (and not already present)
         try:
-            if getattr(selected_trip, 'date', None) and not any(x['date'] == selected_trip.date for x in dates):
-                dates.insert(0, {'date': selected_trip.date, 'count': Ticket.objects.filter(trip=selected_trip, travel_date=selected_trip.date).count()})
+            trip_date = getattr(selected_trip, 'date', None)
+            if trip_date and not any(x['date'] == trip_date for x in dates):
+                agg = Ticket.objects.filter(trip=selected_trip, travel_date=trip_date, paid=True).aggregate(count=Count('id'), passengers=Sum('passengers'))
+                dates.append({'date': trip_date, 'count': agg.get('count') or 0, 'passengers': agg.get('passengers') or 0})
         except Exception:
+            pass
+
+        # keep only future (or today) dates and sort ascending
+        try:
+            today = timezone.now().date()
+            dates = [d for d in dates if d.get('date') and d['date'] >= today]
+            dates.sort(key=lambda x: x['date'])
+        except Exception:
+            # fallback: preserve original order if filtering fails
             pass
 
     if request.method == 'POST':
@@ -777,6 +801,10 @@ def support_admin_cancel_trip(request):
 
             # notify ticket holders
             tickets = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True)
+
+            total_tickets = tickets.count()
+            total_passengers = tickets.aggregate(total=Sum('passengers'))['total'] or 0
+
             sent = 0
             for t in tickets:
                 try:
@@ -795,13 +823,38 @@ def support_admin_cancel_trip(request):
                 except Exception:
                     continue
 
+            # save a summary to session so the page can display details after redirect
+            try:
+                request.session['last_cancellation'] = {
+                    'trip_id': trip_pk,
+                    'date': cancel_date.isoformat(),
+                    'tickets': int(total_tickets),
+                    'passengers': int(total_passengers),
+                    'notified': int(sent),
+                }
+            except Exception:
+                pass
+
             messages.info(request, f'Рейс позначено як скасований на {cancel_date}. Повідомлень надіслано: {sent}.')
-            return redirect('main:support_admin_cancel_trip')
+            # redirect back keeping the selected trip in querystring so the UI stays practical
+            return redirect(f"{reverse('main:support_admin_cancel_trip')}?trip_id={trip_pk}")
         except Exception:
             messages.error(request, 'Сталася помилка при скасуванні')
             return redirect('main:support_admin_cancel_trip')
 
-    return render(request, 'support_admin_cancel_trip.html', {'trips': trips, 'selected_trip': selected_trip, 'dates': dates})
+    # pop any recent cancellation summary so we can display it once in the template
+    cancellation_summary = None
+    try:
+        cancellation_summary = request.session.pop('last_cancellation', None)
+    except Exception:
+        cancellation_summary = None
+
+    return render(request, 'support_admin_cancel_trip.html', {
+        'trips': trips,
+        'selected_trip': selected_trip,
+        'dates': dates,
+        'cancellation_summary': cancellation_summary,
+    })
 
 
 @login_required

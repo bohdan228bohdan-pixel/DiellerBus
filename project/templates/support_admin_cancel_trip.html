@@ -3,50 +3,88 @@
 
 {% block content %}
 <div class="container py-4">
-  <h2>Скасувати рейс на конкретну дату</h2>
-  <p>Оберіть рейс і дату — система позначить цю дату як недоступну та надішле повідомлення пасажирам.</p>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="mb-0">Скасувати рейс на конкретну дату</h2>
+      <p class="muted-small">Оберіть рейс і дату — система позначить цю дату як недоступну та надішле повідомлення пасажирам.</p>
+    </div>
+    <form method="get" class="mb-0">
+      <div class="input-group">
+        <label class="input-group-text">Рейс</label>
+        <select name="trip_id" class="form-select" onchange="this.form.submit()">
+          <option value="">-- виберіть рейс --</option>
+          {% for tr in trips %}
+            <option value="{{ tr.id }}" {% if selected_trip and selected_trip.id == tr.id %}selected{% endif %}>
+              {{ tr.route.name }} — {% if tr.title %}{{ tr.title }}{% else %}{{ tr.date|date:"d.m.Y" }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
 
-  <form method="get" class="mb-3">
-    <label>Оберіть рейс</label>
-    <select name="trip_id" class="form-control" onchange="this.form.submit()">
-      <option value="">-- виберіть рейс --</option>
-      {% for tr in trips %}
-        <option value="{{ tr.id }}" {% if selected_trip and selected_trip.id == tr.id %}selected{% endif %}>
-          {{ tr.route.name }} — {% if tr.title %}{{ tr.title }}{% else %}{{ tr.date|date:"d.m.Y" }}{% endif %}
-        </option>
-      {% endfor %}
-    </select>
-  </form>
+  {% if cancellation_summary %}
+    <div class="card mb-3 border-success">
+      <div class="card-body bg-dark text-white">
+        <h5 class="card-title text-success">Скасування виконано</h5>
+        <p class="card-text">Рейс ID: {{ cancellation_summary.trip_id }} — дата: {{ cancellation_summary.date|date:"d.m.Y" }}</p>
+        <p class="card-text">Квитків: <strong>{{ cancellation_summary.tickets }}</strong>, Пасажирів всього: <strong>{{ cancellation_summary.passengers }}</strong>, Повідомлень надіслано: <strong>{{ cancellation_summary.notified }}</strong></p>
+      </div>
+    </div>
+  {% endif %}
 
   {% if selected_trip %}
-    <h4>Дати з проданими квитками</h4>
-    <ul>
-      {% for d in dates %}
-        <li>
-          {{ d.date }} — куплено: {{ d.count }}
-          <form method="post" style="display:inline;margin-left:12px">
-            {% csrf_token %}
-            <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
-            <input type="hidden" name="date" value="{{ d.date }}">
-            <button class="btn btn-danger btn-sm" type="submit">Скасувати на цю дату</button>
-          </form>
-        </li>
-      {% endfor %}
-    </ul>
-
-    <hr>
-    <h4>Скасувати на довільну дату</h4>
-    <form method="post">
-      {% csrf_token %}
-      <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
-      <div class="form-group">
-        <label>Дата (YYYY-MM-DD або DD.MM.YYYY)</label>
-        <input type="text" name="date" class="form-control" placeholder="2026-06-01 або 01.06.2026">
+    <div class="row">
+      <div class="col-md-7">
+        <h4>Майбутні дати з проданими квитками</h4>
+        {% if dates %}
+          <ul class="list-group mb-3">
+            {% for d in dates %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-bold">{{ d.date|date:"d.m.Y" }}</div>
+                  <div class="muted-small">Квитків: {{ d.count }} — Пасажирів: {{ d.passengers }}</div>
+                </div>
+                <form method="post" class="mb-0">
+                  {% csrf_token %}
+                  <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
+                  <input type="hidden" name="date" value="{{ d.date }}">
+                  <button class="btn btn-danger" type="submit">Скасувати на цю дату</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="alert alert-info">Немає майбутніх дат з проданими квитками.</div>
+        {% endif %}
       </div>
-      <button class="btn btn-danger mt-2" type="submit">Скасувати</button>
-    </form>
+
+      <div class="col-md-5">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Скасувати на довільну дату</h5>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="trip_id" value="{{ selected_trip.id }}">
+              <div class="mb-2">
+                <label class="form-label">Дата (YYYY-MM-DD або DD.MM.YYYY)</label>
+                <input type="text" name="date" class="form-control" placeholder="2026-06-01 або 01.06.2026">
+              </div>
+              <button class="btn btn-danger" type="submit">Скасувати</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body bg-dark text-white">
+            <h6 class="card-title">Порада</h6>
+            <p class="muted-small">Після скасування сторінка перезавантажиться і ви побачите підсумок. Якщо потрібно тимчасово переглянути коди/тіла повідомлень, включіть консольний поштовий бекенд.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   {% else %}
-    <p>Оберіть рейс, щоб побачити дати з продажами.</p>
+    <p>Оберіть рейс, щоб побачити майбутні дати з продажами.</p>
   {% endif %}
 </div>
 {% endblock %}
