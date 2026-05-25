@@ -516,9 +516,11 @@ def password_reset_request(request):
                 logger.exception('Fallback password reset email failed: %s', exc2)
 
         if not sent:
-            # Let the user know something went wrong so they can contact support
-            _messages.error(request, 'Не вдалося надіслати код — перевірте налаштування пошти або зверніться в підтримку')
-            return render(request, 'registration/password_reset_form.html')
+            # If sending failed, show a warning but still redirect so user can
+            # enter the one-time code (if they received it) without losing flow.
+            _messages.warning(request, 'Не вдалося надіслати код електронною поштою. Якщо ви не отримаєте листа, зверніться в підтримку.')
+        else:
+            _messages.success(request, 'Ми надіслали 6-значний код на вказану адресу. Перевірте також папку "Спам".')
 
         return redirect('main:password_reset_verify')
 
