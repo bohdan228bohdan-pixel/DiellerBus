@@ -69,8 +69,9 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
         {% endfor %}
-      </div>
-    {% block content %}{% endblock %}
+          </div>
+        {% endif %}
+        {% block content %}{% endblock %}
   </main>
 
   <footer class="site-footer mt-5">
