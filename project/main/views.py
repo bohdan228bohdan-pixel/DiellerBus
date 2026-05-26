@@ -17,7 +17,7 @@ import stripe
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from .models import Ticket
+from .models import Ticket, Payment
 from .models import Bus, SupportTicket, SupportMessage, SupportPresetQuestion
 from django.views.generic import ListView, DetailView, FormView
 from django.shortcuts import get_object_or_404, redirect
@@ -814,7 +814,7 @@ def support_admin_cancel_trip(request):
             pass
 
     if request.method == 'POST':
-        # perform cancellation
+        # perform cancellation: mark date unavailable, refund users, debit carrier, and notify
         try:
             trip_pk = int(request.POST.get('trip_id'))
             date_str = (request.POST.get('date') or '').strip()
@@ -832,22 +832,66 @@ def support_admin_cancel_trip(request):
                 messages.error(request, 'Невірні параметри')
                 return redirect('main:support_admin_cancel_trip')
 
-            # mark unavailable for that date
-            TripDayAvailability.objects.update_or_create(trip=trip, date=cancel_date, defaults={'available': False})
+            # collect tickets first
+            tickets_qs = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True).select_related('user')
+            tickets = list(tickets_qs)
 
-            # notify ticket holders
-            tickets = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True)
-
-            total_tickets = tickets.count()
-            total_passengers = tickets.aggregate(total=Sum('passengers'))['total'] or 0
+            total_tickets = len(tickets)
+            total_passengers = sum([int(getattr(t, 'passengers', 0) or 0) for t in tickets])
 
             sent = 0
+            # perform DB changes in a transaction so availability + refunds are consistent
+            try:
+                with transaction.atomic():
+                    TripDayAvailability.objects.update_or_create(trip=trip, date=cancel_date, defaults={'available': False})
+
+                    for t in tickets:
+                        try:
+                            refund_amount = float(t.total_price or 0.0)
+                        except Exception:
+                            refund_amount = 0.0
+
+                        # Ledger: create negative payment (manual refund) for the user
+                        try:
+                            Payment.objects.create(ticket=t, user=t.user, amount=-abs(refund_amount), currency=(t.currency or 'UAH'), status='refunded', provider='manual_refund', data={'by': request.user.username if request.user.is_authenticated else 'system', 'ticket_id': t.id, 'reason': 'trip_cancelled'})
+                        except Exception:
+                            logging.exception('Failed to create refund payment for ticket %s', getattr(t, 'id', None))
+
+                        # credit user's balance so they can be refunded immediately
+                        try:
+                            profile = getattr(getattr(t, 'user', None), 'profile', None)
+                            if profile:
+                                profile.balance = (profile.balance or 0) + refund_amount
+                                profile.save(update_fields=['balance'])
+                        except Exception:
+                            logging.exception('Failed to credit user balance for ticket %s', getattr(t, 'id', None))
+
+                        # mark ticket as unpaid so it no longer appears as active
+                        try:
+                            t.paid = False
+                            t.save(update_fields=['paid'])
+                        except Exception:
+                            logging.exception('Failed to mark ticket unpaid %s', getattr(t, 'id', None))
+
+                        # debit carrier profile balance if linked
+                        try:
+                            if getattr(trip, 'carrier_user', None):
+                                carrier_profile = getattr(trip.carrier_user, 'profile', None)
+                                if carrier_profile:
+                                    carrier_profile.balance = (carrier_profile.balance or 0) - refund_amount
+                                    carrier_profile.save(update_fields=['balance'])
+                                    Payment.objects.create(ticket=None, user=trip.carrier_user, amount=-abs(refund_amount), currency=(t.currency or 'UAH'), status='refunded', provider='carrier_refund', data={'ticket_id': t.id, 'by': request.user.username if request.user.is_authenticated else 'system', 'reason': 'trip_cancelled'})
+                        except Exception:
+                            logging.exception('Failed to debit carrier for ticket %s', getattr(t, 'id', None))
+            except Exception:
+                logging.exception('Failed to update availability and refunds atomically')
+
+            # send notification emails (do not rollback DB changes on email failure)
             for t in tickets:
                 try:
                     sig = _ticket_signature(t)
                     base = request.build_absolute_uri(reverse('main:cancellation_manage', args=[t.id]))
                     cancel_url = f"{base}?sig={sig}"
-                    # provide a direct rebook link to search page with exchange_ticket param
                     rebook_url = request.build_absolute_uri(reverse('main:kvitokindex')) + f"?exchange_ticket={t.id}"
                     refund_url = f"{cancel_url}&action=refund"
                     subject = f"Скасовано рейс {t.from_city} → {t.to_city} — {cancel_date.strftime('%d.%m.%Y')}"
@@ -862,6 +906,7 @@ def support_admin_cancel_trip(request):
                         logging.exception('Failed to send cancellation email for ticket %s', getattr(t, 'id', None))
                         continue
                 except Exception:
+                    logging.exception('Failed to build cancellation email for ticket %s', getattr(t, 'id', None))
                     continue
 
             # save a summary to session so the page can display details after redirect
@@ -876,10 +921,10 @@ def support_admin_cancel_trip(request):
             except Exception:
                 pass
 
-            messages.info(request, f'Рейс позначено як скасований на {cancel_date}. Повідомлень надіслано: {sent}.')
-            # redirect back keeping the selected trip in querystring so the UI stays practical
+            messages.info(request, f'Рейс позначено як скасований на {cancel_date}. Квитків: {total_tickets}. Повідомлень надіслано: {sent}.')
             return redirect(f"{reverse('main:support_admin_cancel_trip')}?trip_id={trip_pk}")
         except Exception:
+            logging.exception('Unexpected error during trip cancellation')
             messages.error(request, 'Сталася помилка при скасуванні')
             return redirect('main:support_admin_cancel_trip')
 
