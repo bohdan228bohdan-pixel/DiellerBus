@@ -4,6 +4,7 @@ from django.utils.html import format_html, format_html_join
 from django.contrib import messages
 from django.utils import timezone
 from django.conf import settings
+import logging
 from .models import Profile, City, Route, RouteStop, Trip, TripStop, TripDayAvailability
 
 class RouteStopInline(admin.TabularInline):
@@ -237,8 +238,12 @@ class TripAdmin(admin.ModelAdmin):
                         'Якщо потрібно, зверніться до нашої служби підтримки.'
                     )
                     if to_email:
-                        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
-                        notified += 1
+                        try:
+                            res = send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=False)
+                            if isinstance(res, int):
+                                notified += res
+                        except Exception:
+                            logging.exception('Failed to send cancellation email for ticket %s', ticket.id)
                 except Exception:
                     continue
         self.message_user(request, f"Скасовано {queryset.count()} рейсів; повідомлено {notified} квитків.")

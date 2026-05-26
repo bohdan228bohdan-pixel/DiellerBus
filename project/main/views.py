@@ -79,6 +79,35 @@ def _verify_ticket_signature(ticket, sig):
         return False
 
 
+def _support_user_allowed(user, require_worker=False):
+    """Return True if the given user should be allowed to access support/admin endpoints.
+
+    By default this accepts staff users. If `require_worker` is True, the user must
+    also have a linked `support_worker` record. In addition, usernames or emails
+    listed in `settings.SUPPORT_ADMINS` are allowed regardless of staff flag.
+    """
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        if getattr(user, 'is_superuser', False):
+            return True
+        if getattr(user, 'is_staff', False) and (not require_worker or hasattr(user, 'support_worker')):
+            return True
+        admins = getattr(settings, 'SUPPORT_ADMINS', []) or []
+        if admins:
+            uname = (getattr(user, 'username', '') or '').strip().lower()
+            email = (getattr(user, 'email', '') or '').strip().lower()
+            for a in admins:
+                a = (a or '').strip().lower()
+                if not a:
+                    continue
+                if a == uname or a == email:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 @staff_member_required
 def liqpay_debug(request):
     """Staff-only debug endpoint: return sample LiqPay `data` and `signature`.
@@ -676,8 +705,8 @@ def support_home(request):
 
 @login_required
 def support_worker_queue(request):
-    # Only allow users flagged as staff/support workers
-    if not request.user.is_staff or not hasattr(request.user, 'support_worker'):
+    # Only allow users flagged as staff/support workers (or explicitly allowed admins)
+    if not _support_user_allowed(request.user, require_worker=True):
         return HttpResponse(status=403)
 
     qs = SupportTicket.objects.filter(is_archived=False).order_by('status', '-last_message_at', 'created_at')
@@ -694,7 +723,7 @@ def support_worker_queue(request):
 
 @login_required
 def support_worker_take(request, ticket_id):
-    if not request.user.is_staff or not hasattr(request.user, 'support_worker'):
+    if not _support_user_allowed(request.user, require_worker=True):
         return HttpResponse(status=403)
     ticket = get_object_or_404(SupportTicket, pk=ticket_id)
     ticket.assigned_to = request.user
@@ -710,16 +739,21 @@ def support_worker_take(request, ticket_id):
 
 @login_required
 def support_admin_list(request):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
 
     qs = SupportTicket.objects.filter(is_archived=False).order_by('-last_message_at', '-created_at')
+    # allow quick filtering by status from querystring (buttons in template)
+    status = request.GET.get('status')
+    if status in (SupportTicket.STATUS_NEW, SupportTicket.STATUS_IN_PROGRESS, SupportTicket.STATUS_CLOSED):
+        qs = qs.filter(status=status)
+
     counts = {
         'new': SupportTicket.objects.filter(status=SupportTicket.STATUS_NEW, is_archived=False).count(),
         'in_progress': SupportTicket.objects.filter(status=SupportTicket.STATUS_IN_PROGRESS, is_archived=False).count(),
         'closed': SupportTicket.objects.filter(status=SupportTicket.STATUS_CLOSED, is_archived=False).count(),
     }
-    return render(request, 'support_admin.html', {'tickets': qs, 'counts': counts})
+    return render(request, 'support_admin.html', {'tickets': qs, 'counts': counts, 'selected_status': status})
 
 
 @login_required
@@ -729,7 +763,7 @@ def support_admin_cancel_trip(request):
     Marks `TripDayAvailability.available=False` for the selected date and sends
     an email to every paid ticket for that trip+date with links to rebook/refund.
     """
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
 
     trips = Trip.objects.all().order_by('date', 'id')
@@ -820,8 +854,13 @@ def support_admin_cancel_trip(request):
                     html = render_to_string('emails/cancellation_email.html', {'ticket': t, 'cancel_url': cancel_url, 'rebook_url': rebook_url, 'refund_url': refund_url, 'trip': trip, 'date': cancel_date})
                     msg = EmailMessage(subject, html, settings.DEFAULT_FROM_EMAIL, [t.contact_email or (t.user.email if getattr(t, 'user', None) else None)])
                     msg.content_subtype = 'html'
-                    msg.send(fail_silently=True)
-                    sent += 1
+                    try:
+                        res = msg.send(fail_silently=False)
+                        if isinstance(res, int):
+                            sent += res
+                    except Exception:
+                        logging.exception('Failed to send cancellation email for ticket %s', getattr(t, 'id', None))
+                        continue
                 except Exception:
                     continue
 
@@ -861,7 +900,7 @@ def support_admin_cancel_trip(request):
 
 @login_required
 def support_admin_take(request, ticket_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     ticket = get_object_or_404(SupportTicket, pk=ticket_id)
     ticket.assigned_to = request.user
@@ -876,7 +915,7 @@ def support_admin_take(request, ticket_id):
 
 @login_required
 def support_admin_send_rebook(request, ticket_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     if request.method != 'POST':
@@ -889,7 +928,11 @@ def support_admin_send_rebook(request, ticket_id):
         html = render_to_string('emails/rebook_offer.html', {'ticket': ticket, 'rebook_url': rebook_url})
         msg = EmailMessage(subject, html, settings.DEFAULT_FROM_EMAIL, [ticket.contact_email or (ticket.user.email if getattr(ticket, 'user', None) else None)])
         msg.content_subtype = 'html'
-        msg.send(fail_silently=True)
+        try:
+            res = msg.send(fail_silently=False)
+        except Exception:
+            logging.exception('Failed to send rebook offer for ticket %s', ticket.id)
+            raise
         # create support ticket entry for traceability
         preset = SupportPresetQuestion.objects.filter(title__icontains='переброн').first()
         st = SupportTicket.objects.create(user=ticket.user, subject=f'Перебронювання квитка #{ticket.id}', ticket=ticket, preset=preset)
@@ -906,7 +949,7 @@ def support_admin_send_rebook(request, ticket_id):
 @login_required
 def support_admin_attach(request, ticket_id):
     # staff endpoint to attach an existing Ticket to a SupportTicket
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     st = get_object_or_404(SupportTicket, pk=ticket_id)
     if request.method == 'POST':
@@ -929,7 +972,7 @@ def support_admin_attach(request, ticket_id):
 
 @login_required
 def support_admin_close(request, ticket_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     ticket = get_object_or_404(SupportTicket, pk=ticket_id)
     ticket.status = SupportTicket.STATUS_CLOSED
@@ -944,7 +987,7 @@ def support_admin_close(request, ticket_id):
 
 @login_required
 def support_admin_user(request, user_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     user = get_object_or_404(User, pk=user_id)
     tickets = SupportTicket.objects.filter(user=user, is_archived=False).order_by('-last_message_at', '-created_at')
@@ -959,7 +1002,7 @@ def support_admin_user(request, user_id):
 
 @login_required
 def support_resend_ticket(request, ticket_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     try:
@@ -976,7 +1019,7 @@ def support_resend_ticket(request, ticket_id):
 
 @login_required
 def support_edit_user(request, user_id):
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     target = get_object_or_404(User, pk=user_id)
     try:
@@ -2739,6 +2782,26 @@ def buy_trip(request, trip_id):
         pass
     cur = (trip.currency or 'UAH').lower()
 
+    # Compute total and optionally apply exchange credit
+    total = round(price * pax, 2)
+    exchange_old_ticket = None
+    exchange_credit = 0.0
+    net_total = total
+    try:
+        exch_param = request.GET.get('exchange_ticket')
+        if exch_param:
+            try:
+                exch_id = int(exch_param)
+                old = Ticket.objects.filter(pk=exch_id).first()
+                if old and getattr(old, 'paid', False) and getattr(old, 'user_id', None) == getattr(request.user, 'id', None):
+                    exchange_old_ticket = old
+                    exchange_credit = float(old.total_price or 0.0)
+                    net_total = round(max(0.0, total - exchange_credit), 2)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     # Check seats availability for the selected date (prevent oversell)
     try:
         sold = Ticket.objects.filter(trip=trip, travel_date=travel_date).aggregate(total=Sum('passengers'))['total'] or 0
@@ -2749,15 +2812,66 @@ def buy_trip(request, trip_id):
     except Exception:
         pass
 
+    # If net_total is zero, skip creating a Stripe session and mark the ticket paid
+    if net_total <= 0:
+        ticket = Ticket.objects.create(
+            user=request.user,
+            trip=trip,
+            from_city=(trip.start_city.name if trip.start_city else ''),
+            to_city=(trip.end_city.name if trip.end_city else ''),
+            travel_date=travel_date,
+            passengers=pax,
+            total_price=net_total,
+            currency=(trip.currency or 'UAH'),
+            discount_percent=(trip.discount_percent or 0),
+            paid=True,
+            contact_email=(request.GET.get('email') or request.user.email),
+            contact_phone=(request.GET.get('phone') or '')
+        )
+        try:
+            from .models import Payment
+            Payment.objects.create(ticket=ticket, user=request.user, provider='stripe', provider_payment_id='exchange_zero', amount=0, currency=(ticket.currency or 'UAH'), status='success')
+        except Exception:
+            pass
+        try:
+            _send_ticket_email(ticket, None)
+        except Exception:
+            pass
+        # apply exchange credit for old ticket
+        try:
+            if exchange_old_ticket:
+                refund_amount = float(exchange_old_ticket.total_price or 0.0)
+                try:
+                    Payment.objects.create(ticket=None, user=exchange_old_ticket.user, amount=-abs(refund_amount), currency=(exchange_old_ticket.currency or 'UAH'), status='refunded', provider='exchange', data={'by': request.user.username if request.user.is_authenticated else 'system', 'old_ticket': exchange_old_ticket.id, 'new_ticket': ticket.id})
+                except Exception:
+                    pass
+                try:
+                    profile = exchange_old_ticket.user.profile
+                    profile.balance = (profile.balance or 0) + refund_amount
+                    profile.save(update_fields=['balance'])
+                except Exception:
+                    pass
+                try:
+                    exchange_old_ticket.delete()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            request.session['last_ticket_id'] = ticket.id
+        except Exception:
+            pass
+        return render(request, 'payment_success.html', {'ticket': ticket, 'processed': True})
+
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{
             "price_data": {
                 "currency": cur,
                 "product_data": {"name": f"Квиток {trip.start_city.name if trip.start_city else ''} → {trip.end_city.name if trip.end_city else ''}"},
-                "unit_amount": int(round(price * 100)),
+                "unit_amount": int(round(net_total * 100)),
             },
-            "quantity": pax,
+            "quantity": 1,
         }],
         mode="payment",
         success_url=request.build_absolute_uri("/payment-success/") + "?session_id={CHECKOUT_SESSION_ID}",
@@ -2771,7 +2885,7 @@ def buy_trip(request, trip_id):
         to_city=(trip.end_city.name if trip.end_city else ''),
         travel_date=travel_date,
         passengers=pax,
-        total_price=price * pax,
+        total_price=net_total,
         currency=(trip.currency or 'UAH'),
         discount_percent=(trip.discount_percent or 0),
         stripe_session_id=session.id,
@@ -2782,9 +2896,12 @@ def buy_trip(request, trip_id):
         request.session['last_ticket_id'] = ticket.id
         # if this purchase is an exchange, remember the original ticket id in session
         try:
-            exch = request.GET.get('exchange_ticket')
-            if exch:
-                request.session['exchange_old_ticket_id'] = int(exch)
+            if exchange_old_ticket:
+                request.session['exchange_old_ticket_id'] = int(exchange_old_ticket.id)
+            else:
+                exch = request.GET.get('exchange_ticket')
+                if exch:
+                    request.session['exchange_old_ticket_id'] = int(exch)
         except Exception:
             pass
     except Exception:
@@ -2977,6 +3094,25 @@ def checkout(request, trip_id):
     total = round(price_after * pax, 2)
 
     # price and total computed above
+    # Exchange handling: apply credit from an existing ticket when rebooking
+    exchange_old_ticket = None
+    exchange_credit = 0.0
+    net_total = total
+    try:
+        exch_param = request.GET.get('exchange_ticket') or request.POST.get('exchange_ticket')
+        if exch_param:
+            try:
+                exch_id = int(exch_param)
+                old = Ticket.objects.filter(pk=exch_id).first()
+                if old and getattr(old, 'paid', False) and getattr(old, 'user_id', None) == getattr(request.user, 'id', None):
+                    exchange_old_ticket = old
+                    exchange_credit = float(old.total_price or 0.0)
+                    net_total = round(max(0.0, total - exchange_credit), 2)
+            except Exception:
+                pass
+    except Exception:
+        exchange_credit = 0.0
+        net_total = total
 
     # normalize display names for the selected segment
     try:
@@ -3122,7 +3258,7 @@ def checkout(request, trip_id):
         to_city=(posted_to or (trip.end_city.name if trip.end_city else '')),
         travel_date=travel_date,
         passengers=pax,
-        total_price=total,
+        total_price=net_total,
         currency=(trip.currency or 'UAH'),
         discount_percent=discount_percent,
             paid=False,
@@ -3172,12 +3308,65 @@ def checkout(request, trip_id):
     payment = Payment.objects.create(
         ticket=ticket,
         user=request.user,
-        amount=total,
+        amount=net_total,
         currency=(display_currency or trip.currency or 'UAH'),
         status='pending'
     )
-
     # payment created
+
+    # If net_total is zero (old ticket fully covers the new one), mark payment
+    # and ticket as paid immediately and apply exchange credit.
+    if net_total <= 0:
+        try:
+            payment.status = 'success'
+            payment.save(update_fields=['status'])
+        except Exception:
+            pass
+        try:
+            ticket.paid = True
+            ticket.save(update_fields=['paid'])
+        except Exception:
+            pass
+        try:
+            _send_ticket_email(ticket, payment)
+        except Exception:
+            pass
+
+        try:
+            exch_old_id = None
+            try:
+                exch_old_id = request.session.pop('exchange_old_ticket_id', None)
+            except Exception:
+                exch_old_id = None
+            if not exch_old_id and exchange_old_ticket:
+                exch_old_id = exchange_old_ticket.id
+            if exch_old_id:
+                old_ticket = Ticket.objects.filter(pk=int(exch_old_id)).first()
+                if old_ticket:
+                    refund_amount = float(old_ticket.total_price or 0.0)
+                    try:
+                        Payment.objects.create(ticket=None, user=old_ticket.user, amount=-abs(refund_amount), currency=(old_ticket.currency or 'UAH'), status='refunded', provider='exchange', data={'by': request.user.username if request.user.is_authenticated else 'system', 'old_ticket': old_ticket.id, 'new_ticket': ticket.id})
+                    except Exception:
+                        pass
+                    try:
+                        profile = old_ticket.user.profile
+                        profile.balance = (profile.balance or 0) + refund_amount
+                        profile.save(update_fields=['balance'])
+                    except Exception:
+                        pass
+                    try:
+                        old_ticket.delete()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            request.session.pop('last_ticket_id', None)
+        except Exception:
+            pass
+
+        return render(request, 'payment_success.html', { 'ticket': ticket, 'processed': True })
 
     # -----------------------------
     # LIQPAY
@@ -4025,15 +4214,32 @@ def ticket_verify(request, ticket_id, signature):
     link to download the PDF including the signature so drivers can open it.
     """
     ticket = get_object_or_404(Ticket, pk=ticket_id)
-    valid = _verify_ticket_signature(ticket, signature)
+    sig_ok = _verify_ticket_signature(ticket, signature)
     passengers = ticket.passenger_set.all()
     download_url = request.build_absolute_uri(reverse('main:download_ticket', args=(ticket.id,))) + f"?sig={signature}"
+
+    # If signature is valid and ticket not yet used, mark it as used (single-use)
+    already_used = bool(getattr(ticket, 'used', False))
+    used_at = getattr(ticket, 'used_at', None)
+    valid = False
+    if sig_ok and not already_used:
+        try:
+            ticket.used = True
+            ticket.used_at = timezone.now()
+            ticket.save(update_fields=['used', 'used_at'])
+            valid = True
+        except Exception:
+            valid = False
+
+    # If signature valid but already used, we show not-valid status with used info
     return render(request, 'ticket_verify.html', {
         'ticket': ticket,
         'passengers': passengers,
         'valid': valid,
         'signature': signature,
         'download_url': download_url,
+        'already_used': already_used,
+        'used_at': used_at,
     })
 
 
@@ -4092,7 +4298,7 @@ def cancellation_manage(request, ticket_id):
 @login_required
 def ticket_edit(request, ticket_id):
     # Allow staff to edit ticket fields and passenger list
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return HttpResponse(status=403)
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     if request.method == 'POST':
@@ -4112,7 +4318,7 @@ def ticket_edit(request, ticket_id):
 @login_required
 def ticket_refund(request, ticket_id):
     # Staff endpoint to perform a manual refund (credits user balance) if within 24h window
-    if not request.user.is_staff:
+    if not _support_user_allowed(request.user):
         return JsonResponse({'error': 'forbidden'}, status=403)
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     if not ticket.paid:

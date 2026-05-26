@@ -109,6 +109,9 @@ class Ticket(models.Model):
     paid = models.BooleanField(default=False)
     stripe_session_id = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # mark whether the ticket was already used (scanned/validated)
+    used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         user = getattr(self.user, 'username', 'unknown')

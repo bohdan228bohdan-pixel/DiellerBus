@@ -214,15 +214,20 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', "")
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <no-reply@example.com>")
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <dieller7073@gmail.com>")
 
-# Prefer using the SMTP login as the default sender address when provided
-# This makes outgoing messages originate from the configured mailbox
+# Prefer using the SMTP login as the default sender address when provided.
+# Format it as a friendly sender name so outgoing messages appear as:
+# "Dieller Bus <email@domain>".
 try:
     if EMAIL_HOST_USER:
-        DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+        DEFAULT_FROM_EMAIL = f"Dieller Bus <{EMAIL_HOST_USER}>"
 except Exception:
     pass
+
+# Comma-separated list of usernames or emails that should be allowed access
+# to support/admin endpoints in addition to staff users. Example: "dieller,ops@org.com"
+SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(',') if u.strip()]
 
 # Stripe
 STRIPE_PUBLIC_KEY = ""

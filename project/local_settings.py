@@ -8,3 +8,7 @@ os.environ.setdefault('LIQPAY_PRIVATE_KEY', 'sandbox_WOIgiv6ZfKoBLfikeNhvlq0L6W5
 
 # Example: set other local/test keys here if needed
 # os.environ.setdefault('STRIPE_SECRET_KEY', 'sk_test_...')
+
+# Allow enabling support admin accounts locally for development.
+# Example: SUPPORT_ADMINS='dieller,ops@example.com'
+os.environ.setdefault('SUPPORT_ADMINS', 'dieller')

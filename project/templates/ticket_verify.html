@@ -5,6 +5,11 @@
 <div class="container" style="max-width:900px;margin:40px auto;text-align:center">
   {% if valid %}
     <h2 style="color:#10b981">Дійсний квиток — №{{ ticket.id }}</h2>
+  {% elif already_used %}
+    <h2 style="color:#f59e0b">Квиток уже використано — №{{ ticket.id }}</h2>
+    {% if used_at %}
+      <div style="margin-top:6px;color:var(--muted);font-size:13px">Використано: {{ used_at|date:'d.m.Y H:i' }}</div>
+    {% endif %}
   {% else %}
     <h2 style="color:#ef4444">Невірний або підроблений квиток</h2>
   {% endif %}

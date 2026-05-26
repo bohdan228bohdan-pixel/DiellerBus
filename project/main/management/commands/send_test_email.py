@@ -24,6 +24,11 @@ class Command(BaseCommand):
         send_as_html = options['html']
 
         self.stdout.write(f"Using EMAIL_BACKEND={getattr(settings, 'EMAIL_BACKEND', '')}")
+        self.stdout.write(f"EMAIL_HOST={getattr(settings, 'EMAIL_HOST', '')}")
+        self.stdout.write(f"EMAIL_PORT={getattr(settings, 'EMAIL_PORT', '')}")
+        self.stdout.write(f"EMAIL_USE_TLS={getattr(settings, 'EMAIL_USE_TLS', '')}")
+        self.stdout.write(f"EMAIL_HOST_USER={getattr(settings, 'EMAIL_HOST_USER', '')}")
+        self.stdout.write(f"DEFAULT_FROM_EMAIL={getattr(settings, 'DEFAULT_FROM_EMAIL', '')}")
         self.stdout.write(f"Sending test email to: {recipient}")
 
         try:
