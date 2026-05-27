@@ -4126,6 +4126,19 @@ def liqpay_callback(request):
     signature = request.POST.get('signature')
     if not data or not signature:
         return HttpResponse(status=400)
+    try:
+        # lightweight debug: log incoming signature and data length (truncate to avoid huge logs)
+        preview = None
+        try:
+            preview = json.loads(base64.b64decode(data).decode('utf-8'))
+        except Exception:
+            preview = {'raw_len': len(data)}
+        try:
+            logger.info('LiqPay callback received: sig=%s expected_prefix=... data_len=%d order=%s status=%s', (signature or '')[:16], len(data), preview.get('order_id') if isinstance(preview, dict) else None, preview.get('status') if isinstance(preview, dict) else None)
+        except Exception:
+            logger.exception('Failed to log liqpay callback preview')
+    except Exception:
+        pass
     expected = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
     unverified_callback = False
     if signature != expected:
