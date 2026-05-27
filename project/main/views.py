@@ -815,6 +815,12 @@ def support_admin_cancel_trip(request):
 
     if request.method == 'POST':
         # perform cancellation: mark date unavailable, refund users, debit carrier, and notify
+        # log incoming POST for debugging when UI button appears to do nothing
+        try:
+            logging.info('support_admin_cancel_trip POST by user=%s id=%s POST_keys=%s', getattr(request.user, 'username', None), getattr(request.user, 'id', None), list(request.POST.keys()))
+        except Exception:
+            logging.exception('Failed to log support_admin_cancel_trip POST metadata')
+
         try:
             trip_pk = int(request.POST.get('trip_id'))
             date_str = (request.POST.get('date') or '').strip()
@@ -835,6 +841,10 @@ def support_admin_cancel_trip(request):
             # collect tickets first
             tickets_qs = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True).select_related('user')
             tickets = list(tickets_qs)
+            try:
+                logging.info('support_admin_cancel_trip found %s tickets for trip_id=%s date=%s', len(tickets), getattr(trip, 'id', None), str(cancel_date))
+            except Exception:
+                logging.exception('Failed to log tickets info in support_admin_cancel_trip')
 
             total_tickets = len(tickets)
             total_passengers = sum([int(getattr(t, 'passengers', 0) or 0) for t in tickets])
@@ -923,9 +933,18 @@ def support_admin_cancel_trip(request):
 
             messages.info(request, f'Рейс позначено як скасований на {cancel_date}. Квитків: {total_tickets}. Повідомлень надіслано: {sent}.')
             return redirect(f"{reverse('main:support_admin_cancel_trip')}?trip_id={trip_pk}")
-        except Exception:
+        except Exception as ex:
             logging.exception('Unexpected error during trip cancellation')
-            messages.error(request, 'Сталася помилка при скасуванні')
+            # preserve a small debug summary in session for staff to inspect after redirect
+            try:
+                request.session['last_cancellation'] = {
+                    'trip_id': int(request.POST.get('trip_id')) if request.POST.get('trip_id') else None,
+                    'date': (request.POST.get('date') or '').strip(),
+                    'error': str(ex)[:1000],
+                }
+            except Exception:
+                logging.exception('Failed to write last_cancellation debug info to session')
+            messages.error(request, 'Сталася помилка при скасуванні (деталі доступні для адмінів)')
             return redirect('main:support_admin_cancel_trip')
 
     # pop any recent cancellation summary so we can display it once in the template
@@ -1414,6 +1433,19 @@ def support_ticket_detail(request, ticket_id):
         if to_arr:
             arrive_time = to_arr.strftime('%H:%M')
 
+        # compute free seats for the selected date when available
+        try:
+            free_count = int(trip.seats or 0)
+            # if a specific date was requested, subtract already reserved passengers for that date
+            if date_obj and getattr(trip, 'seats', None) is not None:
+                sold = Ticket.objects.filter(trip=trip, travel_date=date_obj).aggregate(total=Sum('passengers'))['total'] or 0
+                try:
+                    free_count = max(0, int(trip.seats or 0) - int(sold or 0))
+                except Exception:
+                    free_count = int(trip.seats or 0)
+        except Exception:
+            free_count = int(getattr(trip, 'seats', 0) or 0)
+
         results.append({
             'id': trip.id,
             'route': trip.route.name,
@@ -1430,7 +1462,7 @@ def support_ticket_detail(request, ticket_id):
             'currency': (explicit_fare.currency if explicit_fare and getattr(explicit_fare, 'currency', None) else trip.currency),
             'discount_percent': discount,
             'price_after_discount': price_after,
-            'free': trip.seats,
+            'free': free_count,
             'carrier': (trip.carrier_user.username if getattr(trip, 'carrier_user', None) else (trip.carrier or trip.title or (trip.route.name if trip.route else ''))),
             'stops': stops_list,
         })

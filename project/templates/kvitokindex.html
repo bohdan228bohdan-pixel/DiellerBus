@@ -234,6 +234,7 @@
     <input type="hidden" name="price" id="form_price">
     <input type="hidden" name="from" id="form_from">
     <input type="hidden" name="to" id="form_to">
+    <input type="hidden" name="exchange_ticket" id="form_exchange">
   </form>
 
 </div>
@@ -244,8 +245,9 @@
 {% block scripts %}
 <script>
 console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="kvitok.css"]') && document.querySelector('link[href*="kvitok.css"]').href);
-(function(){
+  (function(){
   const IS_AUTH = {{ user.is_authenticated|yesno:"true,false" }};
+  let exchangeTicket = null;
 
   // city lists
   let UA_CITIES = [];
@@ -525,6 +527,7 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
           document.getElementById('form_price').value = (trip && trip.price) ? trip.price : '';
           document.getElementById('form_from').value = (trip && trip.from) ? trip.from : (fromCity && fromCity.value) || '';
           document.getElementById('form_to').value = (trip && trip.to) ? trip.to : (toCity && toCity.value) || '';
+          try{ document.getElementById('form_exchange').value = exchangeTicket || ''; }catch(e){}
           fp.submit();
           return;
         }
@@ -534,7 +537,8 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
 
       const fromParam = (trip && trip.from) ? '&from=' + encodeURIComponent(trip.from) : (fromCity && fromCity.value) ? '&from=' + encodeURIComponent(fromCity.value) : '';
       const toParam = (trip && trip.to) ? '&to=' + encodeURIComponent(trip.to) : (toCity && toCity.value) ? '&to=' + encodeURIComponent(toCity.value) : '';
-      const target = base + encodeURIComponent(id) + '/?pax=' + encodeURIComponent(pax) + dateParam + fromParam + toParam;
+      const exchangeParam = exchangeTicket ? '&exchange_ticket=' + encodeURIComponent(exchangeTicket) : '';
+      const target = base + encodeURIComponent(id) + '/?pax=' + encodeURIComponent(pax) + dateParam + fromParam + toParam + exchangeParam;
       console.log('Redirecting to checkout:', target);
       window.location.href = target;
       });
@@ -552,6 +556,7 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
     fillSelect(toCity, ALL_CITIES);
 
     const params = new URLSearchParams(window.location.search);
+    exchangeTicket = params.get('exchange_ticket');
     const qFrom = params.get('from'); const qTo = params.get('to'); const qDate = params.get('date') || params.get('travelDate'); const qPax = params.get('pax');
     const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
     travelDate.value = qDate || `${y}-${m}-${d}`;

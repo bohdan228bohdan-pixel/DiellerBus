@@ -24,13 +24,23 @@
   </div>
 
   {% if cancellation_summary %}
-    <div class="card mb-3 border-success">
-      <div class="card-body bg-dark text-white">
-        <h5 class="card-title text-success">Скасування виконано</h5>
-        <p class="card-text">Рейс ID: {{ cancellation_summary.trip_id }} — дата: {{ cancellation_summary.date|date:"d.m.Y" }}</p>
-        <p class="card-text">Квитків: <strong>{{ cancellation_summary.tickets }}</strong>, Пасажирів всього: <strong>{{ cancellation_summary.passengers }}</strong>, Повідомлень надіслано: <strong>{{ cancellation_summary.notified }}</strong></p>
+    {% if cancellation_summary.error %}
+      <div class="card mb-3 border-danger">
+        <div class="card-body bg-dark text-white">
+          <h5 class="card-title text-danger">Помилка при скасуванні</h5>
+          <p class="card-text">Сумарні дані: Рейс ID: {{ cancellation_summary.trip_id }} — дата: {{ cancellation_summary.date }}</p>
+          <p class="card-text">Деталі помилки: <code>{{ cancellation_summary.error }}</code></p>
+        </div>
       </div>
-    </div>
+    {% else %}
+      <div class="card mb-3 border-success">
+        <div class="card-body bg-dark text-white">
+          <h5 class="card-title text-success">Скасування виконано</h5>
+          <p class="card-text">Рейс ID: {{ cancellation_summary.trip_id }} — дата: {{ cancellation_summary.date|date:"d.m.Y" }}</p>
+          <p class="card-text">Квитків: <strong>{{ cancellation_summary.tickets }}</strong>, Пасажирів всього: <strong>{{ cancellation_summary.passengers }}</strong>, Повідомлень надіслано: <strong>{{ cancellation_summary.notified }}</strong></p>
+        </div>
+      </div>
+    {% endif %}
   {% endif %}
 
   {% if selected_trip %}
