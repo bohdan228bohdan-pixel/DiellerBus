@@ -4094,16 +4094,21 @@ def liqpay_callback(request):
     signature = request.POST.get('signature')
     if not data or not signature:
         return HttpResponse(status=400)
-
     expected = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
+    unverified_callback = False
     if signature != expected:
-        # log signature mismatch for debugging (do not auto-process)
+        # signature mismatch - allow opting out for emergency reconciliation
+        allow_unverified = getattr(settings, 'LIQPAY_ALLOW_UNVERIFIED', False)
         try:
             payload_preview = json.loads(base64.b64decode(data).decode('utf-8'))
         except Exception:
             payload_preview = {'raw': data[:200]}
-        logger.warning('LiqPay signature mismatch: order=%s payload_preview=%s', payload_preview.get('order_id') if isinstance(payload_preview, dict) else None, str(payload_preview))
-        return HttpResponse(status=400)
+        if not allow_unverified:
+            logger.warning('LiqPay signature mismatch: order=%s payload_preview=%s', payload_preview.get('order_id') if isinstance(payload_preview, dict) else None, str(payload_preview))
+            return HttpResponse(status=400)
+        else:
+            unverified_callback = True
+            logger.warning('LiqPay signature mismatch but LIQPAY_ALLOW_UNVERIFIED=True, proceeding: order=%s payload_preview=%s', payload_preview.get('order_id') if isinstance(payload_preview, dict) else None, str(payload_preview))
 
     try:
         payload = json.loads(base64.b64decode(data).decode('utf-8'))
@@ -4135,7 +4140,17 @@ def liqpay_callback(request):
 
     if payment:
         payment.provider_payment_id = transaction_id or payment.provider_payment_id
-        payment.data = payload
+        # attach payload and mark if callback was accepted without signature
+        try:
+            payment.data = payload
+            if unverified_callback:
+                try:
+                    if isinstance(payment.data, dict):
+                        payment.data['unverified_callback'] = True
+                except Exception:
+                    pass
+        except Exception:
+            payment.data = {'raw': payload}
         if status and status.lower() in ('success', 'processing'):
             payment.status = 'success'
             if ticket:
