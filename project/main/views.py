@@ -1845,17 +1845,21 @@ def dieller_reports(request):
 
         carriers = {}
         for t in tickets_qs:
-            key = 'unknown'
+            key = None
             try:
                 if getattr(t, 'trip', None):
                     if getattr(t.trip, 'carrier_user', None):
-                        key = t.trip.carrier_user.username or (t.trip.carrier or 'unknown')
+                        key = t.trip.carrier_user.username or (t.trip.carrier or None)
                     else:
-                        key = t.trip.carrier or 'unknown'
+                        key = t.trip.carrier or None
                 else:
-                    key = t.route or 'unknown'
+                    key = t.route or None
             except Exception:
-                key = 'unknown'
+                key = None
+
+            # Only include known carriers/routes (skip unknown/None)
+            if not key:
+                continue
 
             carriers.setdefault(key, {'count': 0, 'amount': 0.0})
             carriers[key]['count'] += 1
@@ -4480,37 +4484,56 @@ def cancellation_manage(request, ticket_id):
         message = (request.POST.get('message') or '').strip() or ''
         # normalize email target
         to_email = ticket.contact_email or (ticket.user.email if getattr(ticket, 'user', None) else None)
+        # Create support request for rebooking and notify support + user by email.
+        preset = SupportPresetQuestion.objects.filter(title__icontains='переброн').first()
+        st = SupportTicket.objects.create(user=ticket.user, subject=f'Перебронювання квитка #{ticket.id}', ticket=ticket, preset=preset)
+        SupportMessage.objects.create(ticket=st, sender=ticket.user, text=message or 'Прошу перебронювати квиток після скасування рейсу.')
 
-        if action == 'refund':
-            preset = SupportPresetQuestion.objects.filter(title__icontains='поверн').first()
-            st = SupportTicket.objects.create(user=ticket.user, subject=f'Повернення квитка #{ticket.id}', ticket=ticket, preset=preset)
-            SupportMessage.objects.create(ticket=st, sender=ticket.user, text=message or 'Прошу повернути кошти через скасування рейсу.')
-            try:
-                send_mail('Ваш запит на повернення отримано', 'Ми отримали ваш запит і розглянемо його найближчим часом.', settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
-            except Exception:
-                pass
-            return render(request, 'cancellation_manage_confirm.html', {'ticket': ticket, 'action': 'refund'})
-
-        if action == 'rebook':
-            preset = SupportPresetQuestion.objects.filter(title__icontains='переброн').first()
-            st = SupportTicket.objects.create(user=ticket.user, subject=f'Перебронювання квитка #{ticket.id}', ticket=ticket, preset=preset)
-            SupportMessage.objects.create(ticket=st, sender=ticket.user, text=message or 'Прошу перебронювати квиток після скасування рейсу.')
-            try:
-                send_mail('Ваш запит на перебронювання отримано', 'Ми отримали ваш запит і звяжемося з вами.', settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
-            except Exception:
-                pass
-            return render(request, 'cancellation_manage_confirm.html', {'ticket': ticket, 'action': 'rebook'})
-
-        # fallback: generic support request
-        st = SupportTicket.objects.create(user=ticket.user, subject=f'Звернення: скасування рейсу #{ticket.id}', ticket=ticket)
-        SupportMessage.objects.create(ticket=st, sender=ticket.user, text=message or 'Прошу допомоги у звʼязку зі скасуванням рейсу.')
+        # Build list of internal support recipients: SiteConfig.contact_email and any SUPPORT_ADMINS that look like emails
+        recipients = []
         try:
-            send_mail('Ваше звернення отримано', 'Ми отримали ваше звернення і розглянемо його.', settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
+            from .models import SiteConfig
+            sc = SiteConfig.get_solo()
+            if sc and getattr(sc, 'contact_email', None):
+                recipients.append(sc.contact_email)
         except Exception:
             pass
-        return render(request, 'cancellation_manage_confirm.html', {'ticket': ticket, 'action': 'contact'})
 
-    preselected = request.GET.get('action') or ''
+        admins = getattr(settings, 'SUPPORT_ADMINS', []) or []
+        for a in admins:
+            try:
+                if isinstance(a, str) and '@' in a:
+                    recipients.append(a)
+            except Exception:
+                continue
+
+        # dedupe and filter
+        try:
+            recipients = list(dict.fromkeys([r for r in recipients if r]))
+        except Exception:
+            pass
+
+        # send notification to support recipients
+        try:
+            if recipients:
+                logger = logging.getLogger('main')
+                subj = f"Перебронювання: квиток #{ticket.id}"
+                link = request.build_absolute_uri(reverse('main:cancellation_manage', args=[ticket.id])) + f"?sig={sig}"
+                body = f"Новий запит на перебронювання квитка #{ticket.id}\nКористувач: {getattr(ticket.user, 'username', '')} <{getattr(ticket.user, 'email', '')}>\nДата: {ticket.travel_date}\nСума: {ticket.total_price} {ticket.currency}\nПовідомлення: {message}\nПосилання: {link}"
+                send_mail(subj, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=True)
+        except Exception:
+            logging.exception('Failed to send rebook notification emails for ticket %s', getattr(ticket, 'id', None))
+
+        # send confirmation to ticket owner
+        try:
+            if to_email:
+                send_mail('Ваш запит на перебронювання отримано', f'Ми отримали ваш запит на перебронювання квитка #{ticket.id}. Ваші кошти за квиток зараховані на баланс профілю, використайте їх при оформленні нового квитка.', settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
+        except Exception:
+            logging.exception('Failed to send rebook confirmation to user for ticket %s', getattr(ticket, 'id', None))
+
+        return render(request, 'cancellation_manage_confirm.html', {'ticket': ticket, 'action': 'rebook'})
+
+    preselected = request.GET.get('action') or 'rebook'
     return render(request, 'cancellation_manage.html', {'ticket': ticket, 'sig': sig, 'preselected_action': preselected})
 
 
