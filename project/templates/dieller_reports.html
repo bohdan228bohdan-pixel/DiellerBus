@@ -1,0 +1,37 @@
+<h1>Звіти — Dieller</h1>
+<p>Останні 6 місяців</p>
+<table border="1" cellpadding="6" cellspacing="0">
+  <tr>
+    <th>Місяць</th>
+    <th>Продано квитків</th>
+    <th>Сума продажів</th>
+    <th>Повернено</th>
+    <th>Запитів в підтримку</th>
+    <th>Оброблено (closed)</th>
+    <th>Комісія (10%)</th>
+    <th>Перевізники (поділ)</th>
+  </tr>
+  {% for row in rows %}
+  <tr>
+    <td>{{ row.month_name }} {{ row.year }}</td>
+    <td>{{ row.sold_count }}</td>
+    <td>{{ row.sold_total }}</td>
+    <td>{{ row.refunds_amount }}</td>
+    <td>{{ row.support_total }}</td>
+    <td>{{ row.support_processed }}</td>
+    <td>{{ row.commission }}</td>
+    <td>
+      <table border="0" cellpadding="4" cellspacing="0">
+        <tr><th>Перевізник</th><th>К-сть</th><th>Сума</th></tr>
+        {% for carrier, info in row.carriers.items %}
+        <tr>
+          <td>{{ carrier }}</td>
+          <td>{{ info.count }}</td>
+          <td>{{ info.amount }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </td>
+  </tr>
+  {% endfor %}
+</table>

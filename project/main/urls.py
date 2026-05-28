@@ -36,6 +36,7 @@ urlpatterns = [
     path("verify-email/", views.verify_email, name="verify_email"),
     path("resend-verification/", views.resend_verification_code, name="resend_verification"),
     path("profile/", views.profile, name="profile"),
+    path("profile/reports/", views.dieller_reports, name="dieller_reports"),
     path("logout/", views.logout_view, name="logout"),
     path(
         "password_change/",

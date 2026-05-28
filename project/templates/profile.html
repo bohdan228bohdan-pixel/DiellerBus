@@ -89,6 +89,12 @@
       <div class="info-row"><span class="profile-label">Баланс:</span><span class="profile-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
     </div>
 
+    {% if user.username|lower == 'dieller' or user.is_staff %}
+      <div style="margin-top:10px">
+        <a href="{% url 'main:dieller_reports' %}" class="btn btn-sm" style="background:#2d7a2d;color:#fff">📈 Звіти</a>
+      </div>
+    {% endif %}
+
     <div class="profile-tickets" style="margin-top:12px">
       <div class="info-row" style="flex-direction:column;align-items:flex-start;padding:0">
         <span class="profile-label" style="margin-bottom:8px">Куплені квитки:</span>

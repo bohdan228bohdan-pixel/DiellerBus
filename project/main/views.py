@@ -1796,6 +1796,88 @@ def profile(request):
 
 
 @login_required
+def dieller_reports(request):
+    """Simple monthly reports view for the `dieller` account (or staff).
+
+    Shows last 6 months: tickets sold, revenue, refunds, support requests,
+    and a per-carrier breakdown. Accessible only to user `dieller` or staff.
+    """
+    if not ((getattr(request.user, 'username', '') or '').lower() == 'dieller' and getattr(request.user, 'is_authenticated', False)) and not getattr(request.user, 'is_staff', False):
+        return HttpResponse(status=403)
+
+    from django.db.models import Sum
+    from datetime import date
+    import calendar
+
+    today = date.today()
+    months = []
+    for i in range(6):
+        month_index = today.month - i
+        year = today.year
+        while month_index <= 0:
+            month_index += 12
+            year -= 1
+        months.append((year, month_index))
+    months = list(reversed(months))
+
+    rows = []
+    for year, month in months:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+
+        tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end).select_related('trip__carrier_user', 'trip')
+        sold_count = tickets_qs.count()
+        sold_total = tickets_qs.aggregate(total=Sum('total_price'))['total'] or 0
+
+        payments_refunded_sum = Payment.objects.filter(status='refunded', created_at__gte=start, created_at__lt=end).aggregate(total=Sum('amount'))['total'] or 0
+        try:
+            refunds_amount = -float(payments_refunded_sum) if float(payments_refunded_sum) < 0 else float(payments_refunded_sum)
+        except Exception:
+            refunds_amount = float(payments_refunded_sum or 0)
+
+        support_total = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end).count()
+        support_processed = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end, status=SupportTicket.STATUS_CLOSED).count()
+
+        commission = float(sold_total) * 0.10 if sold_total else 0.0
+
+        carriers = {}
+        for t in tickets_qs:
+            key = 'unknown'
+            try:
+                if getattr(t, 'trip', None):
+                    if getattr(t.trip, 'carrier_user', None):
+                        key = t.trip.carrier_user.username or (t.trip.carrier or 'unknown')
+                    else:
+                        key = t.trip.carrier or 'unknown'
+                else:
+                    key = t.route or 'unknown'
+            except Exception:
+                key = 'unknown'
+
+            carriers.setdefault(key, {'count': 0, 'amount': 0.0})
+            carriers[key]['count'] += 1
+            carriers[key]['amount'] += float(t.total_price or 0.0)
+
+        rows.append({
+            'year': year,
+            'month': month,
+            'month_name': calendar.month_name[month],
+            'sold_count': sold_count,
+            'sold_total': float(sold_total),
+            'refunds_amount': round(refunds_amount, 2),
+            'support_total': support_total,
+            'support_processed': support_processed,
+            'commission': round(commission, 2),
+            'carriers': carriers,
+        })
+
+    return render(request, 'dieller_reports.html', {'rows': rows})
+
+
+@login_required
 def carrier_dashboard(request):
     profile = getattr(request.user, 'profile', None)
     if not profile or not getattr(profile, 'is_carrier', False):
@@ -3381,6 +3463,38 @@ def checkout(request, trip_id):
     # CREATE PAYMENT
     # -----------------------------
     from .models import Payment
+
+    # Apply profile balance (site credit) if available
+    credit_applied = 0.0
+    try:
+        profile = getattr(request.user, 'profile', None)
+        if profile:
+            try:
+                profile_balance = float(profile.balance or 0.0)
+            except Exception:
+                profile_balance = 0.0
+            if profile_balance > 0 and net_total > 0:
+                credit_applied = round(min(profile_balance, net_total), 2)
+                net_total = round(max(0.0, net_total - credit_applied), 2)
+                try:
+                    Payment.objects.create(
+                        ticket=ticket,
+                        user=request.user,
+                        amount=-abs(credit_applied),
+                        currency=(display_currency or trip.currency or 'UAH'),
+                        status='success',
+                        provider='credit',
+                        data={'by': 'balance_usage', 'prev_balance': profile_balance}
+                    )
+                except Exception:
+                    logger.exception('Failed to create internal credit payment for ticket %s', getattr(ticket, 'id', None))
+                try:
+                    profile.balance = (profile_balance - credit_applied)
+                    profile.save(update_fields=['balance'])
+                except Exception:
+                    logger.exception('Failed to deduct profile.balance for user %s', getattr(request.user, 'id', None))
+    except Exception:
+        credit_applied = 0.0
 
     payment = Payment.objects.create(
         ticket=ticket,
