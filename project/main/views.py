@@ -1805,7 +1805,7 @@ def dieller_reports(request):
     if not ((getattr(request.user, 'username', '') or '').lower() == 'dieller' and getattr(request.user, 'is_authenticated', False)) and not getattr(request.user, 'is_staff', False):
         return HttpResponse(status=403)
 
-    from django.db.models import Sum
+    from django.db.models import Sum, Count
     from datetime import date
     import calendar
 
@@ -1828,13 +1828,13 @@ def dieller_reports(request):
         else:
             end = date(year, month + 1, 1)
 
-        tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end).select_related('trip__carrier_user', 'trip')
+        tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end)
         sold_count = tickets_qs.count()
         sold_total = tickets_qs.aggregate(total=Sum('total_price'))['total'] or 0
 
         payments_refunded_sum = Payment.objects.filter(status='refunded', created_at__gte=start, created_at__lt=end).aggregate(total=Sum('amount'))['total'] or 0
         try:
-            refunds_amount = -float(payments_refunded_sum) if float(payments_refunded_sum) < 0 else float(payments_refunded_sum)
+            refunds_amount = abs(float(payments_refunded_sum)) if float(payments_refunded_sum) else 0.0
         except Exception:
             refunds_amount = float(payments_refunded_sum or 0)
 
@@ -1843,27 +1843,37 @@ def dieller_reports(request):
 
         commission = float(sold_total) * 0.10 if sold_total else 0.0
 
-        carriers = {}
-        for t in tickets_qs:
-            key = None
-            try:
-                if getattr(t, 'trip', None):
-                    if getattr(t.trip, 'carrier_user', None):
-                        key = t.trip.carrier_user.username or (t.trip.carrier or None)
-                    else:
-                        key = t.trip.carrier or None
-                else:
-                    key = t.route or None
-            except Exception:
-                key = None
-
-            # Only include known carriers/routes (skip unknown/None)
-            if not key:
+        # Aggregated carriers: prefer trip.carrier_user.username, then trip.carrier string
+        carriers = []
+        carriers_user_qs = tickets_qs.filter(trip__carrier_user__isnull=False).values('trip__carrier_user__username').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+        for c in carriers_user_qs:
+            label = c.get('trip__carrier_user__username')
+            if not label:
                 continue
+            carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0)})
 
-            carriers.setdefault(key, {'count': 0, 'amount': 0.0})
-            carriers[key]['count'] += 1
-            carriers[key]['amount'] += float(t.total_price or 0.0)
+        carriers_name_qs = tickets_qs.filter(trip__carrier_user__isnull=True, trip__carrier__isnull=False).values('trip__carrier').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+        for c in carriers_name_qs:
+            label = c.get('trip__carrier')
+            if not label:
+                continue
+            carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0)})
+
+        # Routes aggregation (by Trip.route.name then fallback to Ticket.route)
+        routes = []
+        routes_trip_qs = tickets_qs.filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+        for r in routes_trip_qs:
+            label = r.get('trip__route__name')
+            if not label:
+                continue
+            routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
+
+        routes_ticket_qs = tickets_qs.filter(trip__isnull=True).values('route').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+        for r in routes_ticket_qs:
+            label = r.get('route')
+            if not label:
+                continue
+            routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
 
         rows.append({
             'year': year,
@@ -1876,6 +1886,7 @@ def dieller_reports(request):
             'support_processed': support_processed,
             'commission': round(commission, 2),
             'carriers': carriers,
+            'routes': routes,
         })
 
     return render(request, 'dieller_reports.html', {'rows': rows})

@@ -1,37 +1,51 @@
-<h1>Звіти — Dieller</h1>
-<p>Останні 6 місяців</p>
-<table border="1" cellpadding="6" cellspacing="0">
-  <tr>
-    <th>Місяць</th>
-    <th>Продано квитків</th>
-    <th>Сума продажів</th>
-    <th>Повернено</th>
-    <th>Запитів в підтримку</th>
-    <th>Оброблено (closed)</th>
-    <th>Комісія (10%)</th>
-    <th>Перевізники (поділ)</th>
-  </tr>
+{% extends 'base.html' %}
+{% block title %}Звіти — Dieller{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 style="margin-bottom:16px">Звіти Dieller — останні 6 місяців</h1>
+
   {% for row in rows %}
-  <tr>
-    <td>{{ row.month_name }} {{ row.year }}</td>
-    <td>{{ row.sold_count }}</td>
-    <td>{{ row.sold_total }}</td>
-    <td>{{ row.refunds_amount }}</td>
-    <td>{{ row.support_total }}</td>
-    <td>{{ row.support_processed }}</td>
-    <td>{{ row.commission }}</td>
-    <td>
-      <table border="0" cellpadding="4" cellspacing="0">
-        <tr><th>Перевізник</th><th>К-сть</th><th>Сума</th></tr>
-        {% for carrier, info in row.carriers.items %}
-        <tr>
-          <td>{{ carrier }}</td>
-          <td>{{ info.count }}</td>
-          <td>{{ info.amount }}</td>
-        </tr>
-        {% endfor %}
-      </table>
-    </td>
-  </tr>
+    <div style="background:#0f0f0f;border:1px solid rgba(255,255,255,0.04);padding:16px;margin-bottom:18px;border-radius:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">{{ row.month_name }} {{ row.year }}</div>
+        <div style="text-align:right">
+          <div>Продано: <strong>{{ row.sold_count }}</strong></div>
+          <div>Сума: <strong>{{ row.sold_total|floatformat:2 }} грн</strong></div>
+          <div>Повернено: <strong>{{ row.refunds_amount|floatformat:2 }} грн</strong></div>
+          <div>Комісія (10%): <strong>{{ row.commission|floatformat:2 }} грн</strong></div>
+        </div>
+      </div>
+      <hr style="border-color:rgba(255,255,255,0.04);margin:12px 0">
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <h4 style="margin-top:0">Перевізники</h4>
+          {% if row.carriers %}
+            <ul style="margin:0;padding-left:18px">
+              {% for c in row.carriers %}
+                <li style="margin-bottom:6px">{{ c.label }} — <strong>{{ c.count }}</strong> — {{ c.amount|floatformat:2 }} грн</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="muted">Немає даних по перевізникам.</div>
+          {% endif %}
+        </div>
+
+        <div style="flex:1;min-width:260px">
+          <h4 style="margin-top:0">Топ маршрутів</h4>
+          {% if row.routes %}
+            <ul style="margin:0;padding-left:18px">
+              {% for r in row.routes %}
+                <li style="margin-bottom:6px">{{ r.label }} — <strong>{{ r.count }}</strong> — {{ r.amount|floatformat:2 }} грн</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="muted">Немає даних по маршрутах.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   {% endfor %}
-</table>
+
+</div>
+{% endblock %}
