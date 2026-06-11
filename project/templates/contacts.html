@@ -1,228 +1,113 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block title %}Контакти — Dieller Bus{% endblock %}
+
 {% block content %}
 
 <style>
-
-/* ===== PAGE ===== */
-.contacts-page{
-  padding: 80px 20px;
-}
-
-/* TITLE */
-.contacts-title{
-  text-align:center;
-  font-size:42px;
-  font-weight:900;
-  margin-bottom:10px;
-}
-
-.contacts-sub{
-  text-align:center;
-  color:#aaa;
-  margin-bottom:50px;
-}
-
-/* GRID */
-.contacts-grid{
-  display:grid;
-  grid-template-columns: 2fr 1fr;
-  gap:30px;
-}
-
-/* ===== CARD ===== */
-.card{
-  background:#111;
-  border-radius:15px;
-  padding:30px;
-  border:1px solid #222;
-  box-shadow:0 0 30px rgba(0,0,0,0.5);
-}
-
-/* ===== SOCIALS ===== */
-.socials{
-  display:grid;
-  grid-template-columns: repeat(2,1fr);
-  gap:20px;
-  margin-bottom:30px;
-}
-
-.social{
-  background:#151515;
-  padding:20px;
-  border-radius:12px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  transition:0.3s;
-}
-
-.social:hover{
-  transform:translateY(-5px);
-  box-shadow:0 0 20px rgba(255,0,0,0.3);
-}
-
-.social span{
-  color:#ccc;
-}
-
-/* ===== FORM ===== */
-.form input,
-.form textarea{
-  width:100%;
-  background:#0d0d0d;
-  border:1px solid #222;
-  padding:12px;
-  margin-bottom:15px;
-  border-radius:8px;
-  color:#fff;
-}
-
-.form textarea{
-  height:120px;
-  resize:none;
-}
-
-/* BUTTON */
-.btn-send{
-  background: linear-gradient(135deg,#ff2a2a,#ff0000);
-  border:none;
-  padding:12px 25px;
-  border-radius:25px;
-  color:#fff;
-  font-weight:700;
-  cursor:pointer;
-  transition:0.3s;
-}
-
-.btn-send:hover{
-  box-shadow:0 0 20px rgba(255,0,0,0.8);
-}
-
-/* ===== CONTACT INFO ===== */
-.contact-info p{
-  margin:10px 0;
-  color:#ccc;
-}
-
-/* MAP */
-.map{
-  margin-top:20px;
-  border-radius:12px;
-  overflow:hidden;
-}
-
-/* ===== RESPONSIVE ===== */
-@media(max-width:900px){
-  .contacts-grid{
-    grid-template-columns:1fr;
-  }
-
-  .socials{
-    grid-template-columns:1fr;
-  }
-}
-
+  .contacts-page{max-width:1100px;margin:36px auto;padding:24px}
+  .contacts-hero{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:18px}
+  .contacts-hero h1{margin:0;font-size:28px;font-weight:700}
+  .contacts-grid{display:grid;grid-template-columns:1fr 420px;gap:24px}
+  .card{background:#fff;border-radius:10px;padding:22px;border:1px solid #e6e9ee}
+  .muted{color:#6b7280;font-size:14px}
+  .contact-list{list-style:none;padding:0;margin:0}
+  .contact-list li{margin:10px 0;display:flex;align-items:flex-start;gap:12px}
+  .contact-label{min-width:120px;color:#111;font-weight:600}
+  .contact-value a{color:#0b5fff;text-decoration:none}
+  .section-title{font-size:18px;margin-bottom:10px;font-weight:700}
+  .fop-reqs{font-size:14px;color:#374151;background:#fbfcfe;padding:12px;border-radius:8px;border:1px solid #f0f3f7}
+  .form input,.form textarea{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:10px}
+  .btn-send{background:#0b5fff;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer}
+  .support-channels{display:grid;gap:10px}
+  @media(max-width:940px){.contacts-grid{grid-template-columns:1fr}.contacts-hero{flex-direction:column;align-items:flex-start}}
 </style>
-
 
 <div class="contacts-page">
 
-  <div class="contacts-title">
-    Контакти та соцмережі
-  </div>
-
-  <div class="contacts-sub">
-    Напишіть або зателефонуйте — відповідаємо швидко 🚀
+  <div class="contacts-hero">
+    <h1>Контакти</h1>
+    <div class="muted">Швидка підтримка для пасажирів і перевізників</div>
   </div>
 
   <div class="contacts-grid">
 
-    <!-- LEFT -->
+    <!-- LEFT: Main contacts & form -->
     <div>
-
-      <!-- SOCIALS -->
-      <div class="socials">
-
-        <a href="https://t.me/***" class="social">
-          <div>
-            <strong>Telegram</strong><br>
-            <span>@***</span>
-          </div>
-          <span>→</span>
-        </a>
-
-        <a href="https://instagram.com/***" class="social">
-          <div>
-            <strong>Instagram</strong><br>
-            <span>@***</span>
-          </div>
-          <span>→</span>
-        </a>
-
-        <a href="https://tiktok.com/@***" class="social">
-          <div>
-            <strong>TikTok</strong><br>
-            <span>@***</span>
-          </div>
-          <span>→</span>
-        </a>
-
-        <a href="https://youtube.com/***" class="social">
-          <div>
-            <strong>YouTube</strong><br>
-            <span>@***</span>
-          </div>
-          <span>→</span>
-        </a>
-
+      <div class="card">
+          <div class="section-title">Контактна інформація</div>
+        <ul class="contact-list">
+          <li><div class="contact-label">Телефон</div><div class="contact-value"><a href="tel:+380501234567">+38 (050) 123‑45‑67</a></div></li>
+          <li><div class="contact-label">Email</div><div class="contact-value"><a href="mailto:support@diellerbus.com">support@diellerbus.com</a></div></li>
+          <li><div class="contact-label">Telegram</div><div class="contact-value"><a href="https://t.me/diellerbus">@diellerbus</a></div></li>
+          <li><div class="contact-label">Графік роботи</div><div class="contact-value muted">Пн–Пт: 09:00–18:00 (UTC+2). Субота — робочі дні для оперативної підтримки за чергуванням.</div></li>
+        </ul>
       </div>
 
+      <div style="height:16px"></div>
 
-      <!-- FORM -->
       <div class="card">
-        <h3>Напишіть нам</h3>
-
+        <div class="section-title">Форма зворотного зв'язку</div>
         <form method="post" class="form">
           {% csrf_token %}
-
           <input type="text" name="name" placeholder="Ваше ім'я" required>
-          <input type="tel" name="phone" placeholder="+380..." required>
-          <input type="email" name="email" placeholder="Email">
-          <textarea name="message" placeholder="Ваше повідомлення"></textarea>
-
-          <button type="submit" class="btn-send">
-            Відправити
-          </button>
+          <input type="tel" name="phone" placeholder="Телефон (+380...)" required>
+          <input type="email" name="email" placeholder="Email (необов'язково)">
+          <textarea name="message" placeholder="Коротко опишіть запит" rows="5" required></textarea>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button type="submit" class="btn-send">Відправити</button>
+            <div class="muted" style="font-size:13px">Ми відповідаємо протягом робочого дня</div>
+          </div>
         </form>
+      </div>
 
+      <div style="height:16px"></div>
+
+      <div class="card">
+        <div class="section-title">Реквізити ФОП</div>
+        <div class="fop-reqs">
+          <p style="margin:0"><strong>ФОП:</strong> [ПІБ ФОП]</p>
+          <p style="margin:0"><strong>ІПН:</strong> [________]</p>
+          <p style="margin:0"><strong>Рахунок:</strong> UA[________] в [назва банку]</p>
+          <p style="margin:0"><strong>Адреса:</strong> [юридична/поштова адреса]</p>
+          <p style="margin-top:8px;margin-bottom:0;font-size:13px;color:#6b7280">Змініть на фактичні реквізити перед публікацією.</p>
+        </div>
       </div>
 
     </div>
 
-
-    <!-- RIGHT -->
-    <div class="card">
-
-      <h3>Наші контакти</h3>
-
-      <div class="contact-info">
-        <p>📞 <a href="tel:+380*********">+380 *** *** ** **</a></p>
-        <p>📧 email@***.com</p>
-        <p>📍 Луцьк</p>
+    <!-- RIGHT: Support & carrier contacts -->
+    <div>
+      <div class="card">
+        <div class="section-title">Підтримка користувачів</div>
+        <div class="support-channels">
+          <div class="muted">Для питання щодо бронювання, оплати, повернень та змін:</div>
+          <div><strong>Email:</strong> <a href="mailto:support@diellerbus.com">support@diellerbus.com</a></div>
+          <div><strong>Телефон:</strong> <a href="tel:+380501234567">+38 (050) 123‑45‑67</a></div>
+          <div><strong>Telegram:</strong> <a href="https://t.me/diellerbus">@diellerbus</a></div>
+        </div>
       </div>
 
-      <!-- MAP -->
-      <div class="map">
-        <iframe 
-          src="https://maps.google.com/maps?q=Луцьк&t=&z=13&ie=UTF8&iwloc=&output=embed"
-          width="100%" 
-          height="250" 
-          style="border:0;">
-        </iframe>
+      <div style="height:12px"></div>
+
+      <div class="card">
+        <div class="section-title">Підтримка перевізників</div>
+        <div class="support-channels">
+          <div class="muted">Для співпраці, підключення рейсів та технічної інтеграції:</div>
+          <div><strong>Email (бізнес):</strong> <a href="mailto:partners@diellerbus.com">partners@diellerbus.com</a></div>
+          <div><strong>Телефон (бізнес):</strong> <a href="tel:+380672223344">+38 (067) 222‑33‑44</a></div>
+          <div><strong>Контакт у Telegram:</strong> <a href="https://t.me/diellerbus_partners">@diellerbus_partners</a></div>
+        </div>
       </div>
 
+      <div style="height:12px"></div>
+
+      <div class="card">
+        <div class="section-title">Додаткові відомості</div>
+        <p class="muted" style="margin:0">Адреса офісу, реквізити для договорів та інші документи надаються за запитом через email для бізнес‑партнерів та контрагентів.</p>
+        <div style="height:12px"></div>
+      </div>
     </div>
 
   </div>

@@ -198,11 +198,22 @@ def home(request):
         )
     except Exception:
         hot_trips = []
-    return render(request, 'index.html', {'hot_trips': hot_trips})
+    try:
+        presets = SupportPresetQuestion.objects.all().order_by('order')
+    except Exception:
+        presets = []
+
+    # provide a quick support ticket form on the homepage
+    try:
+        support_form = SupportTicketForm()
+    except Exception:
+        support_form = None
+
+    return render(request, 'index.html', {'hot_trips': hot_trips, 'presets': presets, 'support_form': support_form})
 
 
 def about(request):
-    return HttpResponse('<h1>About Page</h1>')
+    return render(request, 'about.html')
 
 
 def bova(request):
@@ -283,70 +294,29 @@ def set_language(request):
 
 
 def agreements(request):
-    """Render the public agreement / complaints & refunds guidance page.
+    """Render the public agreement page (static HTML template)."""
+    return render(request, 'agreements.html')
 
-    This page describes how to submit complaints, request refunds, and what
-    happens when a trip is cancelled. It is intentionally focused on practical
-    steps for passengers and links into the support workflow.
+
+def privacy(request):
+    """Render site Privacy Policy page (static content).
+
+    The template `privacy.html` contains the full privacy policy text.
     """
-    sections = [
-        {
-            'id': 'how-to-complain',
-            'title': 'Як подати скаргу / відгук',
-            'content': (
-                '<ol>'
-                '<li>Відкрийте розділ "Відгук" на сторінці довідки або перейдіть у розділ "Підтримка".</li>'
-                '<li>Виберіть категорію, яка найкраще відповідає причині звернення (водій, комфорт салону, безпека, тощо).</li>'
-                '<li>Опишіть проблему у полі "Подробиці" — додайте дату, номер рейсу та фотографії або відео, якщо вони є.</li>'
-                '<li>Надішліть запит — наші агенти опрацюють його і звʼяжуться з вами.</li>'
-                '</ol>'
-                '<p><strong>Примітка:</strong> Додайте всі супровідні матеріали (фото, відео, квитанції). Це значно пришвидшить розгляд.</p>'
-            )
-        },
-        {
-            'id': 'how-to-refund',
-            'title': 'Порядок розміщення запиту на повернення коштів',
-            'content': (
-                '<ol>'
-                '<li>Перейдіть у розділ "Повернення коштів" на сторінці довідки або створіть звернення у службі підтримки.</li>'
-                '<li>Вкажіть причину (наприклад: скасування рейсу, затримка, пошкодження багажу) і додайте підтверджувальні документи.</li>'
-                '<li>Після надсилання ваш запит буде зареєстрований — ви отримаєте повідомлення про статус розгляду.</li>'
-                '</ol>'
-                '<p><strong>Порада:</strong> якщо вам довелося купити інший квиток або скористатися послугами іншого перевізника, додайте копії чеків — це пришвидшить відшкодування.</p>'
-            )
-        },
-        {
-            'id': 'cancellation-policy',
-            'title': 'Що робити, якщо вашу поїздку скасовано',
-            'content': (
-                '<p>Якщо поїздку скасовано, ми надішлемо вам електронний лист або SMS з посиланням на спеціальну сторінку, де можна вибрати одну з опцій:</p>'
-                '<ul>'
-                '<li><strong>Повернення коштів</strong> — оформлюється запит до служби підтримки.</li>'
-                '<li><strong>Перебронювання</strong> — допомога у виборі альтернативного рейсу або варіантів заміни дати.</li>'
-                '<li><strong>Звернення у службу підтримки</strong> — індивідуальне опрацювання випадку.</li>'
-                '</ul>'
-                '<p>Адміністратор може позначити рейс як «не відбувся» у панелі управління. Після цього всім власникам оплачених квитків буде відправлено інформаційного листа з посиланням на сторінку вибору опції (повернення/перебронювання).</p>'
-            )
-        },
-        {
-            'id': 'time-limits',
-            'title': 'Терміни та обмеження',
-            'content': (
-                '<p>Для поїздок в межах України ми розглядаємо скарги, надіслані протягом 2 років після дати подорожі.</p>'
-                '<p>Якщо ви просите повернення менш ніж за 24 години до відправлення (але не пізніше ніж за 1 годину), можуть застосовуватись додаткові комісії згідно з правилами.</p>'
-            )
-        },
-        {
-            'id': 'payments',
-            'title': 'Оплата',
-            'content': (
-                '<p>Оплата здійснюється онлайн банківською карткою. Сума списується у момент завершення бронювання.</p>'
-                '<p>У разі повернення коштів сума може бути відшкодована тим же способом, яким було здійснено платіж. Зверніть увагу, повернення може займати декілька робочих днів залежно від банку.</p>'
-            )
-        }
-    ]
+    return render(request, 'privacy.html')
 
-    return render(request, 'agreements.html', {'sections': sections})
+
+def offer_agent(request):
+    """Render agent public offer page (static content).
+
+    The template `offer_agent.html` contains the public offer text for the booking agent.
+    """
+    return render(request, 'offer_agent.html')
+
+
+def refunds(request):
+    """Render refunds policy page."""
+    return render(request, 'refunds.html')
 
 
 # ========================
@@ -701,6 +671,33 @@ def support_home(request):
         form = SupportTicketForm()
 
     return render(request, 'support.html', {'presets': presets, 'tickets': tickets, 'form': form})
+
+
+@login_required
+@require_POST
+def ask_question(request):
+    """Quick endpoint for submitting a support/question ticket from the homepage.
+
+    Requires authentication. Accepts POST fields: 'preset' (id), 'subject', 'initial_message',
+    and optional file 'initial_attachment'. Creates SupportTicket + first SupportMessage.
+    """
+    form = SupportTicketForm(request.POST)
+    initial_message = (request.POST.get('initial_message') or '').strip()
+    initial_attachment = request.FILES.get('initial_attachment')
+    if form.is_valid() and initial_message:
+        ticket = form.save(commit=False)
+        ticket.user = request.user
+        ticket.save()
+        try:
+            SupportMessage.objects.create(ticket=ticket, sender=request.user, text=initial_message, attachment=initial_attachment, is_from_admin=False)
+        except Exception:
+            # even if message creation fails, proceed
+            pass
+        messages.success(request, 'Питання надіслано. Ми відповімо в особистому кабінеті.')
+        return redirect('main:support_ticket_detail', ticket.id)
+
+    messages.error(request, 'Будь ласка, опишіть ваше питання.')
+    return redirect('main:home')
 
 
 @login_required
@@ -3585,7 +3582,7 @@ def checkout(request, trip_id):
         'currency': payment.currency or 'UAH',
         'description': f"Квиток {ticket.from_city} → {ticket.to_city}",
         'order_id': f"ticket-{ticket.id}",
-        'sandbox': '1',
+        'sandbox': '1' if settings.DEBUG else '0',
         'server_url': request.build_absolute_uri(
             reverse('main:liqpay_callback')
         ),

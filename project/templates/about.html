@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Про нас — Dieller Bus{% endblock %}
+
+{% block content %}
+<style>
+  .about-wrap{max-width:1000px;margin:30px auto;padding:20px}
+  .about-wrap h2{margin-top:0}
+  .about-section{margin-bottom:18px}
+  .muted-small{color:#6c757d}
+</style>
+
+<div class="about-wrap">
+  <h2>Про DiellerBus</h2>
+  <p class="muted-small">DiellerBus — онлайн‑платформа для пошуку, бронювання та купівлі автобусних квитків. Ми робимо планування поїздки простим, швидким і безпечним, об'єднуючи пропозиції від перевірених перевізників в одному зручному інтерфейсі.</p>
+
+  <div class="about-section" id="convenience">
+    <h3>Зручність</h3>
+    <p>Інтуїтивний пошук, швидкі фільтри та миттєве оформлення бронювання — сервіс працює на мобільних пристроях.</p>
+  </div>
+
+  <div class="about-section" id="payment">
+    <h3>Оплата</h3>
+    <p>Оплати проходять через LiqPay з захищеним server‑to‑server підтвердженням; DiellerBus не зберігає дані карток.</p>
+  </div>
+
+  <div class="about-section" id="partners">
+    <h3>Перевізники</h3>
+    <p>Ми об'єднуємо пропозиції перевірених перевізників та виступаємо технічною платформою між пасажиром і перевізником.</p>
+  </div>
+
+  <div class="about-section" id="support">
+    <h3>Підтримка</h3>
+    <p>Питання щодо бронювання та повернень: <a href="mailto:support@diellerbus.com">support@diellerbus.com</a>.</p>
+  </div>
+
+  <div class="about-section">
+    <p><strong>Почніть планувати поїздку:</strong> скористайтеся пошуком на головній сторінці та оплатіть безпечно через LiqPay.</p>
+  </div>
+</div>
+
+{% endblock %}

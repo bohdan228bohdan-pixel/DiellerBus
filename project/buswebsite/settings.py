@@ -264,6 +264,28 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # Static files (WhiteNoise)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Development convenience defaults: when DEBUG=True make common local
+# testing settings safe and easy to use. These defaults can be overridden
+# via environment variables in production.
+if DEBUG:
+    # Use console email backend for local testing unless explicitly set
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+
+    # Ensure local hosts are allowed for the development server
+    try:
+        if '127.0.0.1' not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.insert(0, '127.0.0.1')
+        if 'localhost' not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.insert(1, 'localhost')
+    except Exception:
+        pass
+
+    # Do not enforce secure cookies/redirects by default in local mode;
+    # respect explicit environment overrides if present.
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False') == 'True'
+    CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False') == 'True'
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False') == 'True'
+
 # Logging: write INFO+ logs to a rotating file and to console. Ensure log directory exists.
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 try:

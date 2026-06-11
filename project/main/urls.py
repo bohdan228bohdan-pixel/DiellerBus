@@ -24,6 +24,9 @@ urlpatterns = [
     path("neoplanred/", views.neoplanred, name="neoplanred"),
     path("oplata/", views.oplata, name="oplata"),
     path("agreements/", views.agreements, name="agreements"),
+    path("offer/", views.offer_agent, name="offer_agent"),
+    path("privacy/", views.privacy, name="privacy"),
+    path("refunds/", views.refunds, name="refunds"),
 
     # api
     path("api/trips/", views.api_trips, name="api_trips"),
@@ -65,6 +68,7 @@ urlpatterns = [
     path("buses/<slug:slug>/book/", views.bus_booking, name="bus_booking"),
     path('bus/<slug:slug>/', views.bus_detail, name='bus_detail'),
     path("contacts/", views.contacts, name="contacts"),
+    path("ask-question/", views.ask_question, name="ask_question"),
     # static DB-managed pages
     path("page/<slug:slug>/", views.static_page, name="static_page"),
     # language switcher

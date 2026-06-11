@@ -12,3 +12,10 @@ os.environ.setdefault('LIQPAY_PRIVATE_KEY', 'sandbox_WOIgiv6ZfKoBLfikeNhvlq0L6W5
 # Allow enabling support admin accounts locally for development.
 # Example: SUPPORT_ADMINS='dieller,ops@example.com'
 os.environ.setdefault('SUPPORT_ADMINS', 'dieller')
+
+# Development helper: run the site in local/dev mode by default when using
+# this local_settings.py file. These values are safe for local testing only
+# and should NOT be used in production deployments.
+os.environ.setdefault('DJANGO_DEBUG', 'True')
+os.environ.setdefault('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+os.environ.setdefault('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')

@@ -100,6 +100,23 @@
       .hot-row{padding:8px 4px}
       .hot-card{min-width:220px}
     }
+    /* FAQ / Services styles */
+    .faq-services{padding:40px 0}
+    .faq-grid{display:grid;grid-template-columns:1fr 360px;gap:24px}
+    @media(max-width:992px){.faq-grid{grid-template-columns:1fr}}
+    .panel-dark{background:#0b0b0b;padding:16px;border-radius:10px;color:#fff}
+    .about-card{background:transparent;color:#fff}
+    .services-grid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+    .service-card{min-width:160px;flex:1 1 160px;border-radius:8px;background:#0b0b0b;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;background-size:cover;background-position:center;min-height:140px}
+    .service-card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.45));transition:background .15s}
+    .service-card .service-label{position:relative;z-index:2;padding:8px 12px;border:2px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);border-radius:6px}
+    .service-card:hover::before{background:linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.30))}
+    .service-card img.service-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+    .accordion-button{background:#0b0b0b;color:#fff;border:none}
+    .accordion-button:not(.collapsed){background:#111;color:#fff}
+    .accordion-body{background:transparent;color:#ddd}
+    .socials-list .social-tile{transition:all .15s ease}
+    .socials-list .social-link:hover .social-tile{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.4)}
   </style>
 </head>
 <body>
@@ -117,7 +134,7 @@
     </div>
   </header>
 
-  <main>
+  <main class="site-main">
     <section class="hero" id="hero">
       <div class="overlay"></div>
       <div class="container hero-inner">
@@ -161,7 +178,9 @@
           </div>
         </div>
       </div>
-    </section>
+      </section>
+
+      <!-- socials moved to site footer -->
 
     <section class="features container" data-aos="fade-up">
       <div class="row g-4">
@@ -187,6 +206,103 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="faq-services container" data-aos="fade-up">
+      <h2 class="routes-title">ПОШИРЕНІ ПИТАННЯ</h2>
+      <p class="routes-sub">Поширені питання про бронювання, оплату і повернення. Якщо не знайшли відповідь — задайте питання, і ми відповімо в вашому профілі.</p>
+
+      <div class="faq-grid" style="margin-top:18px">
+        <div>
+          <div class="muted-small">Найпоширеніші запитання:</div>
+          <div class="accordion" id="faqAccordion" style="margin-top:12px">
+            {% for p in presets %}
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
+                    {{ p.title }}
+                  </button>
+                </h2>
+                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">{{ p.description }}</div>
+                </div>
+              </div>
+            {% empty %}
+              <div class="muted-small">Питань ще немає.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel-dark" style="padding:18px;border-radius:12px">
+            <h5 style="margin-top:0;color:#fff">Задайте питання</h5>
+            {% if user.is_authenticated %}
+              <form method="post" action="{% url 'main:ask_question' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="mb-2">
+                  <label class="muted-small">Тип запиту</label>
+                  <select name="preset" class="form-control">
+                    {% for p in presets %}
+                      <option value="{{ p.id }}">{{ p.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <input name="subject" class="form-control" placeholder="Тема (коротко)">
+                </div>
+                <div class="mb-2">
+                  <textarea name="initial_message" rows="4" class="form-control" placeholder="Опишіть своє питання" required></textarea>
+                </div>
+                <div class="mb-2">
+                  <button class="btn btn-cta" type="submit">Надіслати</button>
+                </div>
+              </form>
+            {% else %}
+              <p class="muted-small">Щоб задати питання та отримати відповідь у профілі, будь ласка, <a href="{% url 'main:registerindex' %}">увійдіть або зареєструйтесь</a>.</p>
+            {% endif %}
+          </div>
+
+          <div class="about-card" style="margin-top:18px;padding:16px;border-radius:10px;background:linear-gradient(180deg,#0b0b0b,#0f0f0f);color:#fff">
+            <h5 style="margin-top:0">Про DiellerBus</h5>
+            <p class="muted-small">DiellerBus — онлайн‑платформа для пошуку, бронювання та купівлі автобусних квитків. Ми робимо планування поїздки простим, швидким і безпечним. <a href="{% url 'main:nashbusindex' %}">Переглянути каталог автобусів</a>.</p>
+          </div>
+        </aside>
+      </div>
+
+      <section class="services" style="margin-top:32px;background:transparent;padding:18px 0;color:#fff">
+        <h3 style="text-align:center;color:var(--accent-red);font-weight:900;margin-bottom:16px">ДОДАТКОВІ ПОСЛУГИ</h3>
+
+        <div class="container" style="max-width:980px">
+          <div style="color:#ddd;text-align:center;max-width:880px;margin:0 auto 18px;line-height:1.6">
+            <p><strong>Компанія DiellerBus пропонує додаткові послуги з організації перевезень та оренди автобусів у м. Луцьк та за його межами.</strong> Ми надаємо сучасні комфортабельні автобуси разом із професійними водіями, які забезпечать безпеку та комфорт під час поїздок.</p>
+            <p style="margin-top:10px"><strong>Послуга оренди автобуса підходить для:</strong></p>
+            <ul style="list-style:disc;margin-left:22px;text-align:left;max-width:720px;margin-left:auto;margin-right:auto">
+              
+            </ul>
+
+            <p style="margin-top:12px;color:var(--muted)">Детальніше в <a href="{% url 'main:nashbusindex' %}">каталозі автобусів</a> або зверніться в <a href="{% url 'main:contacts' %}">контакти</a>.</p>
+          </div>
+
+          <div class="services-grid d-flex flex-wrap justify-content-center gap-3" style="margin-top:18px">
+            <!-- Tiles: replace inline background-image with {% static 'img/your-photo.jpg' %} when adding photos -->
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Туристичні екскурсії</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Корпоративні поїздки</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Мандри на фестивалі</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Дитячі подорожі</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Трансфери з аеропорту</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
 
     <!-- ГАРЯЧІ ПОЇЗДКИ -->

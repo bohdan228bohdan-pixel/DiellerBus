@@ -30,11 +30,11 @@
         </button>
 
         <div class="collapse navbar-collapse" id="mainNav">
-          <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
             <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'main:agreements' %}">Згоди / Питання</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
             {% if user.is_authenticated %}
               <li class="nav-item d-lg-none"><a class="nav-link" href="{% url 'main:profile' %}">Профіль</a></li>
             {% endif %}
@@ -79,7 +79,7 @@
       <div class="row">
         <div class="col-md-4 mb-3">
           <h5>Про нас</h5>
-          <p class="muted-small">Dieller Bus — надійні перевезення між містами. Безпечні маршрути та сучасний автопарк.</p>
+          <p class="muted-small">DiellerBus — онлайн‑платформа для пошуку, бронювання та купівлі автобусних квитків. Ми робимо планування поїздки простим, швидким і безпечним, об'єднуючи пропозиції перевірених перевізників в одному зручному інтерфейсі. Оплата через LiqPay із server‑to‑server підтвердженням; DiellerBus не зберігає дані карток.</p>
         </div>
         <div class="col-md-4 mb-3">
           <h5>Швидкі посилання</h5>
@@ -87,15 +87,33 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'main:static_page' 'technical-questions' %}">Технічні питання</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'main:static_page' 'refund-policy' %}">Повернення коштів</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:agreements' %}">Публічна оферта</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:privacy' %}">Політика конфіденційності</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:refunds' %}">Умови повернення коштів</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
           </ul>
         </div>
         <div class="col-md-4 mb-3 text-md-end">
           <h5>Контакти</h5>
           <div class="muted-small">Тел: <a href="tel:{{ site_config.contact_phone|default:'+380000000000' }}">{{ site_config.contact_phone|default:'+38 (000) 000-00-00' }}</a></div>
-          <div class="socials mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'info@dieller.bus' }}">{{ site_config.contact_email|default:'info@dieller.bus' }}</a></div>
+          <div class="muted-small mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'info@dieller.bus' }}">{{ site_config.contact_email|default:'info@dieller.bus' }}</a></div>
+
+          <div class="contact-more mt-3 text-md-end">
+            <strong>Додаткові відомості</strong>
+            <p class="muted-small mb-0">Адреса офісу, реквізити для договорів та інші документи надаються за запитом через email для бізнес‑партнерів та контрагентів.</p>
+          </div>
+
+          <div class="socials-links mt-3">
+            <ul class="list-unstyled d-flex gap-2 justify-content-end align-items-center mb-2">
+              <li><a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer">TikTok</a></li>
+              <li><a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">Instagram</a></li>
+              <li><a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">Facebook</a></li>
+            </ul>
+
+            <div>
+              {% include 'includes/socials.html' %}
+            </div>
+          </div>
         </div>
       </div>
 

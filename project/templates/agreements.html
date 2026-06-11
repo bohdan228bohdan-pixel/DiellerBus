@@ -1,42 +1,146 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Згоди та питання — Dieller Bus{% endblock %}
+{% block title %}ПУБЛІЧНА ОФЕРТА (ДОГОВІР) — Dieller Bus{% endblock %}
 
 {% block content %}
 <style>
-  .agreements-wrap{max-width:1100px;margin:40px auto;padding:20px}
-  .agreements-grid{display:flex;gap:24px}
-  .agreements-toc{flex:0 0 280px;border-right:1px solid #f0f0f0;padding-right:18px}
-  .agreements-toc a{display:block;padding:8px 6px;color:#007bff;text-decoration:none}
-  .agreements-toc a:hover{background:#f8f9fa}
-  .agreements-content{flex:1;padding-left:18px}
-  .agreement-section{padding:18px 0;border-bottom:1px solid #f0f0f0}
-  .agreement-section h3{margin-top:0}
-  @media(max-width:900px){.agreements-grid{flex-direction:column}.agreements-toc{border-right:none;padding-right:0}}
+  .agreements-wrap{max-width:1100px;margin:48px auto;padding:28px}
+  .agreements-grid{display:grid;grid-template-columns:1fr 320px;gap:24px}
+  .agreements-wrap h1{font-size:32px;text-align:center;color:var(--accent-red);margin-bottom:12px;font-weight:900}
+  .agreements-intro{max-width:900px;margin:0 auto 18px;text-align:center;color:#6b7280}
+  .muted-small{color:#6b7280;margin-bottom:12px}
+  .agreement-section{margin-bottom:18px}
+  .agreement-section h2{font-size:18px;text-align:center;color:var(--accent-red);margin-top:18px;margin-bottom:8px}
+  .agreement-section p, .agreement-section ul{line-height:1.6;max-width:900px;margin:0 auto;text-align:left}
+  .agreements-toc{border-left:1px solid #eef2f7;padding-left:14px}
+  .toc-list{list-style:none;padding:0;margin:0}
+  .toc-list li{margin:8px 0}
+  .agreement-article{line-height:1.6}
 </style>
 
 <div class="agreements-wrap">
-  <h2>Згоди та часті питання</h2>
-  <p class="muted-small">Нижче зібрані ліцензійні згоди та відповіді на типові питання, пов'язані з оформленням квитків.</p>
+  <h1>ПУБЛІЧНА ОФЕРТА</h1>
+  <p class="muted-small">Договір між користувачем (далі — "Покупець") та [FOP/Company] (далі — "Оператор/Агент") щодо придбання електронних квитків та пов'язаних послуг через інтернет‑платформу.</p>
 
   <div class="agreements-grid">
-    <aside class="agreements-toc">
-      <nav>
-        {% for s in sections %}
-          <a href="#{{ s.id }}">{{ s.title }}</a>
-        {% endfor %}
-      </nav>
-    </aside>
+    <main class="agreements-content agreement-article">
+      <div class="agreement-section">
+        <h2 id="intro">1. Загальні положення</h2>
+        <p>1.1. Ця публічна оферта (далі — «Оферта») є офіційною пропозицією Оператора укласти договір на умовах, викладених нижче. Прийняття Оферти відбувається шляхом оформлення замовлення та сплати за послугу на сайті/платформі.</p>
+        <p>1.2. Після оплати Покупець отримує електронний квиток/проїзний документ (далі — «Квиток»), який засвідчує право на проїзд відповідно до умов Перевізника.</p>
+      </div>
 
-    <section class="agreements-content">
-      {% for s in sections %}
-        <div id="{{ s.id }}" class="agreement-section">
-          <h3>{{ s.title }}</h3>
-          <div class="agreement-body">{{ s.content|safe }}</div>
-        </div>
-      {% endfor %}
-    </section>
+      <div class="agreement-section">
+        <h2 id="definitions">2. Визначення термінів</h2>
+        <p>Використані в Оферті терміни мають такі значення:</p>
+        <ul>
+          <li><strong>Оператор/Агент</strong> — [Назва/FOP], що забезпечує функціонування платформи.</li>
+          <li><strong>Перевізник</strong> — юридична або фізична особа, що виконує пасажирські перевезення.</li>
+          <li><strong>Квиток</strong> — електронний проїзний документ, що підтверджує право на перевезення.</li>
+          <li><strong>Замовлення</strong> — оформлений Покупцем запит на придбання Квитка.</li>
+        </ul>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="subject">3. Предмет договору</h2>
+        <p>3.1. Оператор надає послуги з бронювання та продажу Квитків; зобов'язання з виконання перевезення та порядок його здійснення покладаються на Перевізника.</p>
+        <p>3.2. Оператор виступає посередником і не несе відповідальності за організацію перевезення понад межі, визначені цим документом та правилами Перевізника.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="ordering">4. Оформлення замовлення</h2>
+        <p>4.1. Покупець обирає маршрут, дату та кількість місць, вводить контактні дані та здійснює оплату згідно з інструкціями на платформі.</p>
+        <p>4.2. Після успішної оплати Покупець отримує на вказану електронну адресу електронний квиток з унікальним номером і реквізитами поїздки.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="payment">5. Оплата та повернення коштів</h2>
+        <p>5.1. Оплата здійснюється електронними платіжними засобами через платіжного провайдера (наприклад, LiqPay). Оператор не зберігає платіжних даних карт Покупця.</p>
+        <p>5.2. Повернення коштів проводиться відповідно до політики Перевізника та чинного законодавства. Якщо Перевізник скасовує рейс — кошти повертаються Покупцю у строки, встановлені Перевізником або платіжною системою.</p>
+        <p>5.3. У випадку претензій щодо оплати Покупець має звернутися до служби підтримки Оператора, вказавши номер Замовлення та платіжні реквізити.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="ticket-issue">6. Видача та використання електронного квитка</h2>
+        <p>6.1. Електронний квиток є дійсним документом при пред'явленні його в електронному або роздрукованому вигляді разом з документом, що посвідчує особу, якщо цього вимагає Перевізник.</p>
+        <p>6.2. Перед використанням Квитка Покупець зобов'язаний перевірити коректність даних. Питання виправлення помилок вирішуються відповідно до політики Перевізника.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="changes">7. Зміни та скасування</h2>
+        <p>7.1. Умови зміни або скасування Квитків визначаються правилами Перевізника. Оператор лише здійснює технічне оформлення запитів Покупця на зміну/скасування.</p>
+        <p>7.2. Якщо Перевізник передбачає штрафи або комісію за зміну/скасування — вони списуються відповідно до його правил.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="liability">8. Відповідальність сторін</h2>
+        <p>8.1. Оператор зобов'язаний забезпечити доступність платформи та передачу інформації Перевізнику, але не несе відповідальності за безпосереднє виконання перевезення, затримки або інші події, що залежать від Перевізника.</p>
+        <p>8.2. Покупець несе відповідальність за достовірність наданих даних і своєчасність оплати.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="liqpay">9. Особливі умови оплати (LiqPay)</h2>
+        <p>9.1. Якщо оплата проводиться через LiqPay, оновлення статусу оплати відбувається шляхом callback від LiqPay до сервера Оператора. Оператор перевіряє коректність підпису callback та пов'язані дані.</p>
+        <p>9.2. У разі невідповідності підпису або підозрілої транзакції замовлення не підтверджується — кошти повертаються відповідно до правил платіжної системи.</p>
+        <p>9.3. Для безпечної роботи в продакшні LIQPAY_PUBLIC_KEY та LIQPAY_PRIVATE_KEY мають зберігатися в змінних оточення; параметр LIQPAY_ALLOW_UNVERIFIED повинен бути вимкнений (false) для прийому лише верифікованих callback.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="personal-data">10. Персональні дані</h2>
+        <p>10.1. Оператор обробляє персональні дані Покупця в обсязі, необхідному для виконання замовлення: ФІО, контактний телефон, email, дані платежу (якщо передані платіжною системою) та інші, що вимагаються Перевізником.</p>
+        <p>10.2. Обробка здійснюється відповідно до чинного законодавства про захист персональних даних і політики конфіденційності Оператора.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="force-majeure">11. Форс‑мажор</h2>
+        <p>Сторони звільняються від відповідальності за невиконання або неналежне виконання зобов'язань у разі настання обставин непереборної сили (війна, надзвичайні події, епідемії, рішення органів влади тощо).</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="disputes">12. Вирішення спорів</h2>
+        <p>12.1. Усі спори вирішуються шляхом переговорів. Якщо сторони не досягнуть згоди — спір передається на розгляд компетентного суду відповідно до чинного законодавства юрисдикції Оператора.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="final">13. Прикінцеві положення</h2>
+        <p>13.1. Ця Оферта набирає чинності з моменту її публікації на платформі і діє до її відміни або внесення змін у спосіб, передбачений Оператором.</p>
+        <p>13.2. Звернення Покупця до служби підтримки або оформлення замовлення означає згоду з умовами цієї Оферти.</p>
+      </div>
+
+      <div class="agreement-section">
+        <h2 id="requisites">14. Реквізити Оператора</h2>
+        <p>Назва: [FOP/Company Name]<br>
+        ЄДРПОУ/РНОКПП: [EDRPOU/ID]<br>
+        Адреса: [Address]<br>
+        IBAN: [IBAN], Банк: [Bank Name], MFO: [MFO]<br>
+        Email: [support@example.com], Телефон: [Phone Number]<br>
+        Представник: [ПІБ, посада]</p>
+      </div>
+
+     
+
+      <div class="agreement-section">
+        <p><em>Останнє оновлення: 10 червня 2026 року.</em></p>
+      </div>
+    </main>
+
+    <aside class="agreements-toc">
+      <div class="toc-card">
+        <ul class="toc-list">
+          <li><a href="#intro">1. Загальні положення</a></li>
+          <li><a href="#definitions">2. Визначення</a></li>
+          <li><a href="#subject">3. Предмет договору</a></li>
+          <li><a href="#ordering">4. Оформлення замовлення</a></li>
+          <li><a href="#payment">5. Оплата</a></li>
+          <li><a href="#ticket-issue">6. Видача квитка</a></li>
+          <li><a href="#changes">7. Зміни/скасування</a></li>
+          <li><a href="#liqpay">9. LiqPay</a></li>
+          <li><a href="#personal-data">10. Персональні дані</a></li>
+          <li><a href="#requisites">14. Реквізити</a></li>
+        </ul>
+      </div>
+    </aside>
   </div>
 </div>
 
