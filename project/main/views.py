@@ -41,6 +41,7 @@ import hmac
 import os
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
+from decimal import Decimal
 try:
 
 
@@ -4625,40 +4626,118 @@ def ticket_refund(request, ticket_id):
     else:
         refund_percent = 100
 
-    refund_amount = (ticket.total_price or 0) * refund_percent / 100.0
+    # Use Decimal arithmetic to avoid mixing float and Decimal
+    try:
+        total_price = Decimal(ticket.total_price) if ticket.total_price is not None else Decimal('0.00')
+    except Exception:
+        try:
+            total_price = Decimal(str(ticket.total_price))
+        except Exception:
+            total_price = Decimal('0.00')
 
-    # mark unpaid (or partially refunded) and prepare PDF
+    refund_amount = (total_price * Decimal(refund_percent)) / Decimal('100')
+
+    # prepare PDF and mark ticket unpaid
+    try:
+        pdf_bytes = _generate_ticket_pdf_bytes(ticket)
+    except Exception:
+        pdf_bytes = None
+
+    # Attempt to refund via original payment provider (Stripe / LiqPay) when possible
+    refunded_to_card = False
+    refund_provider_info = None
+    try:
+        from .models import Payment
+        orig_payment = Payment.objects.filter(ticket=ticket, status='success').order_by('-created_at').first()
+        if orig_payment:
+            # Stripe refund attempt
+            if orig_payment.provider == 'stripe' and settings.STRIPE_SECRET_KEY:
+                try:
+                    # try to retrieve checkout session or use provided payment id
+                    sess_id = orig_payment.provider_payment_id
+                    pi = None
+                    if sess_id:
+                        try:
+                            sess = stripe.checkout.Session.retrieve(sess_id)
+                            pi = sess.get('payment_intent') if isinstance(sess, dict) else getattr(sess, 'payment_intent', None)
+                        except Exception:
+                            # fallback: provider_payment_id might already be a payment_intent
+                            pi = sess_id
+                    if pi:
+                        amt = int((refund_amount * Decimal('100')).quantize(Decimal('1')))
+                        refund = stripe.Refund.create(payment_intent=pi, amount=amt)
+                        Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='stripe', provider_payment_id=(getattr(refund, 'id', None) or refund.get('id') if isinstance(refund, dict) else None), data={'by': request.user.username, 'refund_result': str(refund)})
+                        refunded_to_card = True
+                        refund_provider_info = {'provider': 'stripe', 'result': str(refund)}
+                except Exception:
+                    logging.exception('Stripe refund failed')
+
+            # LiqPay refund attempt
+            if not refunded_to_card and orig_payment.provider == 'liqpay' and getattr(settings, 'LIQPAY_PRIVATE_KEY', None) and getattr(settings, 'LIQPAY_PUBLIC_KEY', None):
+                try:
+                    trans_id = orig_payment.provider_payment_id
+                    if trans_id:
+                        payload = {
+                            'public_key': settings.LIQPAY_PUBLIC_KEY,
+                            'version': '3',
+                            'action': 'refund',
+                            'transaction_id': trans_id,
+                            'amount': str(refund_amount),
+                            'currency': (ticket.currency or 'UAH')
+                        }
+                        data = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+                        signature = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
+                        try:
+                            import urllib.parse, urllib.request
+                            postdata = urllib.parse.urlencode({'data': data, 'signature': signature}).encode('utf-8')
+                            req = urllib.request.Request('https://www.liqpay.ua/api/request', data=postdata)
+                            resp = urllib.request.urlopen(req, timeout=15)
+                            resp_text = resp.read().decode('utf-8')
+                            try:
+                                resp_json = json.loads(resp_text)
+                            except Exception:
+                                resp_json = {'raw': resp_text}
+                            Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='liqpay', provider_payment_id=trans_id, data={'by': request.user.username, 'refund_result': resp_json})
+                            refunded_to_card = True
+                            refund_provider_info = {'provider': 'liqpay', 'result': resp_json}
+                        except Exception:
+                            logging.exception('LiqPay refund HTTP call failed')
+                except Exception:
+                    logging.exception('LiqPay refund build failed')
+
+        # If we didn't refund to card, create a ledger Payment and credit user balance
+        if not refunded_to_card:
+            try:
+                Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'ticket_id': ticket.id, 'by': request.user.username, 'refund_percent': refund_percent})
+            except Exception:
+                try:
+                    Payment.objects.create(ticket=ticket, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'by': request.user.username, 'refund_percent': refund_percent})
+                except Exception:
+                    pass
+
+            try:
+                profile = ticket.user.profile
+                profile.balance = (profile.balance or Decimal('0.00')) + refund_amount
+                profile.save(update_fields=['balance'])
+            except Exception:
+                logging.exception('Failed to credit user balance')
+    except Exception:
+        logging.exception('Refund processing error')
+
+    # mark unpaid (or partially refunded)
     try:
         ticket.paid = False
         ticket.save(update_fields=['paid'])
     except Exception:
         pass
 
-    pdf_bytes = None
-    try:
-        pdf_bytes = _generate_ticket_pdf_bytes(ticket)
-    except Exception:
-        pdf_bytes = None
-
-    from .models import Payment
-    try:
-        Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'ticket_id': ticket.id, 'by': request.user.username, 'refund_percent': refund_percent})
-    except Exception:
-        try:
-            Payment.objects.create(ticket=ticket, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'by': request.user.username, 'refund_percent': refund_percent})
-        except Exception:
-            pass
-
-    try:
-        profile = ticket.user.profile
-        profile.balance = (profile.balance or 0) + refund_amount
-        profile.save(update_fields=['balance'])
-    except Exception:
-        pass
-
+    # Send notification email to user
     try:
         subject = f"Повернення коштів за квиток #{ticket.id}"
-        body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Згідно з правилами повернення, на ваш баланс зараховано {refund_amount} грн ({refund_percent}% від суми). Квиток більше недійсний."
+        if refunded_to_card:
+            body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Сума {refund_amount} {ticket.currency or 'UAH'} була надіслана на платіжний засіб, яким було сплачено (провайдер: {refund_provider_info.get('provider')}). Якщо ви не бачите коштів — зверніться до платіжного провайдера. Квиток більше недійсний."
+        else:
+            body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Сума {refund_amount} {ticket.currency or 'UAH'} зарахована на ваш баланс в системі ({refund_percent}% від суми). Квиток більше недійсний."
         msg = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [ticket.user.email])
         if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)) and pdf_bytes.strip().startswith(b'%PDF'):
             try:
@@ -4667,7 +4746,7 @@ def ticket_refund(request, ticket_id):
                 pass
         msg.send(fail_silently=True)
     except Exception:
-        pass
+        logging.exception('Failed to send refund email')
 
     try:
         user_id = ticket.user_id
@@ -4676,7 +4755,10 @@ def ticket_refund(request, ticket_id):
         user_id = ticket.user_id if hasattr(ticket, 'user_id') else None
 
     if request.method == 'POST':
-        messages.info(request, f'Квиток оброблено. Повернено {refund_amount} грн ({refund_percent}%).')
+        if refunded_to_card:
+            messages.info(request, f'Квиток оброблено. Сума {refund_amount} {ticket.currency or "UAH"} повернена на платіжний засіб ({refund_provider_info.get("provider")} ).')
+        else:
+            messages.info(request, f'Квиток оброблено. На баланс користувача зараховано {refund_amount} {ticket.currency or "UAH"} ({refund_percent}%).')
         if user_id:
             return redirect('main:support_admin_user', user_id)
         return redirect('main:profile')
