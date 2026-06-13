@@ -9,11 +9,11 @@ class Command(BaseCommand):
         site = SiteConfig.get_solo()
         # ensure basic contact info exists (admin can later edit)
         if not site.contact_email:
-            site.contact_email = 'info@dieller.bus'
+            site.contact_email = 'dieller7073@gmail.com'
         if not site.contact_phone:
-            site.contact_phone = '+380000000000'
+            site.contact_phone = '+380957058206'
         if not site.shop_address:
-            site.shop_address = 'Адреса: не вказано'
+            site.shop_address = 'м. Луцьк'
         if not site.owner_info:
             site.owner_info = 'Власник: ФОП / ТОВ — вкажіть реквізити у налаштуваннях адміністратора.'
         site.save()

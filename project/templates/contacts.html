@@ -38,8 +38,8 @@
       <div class="card">
           <div class="section-title">Контактна інформація</div>
         <ul class="contact-list">
-          <li><div class="contact-label">Телефон</div><div class="contact-value"><a href="tel:+380501234567">+38 (050) 123‑45‑67</a></div></li>
-          <li><div class="contact-label">Email</div><div class="contact-value"><a href="mailto:support@diellerbus.com">support@diellerbus.com</a></div></li>
+          <li><div class="contact-label">Телефон</div><div class="contact-value"><a href="tel:{{ site_config.contact_phone|default:'+380957058206' }}">{{ site_config.contact_phone|default:'+38 (095) 705-82-06' }}</a></div></li>
+          <li><div class="contact-label">Email</div><div class="contact-value"><a href="mailto:{{ site_config.contact_email|default:'dieller7073@gmail.com' }}">{{ site_config.contact_email|default:'dieller7073@gmail.com' }}</a></div></li>
           <li><div class="contact-label">Telegram</div><div class="contact-value"><a href="https://t.me/diellerbus">@diellerbus</a></div></li>
           <li><div class="contact-label">Графік роботи</div><div class="contact-value muted">Пн–Пт: 09:00–18:00 (UTC+2). Субота — робочі дні для оперативної підтримки за чергуванням.</div></li>
         </ul>
@@ -81,10 +81,10 @@
     <div>
       <div class="card">
         <div class="section-title">Підтримка користувачів</div>
-        <div class="support-channels">
+          <div class="support-channels">
           <div class="muted">Для питання щодо бронювання, оплати, повернень та змін:</div>
-          <div><strong>Email:</strong> <a href="mailto:support@diellerbus.com">support@diellerbus.com</a></div>
-          <div><strong>Телефон:</strong> <a href="tel:+380501234567">+38 (050) 123‑45‑67</a></div>
+          <div><strong>Email:</strong> <a href="mailto:{{ site_config.contact_email|default:'dieller7073@gmail.com' }}">{{ site_config.contact_email|default:'dieller7073@gmail.com' }}</a></div>
+          <div><strong>Телефон:</strong> <a href="tel:{{ site_config.contact_phone|default:'+380957058206' }}">{{ site_config.contact_phone|default:'+38 (095) 705-82-06' }}</a></div>
           <div><strong>Telegram:</strong> <a href="https://t.me/diellerbus">@diellerbus</a></div>
         </div>
       </div>

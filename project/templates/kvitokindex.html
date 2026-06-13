@@ -89,6 +89,15 @@
       .container.ticket-page { padding: 14px !important; }
       .page-title { font-size: 22px !important; }
     }
+    /* Prevent long text from overflowing frames on resize */
+    .container.ticket-page, .card, .trip-card, .hero-frame-caption, .page-top, .search-top {
+      box-sizing: border-box;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+    }
+    /* ensure content doesn't spill outside visible area */
+    .container.ticket-page { overflow-x: hidden; }
   </style>
 {% endblock %}
 
@@ -171,34 +180,7 @@
     <div id="resultsMeta">Натисніть “Знайти”, щоб показати доступні рейси.</div>
     <div id="resultsBadge" class="badge bg-secondary" style="display:none">0</div>
   </div>
-
-  {% if user.is_authenticated and user.is_staff and admin_support_tickets %}
-  <section class="my-4">
-    <div class="d-flex justify-content-between align-items-center">
-      <h5 style="margin:0">Нове звернення — Техпідтримка (операторам)</h5>
-      <a href="{% url 'main:support_admin' %}" class="btn btn-outline-light">В адмінку підтримки</a>
-    </div>
-    <div class="mt-3">
-      {% for t in admin_support_tickets %}
-        <div style="background:#fff;border:1px solid rgba(0,0,0,0.06);padding:12px;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <a href="{% url 'main:support_ticket_detail' t.id %}" style="font-weight:800;color:#0f172a;text-decoration:none">#{{ t.id }} — {% if t.subject %}{{ t.subject }}{% elif t.preset %}{{ t.preset.title }}{% endif %}</a>
-            <div class="muted-small">Користувач: <strong>{{ t.user.username }}</strong> · {{ t.created_at|date:'d.m.Y H:i' }}</div>
-          </div>
-          <div>
-            {% if t.status == 'new' %}
-              <span class="badge bg-secondary">Не в роботі</span>
-            {% elif t.status == 'in_progress' %}
-              <span class="badge bg-warning text-dark">В роботі</span>
-            {% else %}
-              <span class="badge bg-success">Закрито</span>
-            {% endif %}
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
+  
 
   <div class="results-table mb-3">
     <div class="results-headers d-none d-md-flex text-uppercase small muted-small">

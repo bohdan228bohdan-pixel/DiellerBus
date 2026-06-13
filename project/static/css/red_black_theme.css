@@ -111,6 +111,25 @@ body{
 .footer-links a{color:var(--muted);text-decoration:none}
 .footer-bottom{border-top:1px solid rgba(255,255,255,0.02);padding-top:12px}
 
+/* Compact footer contact styles */
+.footer-logo{width:64px;height:64px;object-fit:cover;border-radius:10px;border:2px solid rgba(255,255,255,0.04);display:inline-block}
+.footer-contact{display:flex;flex-direction:column;align-items:flex-end}
+.footer-contact .muted-small,.footer-contact .contact-more{max-width:320px;text-align:right}
+@media (max-width:767px){
+  .footer-contact{align-items:flex-start;text-align:left}
+  .footer-contact .muted-small,.footer-contact .contact-more{max-width:100%;text-align:left}
+  .footer-logo{width:48px;height:48px}
+}
+
+/* Force footer logo size to avoid overrides from other rules */
+.site-footer .footer-logo{
+  width:64px !important;
+  height:64px !important;
+  max-width:64px !important;
+  display:inline-block !important;
+  object-fit:cover !important;
+}
+
 /* Floating contact */
 .fab-contact{position:fixed;right:18px;bottom:18px;background:var(--accent-red);color:#fff;padding:12px 14px;border-radius:999px;box-shadow:0 14px 40px rgba(225,11,0,0.22);z-index:60;border:none}
 

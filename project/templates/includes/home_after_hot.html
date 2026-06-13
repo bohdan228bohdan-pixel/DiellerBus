@@ -1,0 +1,18 @@
+{% comment %} Minimal include used below homepage hot trips section. {% endcomment %}
+<section class="home-after container my-5">
+  <div class="row">
+    <div class="col-12">
+      <h2>Додаткова інформація</h2>
+      <p>Корисні питання та швидка допомога:</p>
+      {% if presets %}
+        <ul>
+          {% for p in presets %}
+            <li>{{ p.question }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Поки немає додаткових питань.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>

@@ -93,26 +93,16 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
           </ul>
         </div>
-        <div class="col-md-4 mb-3 text-md-end">
+        <div class="col-md-4 mb-3 text-md-end footer-contact">
+          <img src="{% static 'img/logo.jpg' %}" alt="{{ site_config.shop_name|default:'Dieller Bus' }}" class="footer-logo mb-2">
           <h5>Контакти</h5>
-          <div class="muted-small">Тел: <a href="tel:{{ site_config.contact_phone|default:'+380000000000' }}">{{ site_config.contact_phone|default:'+38 (000) 000-00-00' }}</a></div>
-          <div class="muted-small mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'info@dieller.bus' }}">{{ site_config.contact_email|default:'info@dieller.bus' }}</a></div>
+          <div class="muted-small">Тел: <a href="tel:{{ site_config.contact_phone|default:'+380957058206' }}">{{ site_config.contact_phone|default:'+38 (095) 705-82-06' }}</a></div>
+          <div class="muted-small mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'dieller7073@gmail.com' }}">{{ site_config.contact_email|default:'dieller7073@gmail.com' }}</a></div>
 
           <div class="contact-more mt-3 text-md-end">
             <strong>Додаткові відомості</strong>
-            <p class="muted-small mb-0">Адреса офісу, реквізити для договорів та інші документи надаються за запитом через email для бізнес‑партнерів та контрагентів.</p>
-          </div>
-
-          <div class="socials-links mt-3">
-            <ul class="list-unstyled d-flex gap-2 justify-content-end align-items-center mb-2">
-              <li><a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer">TikTok</a></li>
-              <li><a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">Instagram</a></li>
-              <li><a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">Facebook</a></li>
-            </ul>
-
-            <div>
-              {% include 'includes/socials.html' %}
-            </div>
+            <p class="muted-small mb-0">Адреса: {{ site_config.shop_address|default:'м. Луцьк' }}</p>
+            <p class="muted-small mb-0">Реквізити та договори — за запитом через email.</p>
           </div>
         </div>
       </div>
@@ -137,7 +127,7 @@
   {% block scripts %}{% endblock %}
   
   <!-- Floating contact button -->
-  <a class="fab-contact" href="tel:+380000000000" aria-label="Contact us">📞</a>
+    <a class="fab-contact" href="tel:{{ site_config.contact_phone|default:'+380957058206' }}" aria-label="Contact us">📞</a>
 
   {% include 'includes/support_widget.html' %}
 

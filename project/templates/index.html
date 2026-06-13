@@ -117,26 +117,59 @@
     .accordion-body{background:transparent;color:#ddd}
     .socials-list .social-tile{transition:all .15s ease}
     .socials-list .social-link:hover .social-tile{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.4)}
+
+      /* Hero banner (large headline like in provided screenshot) */
+      .hero{position:relative;background-size:cover;background-position:center;padding:48px 0}
+      .hero .overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65));}
+      .hero-banner{position:relative;z-index:2;text-align:center;color:#fff;margin-bottom:14px}
+      .hero-main-title{font-size:3rem;font-weight:900;letter-spacing:1px;margin:0;color:#fff}
+      .hero-banner .routes-sub{color:var(--muted);font-weight:800;margin-top:8px}
+
+      /* Red-black styling for hot trips (bigger price, stronger contrast) */
+      .routes.hot-banner{position:relative;padding:56px 0;border-radius:6px;color:#fff;background-size:cover;background-position:center;margin-bottom:18px}
+      .routes.hot-banner .hot-overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.65));z-index:0;border-radius:6px}
+      .routes.hot-banner .container{position:relative;z-index:2}
+      .hot-card{min-width:260px;flex:0 0 auto;background:linear-gradient(180deg,#0b0b0b,#0a0a0a);border-radius:12px;overflow:hidden;border:1px solid rgba(225,11,0,0.12);text-decoration:none;color:inherit;box-shadow:0 12px 36px rgba(0,0,0,0.55)}
+      .hot-card .hot-img{display:none}
+      .hot-body{padding:20px;display:flex;flex-direction:column;gap:6px;min-height:160px;justify-content:center}
+      .hot-label{font-weight:800;color:var(--muted);font-size:.85rem}
+      .hot-destination{font-weight:900;color:#fff;font-size:1.2rem}
+      .hot-price{font-weight:900;color:var(--accent-red);font-size:2rem}
+      .hot-sub{color:var(--muted);font-size:0.95rem}
+      .hot-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+      .hot-badge{background:var(--accent-red);color:#fff;padding:6px 10px;border-radius:10px;font-weight:900}
+
   </style>
 </head>
 <body>
   <header class="site-header">
-    <div class="container d-flex align-items-center justify-content-between">
-      <a class="brand" href="#">Dieller<span>Bus</span></a>
+      <div class="container d-flex align-items-center justify-content-between">
+        <a class="brand" href="#">Dieller<span>Bus</span></a>
 
-      <nav class="nav-actions">
-        {% if user.is_authenticated %}
-          <a href="{% url 'main:profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
-        {% else %}
-          <a href="{% url 'main:registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
-        {% endif %}
-      </nav>
-    </div>
+        <nav class="nav-actions d-flex align-items-center gap-3">
+          <ul class="header-links list-unstyled d-flex gap-3 mb-0">
+            <li><a href="{% url 'main:home' %}" class="nav-link">Головна</a></li>
+            <li><a href="{% url 'main:kvitokindex' %}" class="nav-link">Квитки</a></li>
+            <li><a href="{% url 'main:nashbusindex' %}" class="nav-link">Каталог</a></li>
+            <li><a href="{% url 'main:agreements' %}" class="nav-link">Публічна оферта</a></li>
+          </ul>
+
+          {% if user.is_authenticated %}
+            <a href="{% url 'main:profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
+          {% else %}
+            <a href="{% url 'main:registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
+          {% endif %}
+        </nav>
+      </div>
   </header>
 
   <main class="site-main">
     <section class="hero" id="hero">
       <div class="overlay"></div>
+      <div class="hero-banner container" data-aos="fade-up">
+        <h1 class="hero-main-title">Широка маршрутна мережа</h1>
+        <p class="routes-sub">ПОПУЛЯРНІ АВТОБУСНІ МАРШРУТИ</p>
+      </div>
       <div class="container hero-inner">
         <div class="hero-left" data-aos="fade-right">
           <p class="eyebrow">ПОДОРОЖУЙ РОЗУМНО</p>
@@ -305,35 +338,39 @@
       </section>
     </section>
 
-    <!-- ГАРЯЧІ ПОЇЗДКИ -->
-    <section class="routes container" data-aos="fade-up">
-      <h2 class="routes-title">Гарячі поїздки!</h2>
-      <p class="routes-sub">Популярні напрямки — перегортайте вліво/вправо, щоб побачити деталі.</p>
+    <!-- ГАРЯЧІ ПОЇЗДКИ (banner with ticket cards) -->
+    <section class="routes hot-banner" style="background-image:url('{% static 'img/mercedes.jpg' %}');" data-aos="fade-up">
+      <div class="hot-overlay" aria-hidden="true"></div>
+      <div class="container">
+        <h2 class="routes-title">Гарячі поїздки!</h2>
+        <p class="routes-sub">Популярні напрямки — перегортайте вліво/вправо, щоб побачити деталі.</p>
 
-      <div class="hot-scroll" style="margin-top:12px;">
-        {% if hot_trips %}
-          <div class="hot-row">
-            {% for trip in hot_trips %}
-              <a class="hot-card" href="{% url 'main:kvitokindex' %}?from={{ trip.start_city.name }}&to={{ trip.end_city.name }}{% if trip.date %}&date={{ trip.date|date:'Y-m-d' }}{% endif %}">
-                <div class="hot-img">
-                  <img src="{% static 'img/logo.jpg' %}" alt="{{ trip.route.name }}">
-                </div>
-                <div class="hot-body">
-                  <div class="hot-top">
-                    <div class="hot-title">{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</div>
-                    {% if trip.sold and trip.sold > 3 %}
-                      <span class="hot-badge">ТОП</span>
-                    {% endif %}
+        <div class="hot-scroll" style="margin-top:18px;">
+          {% if hot_trips %}
+            <div class="hot-row">
+              {% for trip in hot_trips %}
+                <a class="hot-card" href="{% url 'main:kvitokindex' %}?from={{ trip.start_city.name }}&to={{ trip.end_city.name }}{% if trip.date %}&date={{ trip.date|date:'Y-m-d' }}{% endif %}">
+                  <div class="hot-body">
+                    <div class="hot-top">
+                      <div>
+                        <div class="hot-label">{{ trip.start_city }} →</div>
+                        <div class="hot-destination">{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</div>
+                      </div>
+                      {% if trip.sold and trip.sold > 3 %}
+                        <span class="hot-badge">ТОП</span>
+                      {% endif %}
+                    </div>
+
+                    <div class="hot-price">{{ trip.base_price|floatformat:0 }} {{ trip.currency }}</div>
+                    <div class="hot-sub">{% if trip.date %}{{ trip.date|date:'d.m.Y' }}{% endif %}</div>
                   </div>
-                  <div class="hot-sub">{{ trip.start_city }} → {{ trip.end_city }}</div>
-                  <div class="hot-meta">{{ trip.date|date:'d.m.Y' }} · {{ trip.base_price|floatformat:0 }} {{ trip.currency }}</div>
-                </div>
-              </a>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div style="color:var(--muted)">Поки немає гарячих поїздок.</div>
-        {% endif %}
+                </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div style="color:var(--muted)">Поки немає гарячих поїздок.</div>
+          {% endif %}
+        </div>
       </div>
     </section>
 
@@ -347,9 +384,33 @@
   </main>
 
   <footer class="site-footer">
-    <div class="container d-flex justify-content-between align-items-center">
-      <div>© Dieller Bus — Всі права захищені</div>
-      <div class="socials">📞 <a href="#">Контакти</a></div>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <h5>Про нас</h5>
+          <p class="muted-small">DiellerBus — платформа для пошуку, бронювання та купівлі автобусних квитків. Ми об'єднуємо пропозиції перевізників у зручному інтерфейсі.</p>
+        </div>
+        <div class="col-md-4 mb-3">
+          <h5>Швидкі посилання</h5>
+          <ul class="footer-links list-unstyled">
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:agreements' %}">Публічна оферта</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:privacy' %}">Політика конфіденційності</a></li>
+          </ul>
+        </div>
+        <div class="col-md-4 mb-3 text-md-end">
+          <h5>Контакти</h5>
+          <div class="muted-small">📞 <a href="tel:+380000000000">+38 (000) 000-00-00</a></div>
+          <div class="muted-small mt-2">📧 <a href="mailto:info@example.com">info@example.com</a></div>
+        </div>
+      </div>
+
+      <div class="footer-bottom mt-3 d-flex justify-content-between align-items-center">
+        <div>© Dieller Bus — Всі права захищені</div>
+        <div class="muted-small">Made with ❤️</div>
+      </div>
     </div>
   </footer>
 
@@ -361,4 +422,3 @@
   </script>
 </body>
 </html>
-
