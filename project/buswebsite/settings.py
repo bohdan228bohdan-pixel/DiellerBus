@@ -214,16 +214,18 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', "")
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <dieller7073@gmail.com>")
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <noreply@diellerbus.com>")
 
-# Prefer using the SMTP login as the default sender address when provided.
-# Format it as a friendly sender name so outgoing messages appear as:
-# "Dieller Bus <email@domain>".
+# Prefer using the SMTP login as the default sender address when provided,
+# but do not override an explicit DEFAULT_FROM_EMAIL set via environment.
 try:
-    if EMAIL_HOST_USER:
+    if EMAIL_HOST_USER and not os.environ.get('DEFAULT_FROM_EMAIL'):
         DEFAULT_FROM_EMAIL = f"Dieller Bus <{EMAIL_HOST_USER}>"
 except Exception:
     pass
+
+# Address used for server error emails and other automated system messages.
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Comma-separated list of usernames or emails that should be allowed access
 # to support/admin endpoints in addition to staff users. Example: "dieller,ops@org.com"
@@ -336,9 +338,7 @@ LOGIN_URL = '/register/'
 
 STATIC_URL = '/static/'
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
