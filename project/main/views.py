@@ -2273,7 +2273,19 @@ def registerindex(request):
                         [email],
                     )
                     msg.attach_alternative(html, "text/html")
-                    msg.send(fail_silently=False)
+                    # Use a short SMTP timeout and an explicit connection so a blocked
+                    # SMTP server doesn't hang or kill gunicorn workers. Configure
+                    # timeout via the EMAIL_TIMEOUT env var (seconds).
+                    from django.core.mail import get_connection
+                    timeout = int(os.environ.get('EMAIL_TIMEOUT', '10'))
+                    conn = get_connection(timeout=timeout)
+                    try:
+                        conn.send_messages([msg])
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
                 except Exception:
                     try:
                         send_mail(
