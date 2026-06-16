@@ -22,7 +22,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark" aria-label="Main navigation">
       <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="{% url 'main:home' %}">
-          <img src="{% static 'img/logo.jpg' %}" alt="logo" class="brand-img-small"> 
+          <img src="{% static 'img/logo_bodia.png' %}" alt="logo" class="brand-img-small"> 
           <span class="brand">{{ site_config.shop_name|default:'Dieller Bus' }}</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -94,7 +94,7 @@
           </ul>
         </div>
         <div class="col-md-4 mb-3 text-md-end footer-contact">
-          <img src="{% static 'img/logo.jpg' %}" alt="{{ site_config.shop_name|default:'Dieller Bus' }}" class="footer-logo mb-2">
+          <img src="{% static 'img/логоБодяD.png' %}" alt="{{ site_config.shop_name|default:'Dieller Bus' }}" class="footer-logo mb-2">
           <h5>Контакти</h5>
           <div class="muted-small">Тел: <a href="tel:{{ site_config.contact_phone|default:'+380957058206' }}">{{ site_config.contact_phone|default:'+38 (095) 705-82-06' }}</a></div>
           <div class="muted-small mt-2">📧 <a href="mailto:{{ site_config.contact_email|default:'dieller7073@gmail.com' }}">{{ site_config.contact_email|default:'dieller7073@gmail.com' }}</a></div>
