@@ -262,7 +262,23 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Static files (WhiteNoise)
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Prefer manifest storage in production for hashed filenames. If the
+# manifest hasn't been generated (collectstatic not run) or the
+# `DISABLE_MANIFEST_STORAGE` env var is set to 'True', fall back to the
+# non-manifest storage so the site can still serve static files.
+_manifest_storage = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+_fallback_storage = 'whitenoise.storage.CompressedStaticFilesStorage'
+if os.environ.get('DISABLE_MANIFEST_STORAGE', 'False') == 'True':
+    STATICFILES_STORAGE = _fallback_storage
+else:
+    try:
+        _manifest_file = os.path.join(STATIC_ROOT, 'staticfiles.json')
+        if os.path.exists(_manifest_file):
+            STATICFILES_STORAGE = _manifest_storage
+        else:
+            STATICFILES_STORAGE = _fallback_storage
+    except Exception:
+        STATICFILES_STORAGE = _fallback_storage
 
 # Development convenience defaults: when DEBUG=True make common local
 # testing settings safe and easy to use. These defaults can be overridden
@@ -329,7 +345,7 @@ LOGGING = {
     }
 }
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = STATICFILES_STORAGE
 
 # Redirect unauthenticated users to registration page when protected views are accessed
 LOGIN_URL = '/register/'
@@ -342,4 +358,4 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = STATICFILES_STORAGE
