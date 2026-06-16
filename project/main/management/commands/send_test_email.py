@@ -1,4 +1,40 @@
 from django.core.management.base import BaseCommand
+from django.core.mail import send_mail
+from django.conf import settings
+
+
+class Command(BaseCommand):
+    help = 'Send a test email using the configured email backend (e.g. Brevo SMTP)'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--to', '-t', default=None, help='Destination email address')
+        parser.add_argument('--subject', '-s', default='Test message from Dieller Bus')
+        parser.add_argument('--body', '-b', default='This is a test message sent by management command send_test_email.')
+
+    def handle(self, *args, **options):
+        to = options.get('to')
+        if not to:
+            # Try to derive a sensible recipient from DEFAULT_FROM_EMAIL
+            default_from = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or ''
+            if '<' in default_from and '>' in default_from:
+                to = default_from.split('<')[-1].rstrip('>')
+        if not to:
+            self.stderr.write(self.style.ERROR('No recipient specified. Provide --to EMAIL'))
+            return
+
+        subject = options.get('subject')
+        body = options.get('body')
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+
+        try:
+            sent = send_mail(subject, body, from_email, [to], fail_silently=False)
+            if sent:
+                self.stdout.write(self.style.SUCCESS(f'Successfully sent {sent} message(s) to {to}'))
+            else:
+                self.stderr.write(self.style.ERROR('send_mail returned 0 (no messages sent)'))
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(f'Failed to send email: {e}'))
+from django.core.management.base import BaseCommand
 from django.core.mail import send_mail, EmailMessage
 from django.conf import settings
 
