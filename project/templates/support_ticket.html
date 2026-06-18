@@ -45,7 +45,7 @@
         <div class="message-row {% if m.is_from_admin %}from-admin{% else %}from-user{% endif %}">
           <div class="sender-with-avatar">
             {% if m.sender and m.sender.profile.avatar %}
-              <div class="avatar-small"><img src="{{ m.sender.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';"></div>
+              <div class="avatar-small"><img src="{{ m.sender.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';"></div>
             {% else %}
               <div class="avatar-small">{% if m.sender %}{{ m.sender.username|slice:":1"|upper }}{% else %}С{% endif %}</div>
             {% endif %}
@@ -62,7 +62,7 @@
               </div>
               <div class="message-body">{{ m.text|linebreaksbr }}
                 {% if m.attachment %}
-                  <div class="attachment"><a href="{{ m.attachment.url }}" target="_blank"><img src="{{ m.attachment.url }}" alt="attachment" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';"></a></div>
+                  <div class="attachment"><a href="{{ m.attachment.url }}" target="_blank"><img src="{{ m.attachment.url }}" alt="attachment" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';"></a></div>
                 {% endif %}
               </div>
             </div>
@@ -90,7 +90,7 @@
           <h5>Профіль користувача</h5>
           <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
             {% if ticket.user.profile.avatar %}
-              <img src="{{ ticket.user.profile.avatar.url }}" alt="avatar" style="width:64px;height:64px;border-radius:8px;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';">
+              <img src="{{ ticket.user.profile.avatar.url }}" alt="avatar" style="width:64px;height:64px;border-radius:8px;object-fit:cover" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';">
             {% else %}
               <div class="avatar-small" style="width:64px;height:64px">{{ ticket.user.username|slice:":1"|upper }}</div>
             {% endif %}

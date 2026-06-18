@@ -1,113 +1,160 @@
-/* Секції "Як з нами працювати" та "Чому вибирають нас?" */
-.how-we-work, .why-choose-us {
+/* ===== DARK SECTIONS FIX ===== */
+
+/* секції */
+.how-we-work, 
+.why-choose-us {
   max-width: 1100px;
   margin: 40px auto 30px;
   padding: 0 10px;
   text-align: center;
 }
-.how-we-work h2, .why-choose-us h2 {
+
+/* заголовки */
+.how-we-work h2, 
+.why-choose-us h2 {
   font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 16px;
-  color: #ff7f00;
+  font-weight: 800;
+  margin-bottom: 20px;
+  color: #ff2a2a;
 }
+
+/* STEPS */
 .steps {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
   justify-content: center;
 }
+
+/* 🔥 ГОЛОВНЕ — темний фон */
 .step {
   flex: 1 1 180px;
   max-width: 220px;
-  background: #fff7f0;
+  background: #151515; /* було біле */
   border-radius: 12px;
-  padding: 18px 10px;
-  box-shadow: 0 2px 8px #ffae4222;
-  margin-bottom: 10px;
+  padding: 20px 12px;
+  border: 1px solid #222;
+  box-shadow: 0 0 15px rgba(255,0,0,0.1);
+  transition: 0.3s;
 }
+
+/* hover */
+.step:hover {
+  transform: translateY(-5px);
+  border-color: #ff2a2a;
+  box-shadow: 0 0 25px rgba(255,0,0,0.4);
+}
+
+/* іконка */
 .icon-wrapper {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 10px;
-  border: 2px solid #ff7f00;
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 12px;
+  border: 2px solid #ff2a2a;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ff7f00;
-  font-size: 28px;
-  background: #fff;
+  color: #ff2a2a;
+  font-size: 26px;
+  background: #111;
 }
+
+/* текст */
 .step h3 {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   margin-bottom: 6px;
-  color: #222;
+  color: #fff;
 }
+
 .step p {
   font-size: 0.95rem;
-  color: #666;
+  color: #aaa;
 }
+
+/* WHY CHOOSE */
 .why-choose-us {
-  background: #fff7f0;
+  background: #111; /* було світле */
   border-radius: 18px;
-  box-shadow: 0 2px 8px #ffae4222;
   padding: 30px 10px 40px;
+  border: 1px solid #222;
 }
+
+/* GRID */
 .reasons-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
   gap: 18px;
 }
+
+/* картки */
 .reason {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  background: #fff;
+  background: #151515; /* 🔥 темний */
   border-radius: 10px;
-  padding: 14px 10px;
-  box-shadow: 0 1px 4px #ffae4211;
+  padding: 16px 12px;
+  border: 1px solid #222;
+  transition: 0.3s;
 }
+
+.reason:hover {
+  border-color: #ff2a2a;
+  box-shadow: 0 0 20px rgba(255,0,0,0.3);
+}
+
+/* іконка */
 .reason-icon {
-  width: 38px;
-  height: 38px;
-  border: 2px solid #ff7f00;
+  width: 40px;
+  height: 40px;
+  border: 2px solid #ff2a2a;
   border-radius: 50%;
-  color: #ff7f00;
+  color: #ff2a2a;
   font-size: 20px;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #fff7f0;
+  background: #111;
 }
+
+/* текст */
 .reason-text {
   text-align: left;
 }
+
 .reason-text h3 {
   font-size: 1rem;
-  color: #ff7f00;
+  color: #ff2a2a;
   margin-bottom: 4px;
 }
+
 .reason-text p {
   font-size: 0.92rem;
-  color: #444;
+  color: #bbb;
 }
+
+/* ===== MOBILE ===== */
 @media (max-width: 600px) {
   .steps {
     flex-direction: column;
     gap: 12px;
   }
+
   .step {
     max-width: 100%;
   }
+
   .reasons-grid {
     grid-template-columns: 1fr;
   }
+
   .reason {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
+
   .reason-text {
     text-align: center;
   }

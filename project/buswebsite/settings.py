@@ -206,29 +206,41 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = os.environ.get('EMAIL_HOST', "smtp.gmail.com")
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-# Support SSL (port 465) when required by the SMTP provider. If
-# `EMAIL_USE_SSL` is true we force TLS off to avoid conflicting settings.
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+from django.core.exceptions import ImproperlyConfigured
+
+
+def _get_env(key, default=None, cast=None, required_in_prod=False):
+    v = os.environ.get(key, default)
+    if v is None:
+        if required_in_prod and not DEBUG:
+            raise ImproperlyConfigured(f"{key} environment variable is required in production")
+        return v
+    if cast:
+        try:
+            if cast is bool:
+                return str(v).lower() in ('1', 'true', 'yes')
+            return cast(v)
+        except Exception:
+            raise ImproperlyConfigured(f"Invalid value for {key}")
+    return v
+
+
+# Email configuration (Brevo SMTP). Values must be supplied via environment
+# variables in production. Defaults are lenient for local development only.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = _get_env('EMAIL_HOST', None, cast=str, required_in_prod=True) or os.environ.get('EMAIL_HOST', 'smtp-relay.brevo.com')
+EMAIL_PORT = _get_env('EMAIL_PORT', '587', cast=int)
+EMAIL_USE_TLS = _get_env('EMAIL_USE_TLS', 'True', cast=bool)
+EMAIL_USE_SSL = _get_env('EMAIL_USE_SSL', 'False', cast=bool)
 if EMAIL_USE_SSL:
     EMAIL_USE_TLS = False
 
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', "")
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_USER = _get_env('EMAIL_HOST_USER', None, cast=str, required_in_prod=True)
+EMAIL_HOST_PASSWORD = _get_env('EMAIL_HOST_PASSWORD', None, cast=str, required_in_prod=True)
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', "Dieller Bus <dieller7073@gmail.com>")
-
-# Prefer using the SMTP login as the default sender address when provided.
-# Format it as a friendly sender name so outgoing messages appear as:
-# "Dieller Bus <email@domain>".
-try:
-    if EMAIL_HOST_USER:
-        DEFAULT_FROM_EMAIL = f"Dieller Bus <{EMAIL_HOST_USER}>"
-except Exception:
-    pass
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or (f"Dieller Bus <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else None)
+if not DEFAULT_FROM_EMAIL and not DEBUG:
+    raise ImproperlyConfigured('DEFAULT_FROM_EMAIL environment variable is required in production')
 
 # Comma-separated list of usernames or emails that should be allowed access
 # to support/admin endpoints in addition to staff users. Example: "dieller,ops@org.com"

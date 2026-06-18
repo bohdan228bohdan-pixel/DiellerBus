@@ -239,9 +239,9 @@ class TripAdmin(admin.ModelAdmin):
                     )
                     if to_email:
                         try:
-                            res = send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=False)
-                            if isinstance(res, int):
-                                notified += res
+                            from .email_utils import send_email
+                            send_email(subject, body, [to_email], from_email=settings.DEFAULT_FROM_EMAIL, fail_silently=False, async_send=True)
+                            notified += 1
                         except Exception:
                             logging.exception('Failed to send cancellation email for ticket %s', ticket.id)
                 except Exception:

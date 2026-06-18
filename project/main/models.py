@@ -587,11 +587,10 @@ class SupportWorker(models.Model):
 
             # try to email credentials to the worker (best-effort)
             try:
-                from django.core.mail import EmailMessage
+                from .email_utils import send_email
                 subject = 'Акаунт для техпідтримки — Dieller Bus'
                 body = f"Привіт\n\nБуло створено акаунт для техпідтримки. Логін: {user.username}\nПароль: {raw_pw}\n\nЗмініть пароль після входу."
-                msg = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [self.email])
-                msg.send(fail_silently=True)
+                send_email(subject, body, [self.email], from_email=settings.DEFAULT_FROM_EMAIL, fail_silently=True, async_send=True)
             except Exception:
                 pass
 
@@ -659,11 +658,10 @@ class Carrier(models.Model):
 
             # try to email credentials to the carrier (best-effort)
             try:
-                from django.core.mail import EmailMessage
+                from .email_utils import send_email
                 subject = 'Акаунт перевізника — Dieller Bus'
                 body = f"Привіт\n\nБуло створено акаунт перевізника. Логін: {user.username}\nПароль: {raw_pw}\n\nЗмініть пароль після входу."
-                msg = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [self.email])
-                msg.send(fail_silently=True)
+                send_email(subject, body, [self.email], from_email=settings.DEFAULT_FROM_EMAIL, fail_silently=True, async_send=True)
             except Exception:
                 pass
 

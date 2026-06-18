@@ -54,7 +54,7 @@
 {% block content %}
   <div class="profile-container" data-aos="fade-up">
     <div class="profile-header">
-      <div class="avatar">{% if user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.onerror=null;this.src='{% static 'img/logo.jpg' %}';">{% else %}{{ user.username|slice:":1"|upper }}{% endif %}</div>
+      <div class="avatar">{% if user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';">{% else %}{{ user.username|slice:":1"|upper }}{% endif %}</div>
       <h2 style="color:#fff;margin:0">Профіль користувача</h2>
     </div>
 

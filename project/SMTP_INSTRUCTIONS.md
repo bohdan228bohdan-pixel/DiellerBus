@@ -46,3 +46,26 @@ Security
 If you want, I can:
 - create a short PR that updates any deployment README with these env var names (done),
 - or prepare a small script to rotate a test message and report success into logs.
+
+Render-specific notes
+---------------------
+- Recommended SMTP host for Brevo: `smtp-relay.brevo.com` (port `587`, TLS `True`).
+- On Render: open your service → Environment → Add Environment Variables and set:
+
+```
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp-relay.brevo.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=apikey
+EMAIL_HOST_PASSWORD=<YOUR_BREVO_SMTP_KEY>
+DEFAULT_FROM_EMAIL=Dieller Bus <noreply@yourdomain.com>
+```
+
+- After adding env vars, deploy/restart the service. Test with the management command:
+
+```bash
+python manage.py send_test_email --to you@example.com --subject "Render Brevo test" --message "Hello from Render"
+```
+
+If the command prints a success message, incoming SMTP logs in Brevo will also show activity. If sending fails, check Render logs and verify the SMTP key and host values.
