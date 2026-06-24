@@ -155,6 +155,67 @@ def _qr_png_bytes(data, size=220):
         from reportlab.graphics import renderPM
     except Exception:
         return None
+
+    try:
+        qr = QrCodeWidget(data)
+        bounds = qr.getBounds()
+        qr_w = bounds[2] - bounds[0]
+        qr_h = bounds[3] - bounds[1]
+        d = Drawing(size, size)
+        d.add(qr)
+        png = renderPM.drawToString(d, fmt='PNG')
+        return png
+    except Exception:
+        return None
+
+
+def find_trip_fare(trip, from_city, to_city):
+    """Resolve an explicit TripFare for a pair of cities, taking into
+    account route-level `include_subcities`. If `include_subcities` is True,
+    this will attempt parent-city fallbacks so fares defined for a main city
+    are applied to its subcities.
+    Returns a TripFare instance or None.
+    """
+    try:
+        if not trip or not from_city or not to_city:
+            return None
+
+        # try exact match first
+        try:
+            fare = trip.fares.filter(from_city=from_city, to_city=to_city).first()
+        except Exception:
+            fare = TripFare.objects.filter(trip=trip, from_city=from_city, to_city=to_city).first()
+        if fare and getattr(fare, 'price', None) is not None and float(fare.price or 0) > 0:
+            return fare
+
+        include = getattr(getattr(trip, 'route', None), 'include_subcities', False)
+        if not include:
+            return None
+
+        # build parent chain (self, parent, grandparent...)
+        def hierarchy(c):
+            res = []
+            cur = c
+            seen = set()
+            while cur and getattr(cur, 'id', None) and cur.id not in seen:
+                res.append(cur)
+                seen.add(cur.id)
+                cur = getattr(cur, 'parent', None)
+            return res
+
+        from_cands = hierarchy(from_city)
+        to_cands = hierarchy(to_city)
+        for fc in from_cands:
+            for tc in to_cands:
+                try:
+                    f = trip.fares.filter(from_city=fc, to_city=tc).first()
+                except Exception:
+                    f = TripFare.objects.filter(trip=trip, from_city=fc, to_city=tc).first()
+                if f and getattr(f, 'price', None) is not None and float(f.price or 0) > 0:
+                    return f
+    except Exception:
+        return None
+    return None
     try:
         qr = QrCodeWidget(data)
         bounds = qr.getBounds()
@@ -1231,241 +1292,6 @@ def support_ticket_detail(request, ticket_id):
     can_refund = bool(request.user.is_staff and (getattr(ticket, 'ticket', None) or refund_preset))
 
     return render(request, 'support_ticket.html', {'ticket': ticket, 'messages': messages, 'form': form, 'can_refund': can_refund})
-    # normalize search tokens
-    def normalize_text(s):
-        if not s:
-            return ''
-        s = str(s).strip().lower()
-        s = unicodedata.normalize('NFKD', s)
-        s = ''.join(ch for ch in s if not unicodedata.combining(ch))
-        # keep cyrillic/latin letters, numbers and spaces
-        s = re.sub(r'[^0-9a-z\u0400-\u04FF\s]', '', s)
-        s = re.sub(r'\s+', ' ', s).strip()
-        return s
-
-    def similar(a, b):
-        try:
-            return difflib.SequenceMatcher(None, a, b).ratio()
-        except Exception:
-            return 0.0
-
-    q_from = normalize_text(from_name)
-    q_to = normalize_text(to_name)
-
-    # parse optional `date` param (accept YYYY-MM-DD or DD.MM.YYYY)
-    date_str = request.GET.get('date') or request.GET.get('travel_date')
-    date_obj = None
-    if date_str:
-        from datetime import datetime
-        try:
-            date_obj = datetime.fromisoformat(date_str).date()
-        except Exception:
-            try:
-                date_obj = datetime.strptime(date_str, '%d.%m.%Y').date()
-            except Exception:
-                date_obj = None
-
-    trips_qs = Trip.objects.filter(active=True)
-    if date_obj:
-        # Use Exists/OuterRef to avoid join/EXCLUDE semantics that accidentally
-        # exclude trips because of unrelated availability rows.
-        unavail_qs = TripDayAvailability.objects.filter(trip=OuterRef('pk'), date=date_obj, available=False)
-        avail_qs = TripDayAvailability.objects.filter(trip=OuterRef('pk'), date=date_obj, available=True)
-        trips_qs = trips_qs.annotate(unavailable_on_date=Exists(unavail_qs), available_on_date=Exists(avail_qs))
-        trips_qs = trips_qs.filter(unavailable_on_date=False).filter(
-            Q(date__isnull=True) | Q(date=date_obj) | Q(available_on_date=True)
-        )
-    if direction:
-        trips_qs = trips_qs.filter(direction=direction)
-
-    # iterate trips and try flexible matching: match by TripStop city/address or RouteStop
-    for trip in trips_qs.select_related('route'):
-        trip_stops = list(trip.trip_stops.select_related('city').all())
-        route_stops = list(trip.route.stops.select_related('city').all()) if trip.route_id else []
-
-        def find_match(stops_list, token):
-            token_norm = normalize_text(token)
-            if not token_norm:
-                return None
-            for s in stops_list:
-                city_name_raw = (s.city.name if getattr(s, 'city', None) else '') or ''
-                city_name = normalize_text(city_name_raw)
-                addr = normalize_text((s.address or ''))
-                # direct substring matches (only when fields are non-empty)
-                if city_name and (token_norm in city_name or city_name in token_norm):
-                    return s
-                if addr and (token_norm in addr or addr in token_norm):
-                    return s
-                # fuzzy match fallback
-                if city_name and similar(token_norm, city_name) >= 0.60:
-                    return s
-                if addr and similar(token_norm, addr) >= 0.60:
-                    return s
-            return None
-
-        from_stop = find_match(trip_stops, q_from) or find_match(route_stops, q_from)
-        to_stop = find_match(trip_stops, q_to) or find_match(route_stops, q_to)
-
-        # Fallback: if trip has explicit start/end cities, allow matching by them
-        try:
-            if (not from_stop) and getattr(trip, 'start_city', None):
-                sc = trip.start_city.name.lower() if trip.start_city and trip.start_city.name else ''
-                if sc and (q_from in sc or sc in q_from):
-                    # prefer trip stop matching the start_city
-                    from_stop = trip.trip_stops.filter(city=trip.start_city).select_related('city').first() or None
-                    if not from_stop and route_stops:
-                        from_stop = next((s for s in route_stops if getattr(s.city, 'id', None) == trip.start_city.id), None)
-
-            if (not to_stop) and getattr(trip, 'end_city', None):
-                ec = trip.end_city.name.lower() if trip.end_city and trip.end_city.name else ''
-                if ec and (q_to in ec or ec in q_to):
-                    to_stop = trip.trip_stops.filter(city=trip.end_city).select_related('city').first() or None
-                    if not to_stop and route_stops:
-                        to_stop = next((s for s in route_stops if getattr(s.city, 'id', None) == trip.end_city.id), None)
-        except Exception:
-            # defensive: if any relation is missing, continue without fallback
-            pass
-
-        if not from_stop or not to_stop:
-            # no match for this trip
-            continue
-
-        from_order = getattr(from_stop, 'order', None)
-        to_order = getattr(to_stop, 'order', None)
-        if from_order is None or to_order is None:
-            continue
-
-        # ensure correct ordering depending on trip direction
-        # If orders are equal but trip has explicit start/end cities, allow when they match the searched endpoints
-        # ordering rules: domestic & UA→PL trips should have increasing stop orders
-        if trip.direction in ('UA_PL', 'UA_UA'):
-            if from_order > to_order:
-                continue
-            if from_order == to_order:
-                # equal ordering - allow only if start/end cities are explicit and match
-                if not (getattr(trip, 'start_city', None) and getattr(trip, 'end_city', None)):
-                    continue
-                try:
-                    if not (getattr(from_stop, 'city', None) and getattr(to_stop, 'city', None) and from_stop.city_id == trip.start_city_id and to_stop.city_id == trip.end_city_id):
-                        continue
-                except Exception:
-                    continue
-        elif trip.direction == 'PL_UA':
-            if from_order < to_order:
-                continue
-            if from_order == to_order:
-                if not (getattr(trip, 'start_city', None) and getattr(trip, 'end_city', None)):
-                    continue
-                try:
-                    if not (getattr(from_stop, 'city', None) and getattr(to_stop, 'city', None) and from_stop.city_id == trip.start_city_id and to_stop.city_id == trip.end_city_id):
-                        continue
-                except Exception:
-                    continue
-
-        # choose which stops list to use for building the segment (prefer trip_stops for times)
-        base_stops = trip_stops if trip_stops else route_stops
-        segment = [s for s in base_stops if s.order >= from_order and s.order <= to_order]
-
-        stops_list = []
-        for s in segment:
-            dep = getattr(s, 'departure_time', None)
-            arr = getattr(s, 'arrival_time', None)
-            time = None
-            if dep:
-                time = dep.strftime('%H:%M')
-            elif arr:
-                time = arr.strftime('%H:%M')
-            place = s.address or (s.city.name if getattr(s, 'city', None) else '')
-            # include per-stop price when available
-            stops_list.append({'time': time or '', 'place': place, 'price': float(getattr(s, 'price', 0.0) or 0.0)})
-
-        # Try explicit per-pair fare override (admin-managed TripFare). If present, prefer it.
-        price = 0.0
-        try:
-            explicit_fare = None
-            try:
-                # safe lookup: use related manager if available
-                explicit_fare = getattr(trip, 'fares', None)
-                if explicit_fare is not None:
-                    explicit_fare = trip.fares.filter(from_city_id=getattr(from_stop, 'city_id', None), to_city_id=getattr(to_stop, 'city_id', None)).first()
-                else:
-                    explicit_fare = None
-            except Exception:
-                explicit_fare = None
-
-            if explicit_fare and getattr(explicit_fare, 'price', None) is not None and float(explicit_fare.price or 0) > 0:
-                price = float(explicit_fare.price)
-                # if explicit fare carries currency, prefer it
-                if getattr(explicit_fare, 'currency', None):
-                    trip_currency = explicit_fare.currency
-            else:
-                # Compute price for segment: sum TripStop.price for legs from from_order to to_order-1
-                missing_price = False
-                price_sum = 0.0
-                if trip_stops:
-                    for s in trip_stops:
-                        so = getattr(s, 'order', None)
-                        if so is None:
-                            continue
-                        if so >= from_order and so < to_order:
-                            p = float(getattr(s, 'price', 0.0) or 0.0)
-                            if p <= 0:
-                                missing_price = True
-                            price_sum += p
-                if price_sum > 0 and not missing_price:
-                    price = price_sum
-                else:
-                    price = float(trip.base_price or 0.0)
-        except Exception:
-            price = float(trip.base_price or 0.0)
-
-        discount = int(trip.discount_percent or 0)
-        price_after = round(price * (1.0 - discount / 100.0), 2)
-
-        depart_time = ''
-        arrive_time = ''
-        from_dep = getattr(from_stop, 'departure_time', None) or getattr(from_stop, 'arrival_time', None)
-        to_arr = getattr(to_stop, 'arrival_time', None) or getattr(to_stop, 'departure_time', None)
-        if from_dep:
-            depart_time = from_dep.strftime('%H:%M')
-        if to_arr:
-            arrive_time = to_arr.strftime('%H:%M')
-
-        # compute free seats for the selected date when available
-        try:
-            free_count = int(trip.seats or 0)
-            # if a specific date was requested, subtract already reserved passengers for that date
-            if date_obj and getattr(trip, 'seats', None) is not None:
-                sold = Ticket.objects.filter(trip=trip, travel_date=date_obj).aggregate(total=Sum('passengers'))['total'] or 0
-                try:
-                    free_count = max(0, int(trip.seats or 0) - int(sold or 0))
-                except Exception:
-                    free_count = int(trip.seats or 0)
-        except Exception:
-            free_count = int(getattr(trip, 'seats', 0) or 0)
-
-        results.append({
-            'id': trip.id,
-            'route': trip.route.name,
-            'title': trip.title,
-            'direction': trip.direction,
-            'from': from_name,
-            'from_place': from_stop.address or (from_stop.city.name if getattr(from_stop, 'city', None) else from_name),
-            'to': to_name,
-            'to_place': to_stop.address or (to_stop.city.name if getattr(to_stop, 'city', None) else to_name),
-            'depart': depart_time,
-            'arrive': arrive_time,
-            'duration': '',
-            'price': price,
-            'currency': (explicit_fare.currency if explicit_fare and getattr(explicit_fare, 'currency', None) else trip.currency),
-            'discount_percent': discount,
-            'price_after_discount': price_after,
-            'free': free_count,
-            'carrier': (trip.carrier_user.username if getattr(trip, 'carrier_user', None) else (trip.carrier or trip.title or (trip.route.name if trip.route else ''))),
-            'stops': stops_list,
-        })
-
-    return JsonResponse({'trips': results})
 
 
 def api_trips(request):
@@ -1497,6 +1323,25 @@ def api_trips(request):
         except Exception:
             return 0.0
 
+    def normalize_country(token):
+        token_norm = normalize_text(token)
+        if not token_norm:
+            return None
+        country_map = {
+            'ua': 'ua', 'ukraine': 'ua', 'україна': 'ua', 'ukr': 'ua',
+            'pl': 'pl', 'poland': 'pl', 'польща': 'pl', 'pol': 'pl',
+            'it': 'it', 'italy': 'it', 'італія': 'it',
+            'de': 'de', 'germany': 'de', 'німеччина': 'de',
+            'fr': 'fr', 'france': 'fr', 'франція': 'fr',
+            'es': 'es', 'spain': 'es', 'іспанія': 'es',
+            'ro': 'ro', 'romania': 'ro', 'румунія': 'ro',
+        }
+        if token_norm in country_map:
+            return country_map[token_norm]
+        if len(token_norm) <= 3:
+            return token_norm
+        return None
+
     q_from = normalize_text(from_name)
     q_to = normalize_text(to_name)
 
@@ -1511,6 +1356,90 @@ def api_trips(request):
                 date_obj = datetime.strptime(date_str, '%d.%m.%Y').date()
             except Exception:
                 date_obj = None
+
+    # Build small normalized map of known cities for token -> City resolution.
+    try:
+        all_cities_list = list(City.objects.all())
+        city_norm_map = {normalize_text(c.name): c for c in all_cities_list}
+    except Exception:
+        all_cities_list = []
+        city_norm_map = {}
+
+    def find_match(stops_list, token, purpose='from'):
+        token_norm = normalize_text(token)
+        if not token_norm:
+            return None
+
+        # If token resolves to a known City, prefer matching stops by city id
+        city_obj = None
+        try:
+            city_obj = City.objects.filter(name__iexact=token).first()
+        except Exception:
+            city_obj = None
+        if not city_obj:
+            city_obj = city_norm_map.get(token_norm)
+
+        if city_obj:
+            cand_ids = {city_obj.id}
+            try:
+                include_sub = bool(getattr(getattr(trip, 'route', None), 'include_subcities', False))
+            except Exception:
+                include_sub = False
+            if include_sub:
+                # add parent chain
+                cur = city_obj
+                while cur and getattr(cur, 'parent', None):
+                    cur = cur.parent
+                    if cur and getattr(cur, 'id', None):
+                        cand_ids.add(cur.id)
+                # if city_obj is a parent (no parent), include its direct subcities
+                try:
+                    if getattr(city_obj, 'parent', None) is None:
+                        for ch in city_obj.subcities.all():
+                            if getattr(ch, 'id', None):
+                                cand_ids.add(ch.id)
+                except Exception:
+                    pass
+
+            for s in stops_list:
+                try:
+                    if getattr(s, 'city', None) and getattr(s.city, 'id', None) in cand_ids:
+                        return s
+                except Exception:
+                    continue
+
+        # If token appears to be a country, match city.country instead.
+        country_code = normalize_country(token)
+        if country_code:
+            candidates = []
+            for s in stops_list:
+                try:
+                    city_country = normalize_text(getattr(getattr(s, 'city', None), 'country', '') or '')
+                    if not city_country:
+                        continue
+                    if normalize_country(city_country) == country_code:
+                        candidates.append(s)
+                except Exception:
+                    continue
+            if candidates:
+                return candidates[0] if purpose == 'from' else candidates[-1]
+
+        # fallback: match by stop name/address or fuzzy match
+        for s in stops_list:
+            city_name_raw = (s.city.name if getattr(s, 'city', None) else '') or ''
+            city_name = normalize_text(city_name_raw)
+            addr = normalize_text((s.address or ''))
+            # direct substring matches (only when fields are non-empty)
+            if city_name and (token_norm in city_name or city_name in token_norm):
+                return s
+            if addr and (token_norm in addr or addr in token_norm):
+                return s
+            # fuzzy match fallback
+            if city_name and similar(token_norm, city_name) >= 0.60:
+                return s
+            if addr and similar(token_norm, addr) >= 0.60:
+                return s
+        return None
 
     trips_qs = Trip.objects.filter(active=True)
     if date_obj:
@@ -1528,28 +1457,8 @@ def api_trips(request):
         trip_stops = list(trip.trip_stops.select_related('city').all())
         route_stops = list(trip.route.stops.select_related('city').all()) if trip.route_id else []
 
-        def find_match(stops_list, token):
-            token_norm = normalize_text(token)
-            if not token_norm:
-                return None
-            for s in stops_list:
-                city_name_raw = (s.city.name if getattr(s, 'city', None) else '') or ''
-                city_name = normalize_text(city_name_raw)
-                addr = normalize_text((s.address or ''))
-                # direct substring matches (only when fields are non-empty)
-                if city_name and (token_norm in city_name or city_name in token_norm):
-                    return s
-                if addr and (token_norm in addr or addr in token_norm):
-                    return s
-                # fuzzy match fallback
-                if city_name and similar(token_norm, city_name) >= 0.60:
-                    return s
-                if addr and similar(token_norm, addr) >= 0.60:
-                    return s
-            return None
-
-        from_stop = find_match(trip_stops, q_from) or find_match(route_stops, q_from)
-        to_stop = find_match(trip_stops, q_to) or find_match(route_stops, q_to)
+        from_stop = find_match(trip_stops, q_from, purpose='from') or find_match(route_stops, q_from, purpose='from')
+        to_stop = find_match(trip_stops, q_to, purpose='to') or find_match(route_stops, q_to, purpose='to')
 
         # Fallback: if trip has explicit start/end cities, allow matching by them
         try:
@@ -1625,13 +1534,7 @@ def api_trips(request):
         fare_used = False
         fare_obj = None
         try:
-            from_city_id = getattr(getattr(from_stop, 'city', None), 'id', None)
-            to_city_id = getattr(getattr(to_stop, 'city', None), 'id', None)
-            if from_city_id and to_city_id:
-                try:
-                    fare_obj = trip.fares.filter(from_city_id=from_city_id, to_city_id=to_city_id).first()
-                except Exception:
-                    fare_obj = TripFare.objects.filter(trip=trip, from_city_id=from_city_id, to_city_id=to_city_id).first()
+            fare_obj = find_trip_fare(trip, getattr(from_stop, 'city', None), getattr(to_stop, 'city', None))
 
             # Fallback: if stop-based lookup didn't find a fare, try to resolve
             # cities from the user's raw `from`/`to` input (exact match, then
@@ -1651,9 +1554,9 @@ def api_trips(request):
                             city_to = norm_map.get(normalize_text(to_name))
                     if city_from and city_to:
                         try:
-                            fare_obj = trip.fares.filter(from_city=city_from, to_city=city_to).first()
+                            fare_obj = find_trip_fare(trip, city_from, city_to)
                         except Exception:
-                            fare_obj = TripFare.objects.filter(trip=trip, from_city=city_from, to_city=city_to).first()
+                            fare_obj = None
                 except Exception:
                     pass
 
@@ -1718,6 +1621,14 @@ def api_trips(request):
             'stops': stops_list,
         })
 
+    def departure_sort_key(item):
+        depart = item.get('depart') or ''
+        try:
+            return datetime.strptime(depart, '%H:%M').time()
+        except Exception:
+            return datetime.max.time()
+
+    results.sort(key=departure_sort_key)
     return JsonResponse({'trips': results})
 
 def api_cities(request):
@@ -1806,88 +1717,178 @@ def dieller_reports(request):
     from django.db.models import Sum, Count
     from datetime import date
     import calendar
+    from .models import Carrier
 
     today = date.today()
+    try:
+        year = int(request.GET.get('year') or today.year)
+    except Exception:
+        year = today.year
+    try:
+        month = int(request.GET.get('month') or today.month)
+    except Exception:
+        month = today.month
+
+    try:
+        selected_month = date(year, month, 1)
+    except Exception:
+        year = today.year
+        month = today.month
+        selected_month = date(year, month, 1)
+
+    month_options = [
+        {'value': m, 'name': calendar.month_name[m]}
+        for m in range(1, 13)
+    ]
+    year_options = [today.year, today.year - 1]
+
     months = []
     for i in range(6):
         month_index = today.month - i
-        year = today.year
+        year_iter = today.year
         while month_index <= 0:
             month_index += 12
-            year -= 1
-        months.append((year, month_index))
+            year_iter -= 1
+        months.append((year_iter, month_index))
     months = list(reversed(months))
 
-    rows = []
-    for year, month in months:
-        start = date(year, month, 1)
-        if month == 12:
-            end = date(year + 1, 1, 1)
-        else:
-            end = date(year, month + 1, 1)
+    # Create a detailed summary for the selected period.
+    start = selected_month
+    if month == 12:
+        end = date(year + 1, 1, 1)
+    else:
+        end = date(year, month + 1, 1)
 
-        tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end)
-        sold_count = tickets_qs.count()
-        sold_total = tickets_qs.aggregate(total=Sum('total_price'))['total'] or 0
-
-        payments_refunded_sum = Payment.objects.filter(status='refunded', created_at__gte=start, created_at__lt=end).aggregate(total=Sum('amount'))['total'] or 0
+    tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end)
+    selected_carrier = None
+    carrier_id = request.GET.get('carrier_id')
+    if carrier_id:
         try:
-            refunds_amount = abs(float(payments_refunded_sum)) if float(payments_refunded_sum) else 0.0
+            selected_carrier = Carrier.objects.filter(pk=int(carrier_id)).first()
+            if selected_carrier:
+                tickets_qs = tickets_qs.filter(trip__carrier_user=selected_carrier.user)
         except Exception:
-            refunds_amount = float(payments_refunded_sum or 0)
+            selected_carrier = None
 
-        support_total = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end).count()
-        support_processed = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end, status=SupportTicket.STATUS_CLOSED).count()
+    sold_count = tickets_qs.count()
+    sold_total = tickets_qs.aggregate(total=Sum('total_price'))['total'] or 0
+    payments_refunded_sum = Payment.objects.filter(status='refunded', created_at__gte=start, created_at__lt=end).aggregate(total=Sum('amount'))['total'] or 0
+    try:
+        refunds_amount = abs(float(payments_refunded_sum)) if float(payments_refunded_sum) else 0.0
+    except Exception:
+        refunds_amount = float(payments_refunded_sum or 0)
 
-        commission = float(sold_total) * 0.10 if sold_total else 0.0
+    support_total = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end).count()
+    support_processed = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end, status=SupportTicket.STATUS_CLOSED).count()
+    commission = float(sold_total) * 0.10 if sold_total else 0.0
 
-        # Aggregated carriers: prefer trip.carrier_user.username, then trip.carrier string
-        carriers = []
-        carriers_user_qs = tickets_qs.filter(trip__carrier_user__isnull=False).values('trip__carrier_user__username').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-        for c in carriers_user_qs:
-            label = c.get('trip__carrier_user__username')
-            if not label:
-                continue
-            carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0)})
+    carriers = []
+    carriers_user_qs = tickets_qs.filter(trip__carrier_user__isnull=False).values(
+        'trip__carrier_user__carrier_account__id',
+        'trip__carrier_user__carrier_account__company_name',
+        'trip__carrier_user__carrier_account__username',
+        'trip__carrier_user__username',
+    ).annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+    for c in carriers_user_qs:
+        label = c.get('trip__carrier_user__carrier_account__company_name') or c.get('trip__carrier_user__carrier_account__username') or c.get('trip__carrier_user__username')
+        if not label:
+            continue
+        carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0), 'id': c.get('trip__carrier_user__carrier_account__id')})
 
-        carriers_name_qs = tickets_qs.filter(trip__carrier_user__isnull=True, trip__carrier__isnull=False).values('trip__carrier').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-        for c in carriers_name_qs:
-            label = c.get('trip__carrier')
-            if not label:
-                continue
-            carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0)})
+    carriers_name_qs = tickets_qs.filter(trip__carrier_user__isnull=True, trip__carrier__isnull=False).values('trip__carrier').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+    for c in carriers_name_qs:
+        label = c.get('trip__carrier')
+        if not label:
+            continue
+        carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0), 'id': None})
 
-        # Routes aggregation (by Trip.route.name then fallback to Ticket.route)
-        routes = []
-        routes_trip_qs = tickets_qs.filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-        for r in routes_trip_qs:
+    routes = []
+    routes_trip_qs = tickets_qs.filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+    for r in routes_trip_qs:
+        label = r.get('trip__route__name')
+        if not label:
+            continue
+        routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
+
+    routes_ticket_qs = tickets_qs.filter(trip__isnull=True).values('route').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+    for r in routes_ticket_qs:
+        label = r.get('route')
+        if not label:
+            continue
+        routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
+
+    selected_carrier_routes = []
+    if selected_carrier:
+        carrier_route_qs = Ticket.objects.filter(
+            paid=True,
+            created_at__gte=start,
+            created_at__lt=end,
+            trip__carrier_user=selected_carrier.user,
+        ).filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
+        for r in carrier_route_qs:
             label = r.get('trip__route__name')
             if not label:
                 continue
-            routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
+            selected_carrier_routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
 
-        routes_ticket_qs = tickets_qs.filter(trip__isnull=True).values('route').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-        for r in routes_ticket_qs:
-            label = r.get('route')
-            if not label:
-                continue
-            routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
+    all_carriers = Carrier.objects.order_by('company_name', 'username')
+    selected_month_summary = {
+        'year': year,
+        'month': month,
+        'month_name': calendar.month_name[month],
+        'sold_count': sold_count,
+        'sold_total': float(sold_total),
+        'refunds_amount': round(refunds_amount, 2),
+        'support_total': support_total,
+        'support_processed': support_processed,
+        'commission': round(commission, 2),
+        'carriers': carriers,
+        'routes': routes,
+    }
+
+    rows = []
+    for year_iter, month_iter in months:
+        start_iter = date(year_iter, month_iter, 1)
+        if month_iter == 12:
+            end_iter = date(year_iter + 1, 1, 1)
+        else:
+            end_iter = date(year_iter, month_iter + 1, 1)
+
+        tickets_iter = Ticket.objects.filter(paid=True, created_at__gte=start_iter, created_at__lt=end_iter)
+        sold_count_iter = tickets_iter.count()
+        sold_total_iter = tickets_iter.aggregate(total=Sum('total_price'))['total'] or 0
+
+        payments_refunded_sum_iter = Payment.objects.filter(status='refunded', created_at__gte=start_iter, created_at__lt=end_iter).aggregate(total=Sum('amount'))['total'] or 0
+        try:
+            refunds_amount_iter = abs(float(payments_refunded_sum_iter)) if float(payments_refunded_sum_iter) else 0.0
+        except Exception:
+            refunds_amount_iter = float(payments_refunded_sum_iter or 0)
+
+        support_total_iter = SupportTicket.objects.filter(created_at__gte=start_iter, created_at__lt=end_iter).count()
+        support_processed_iter = SupportTicket.objects.filter(created_at__gte=start_iter, created_at__lt=end_iter, status=SupportTicket.STATUS_CLOSED).count()
+        commission_iter = float(sold_total_iter) * 0.10 if sold_total_iter else 0.0
 
         rows.append({
-            'year': year,
-            'month': month,
-            'month_name': calendar.month_name[month],
-            'sold_count': sold_count,
-            'sold_total': float(sold_total),
-            'refunds_amount': round(refunds_amount, 2),
-            'support_total': support_total,
-            'support_processed': support_processed,
-            'commission': round(commission, 2),
-            'carriers': carriers,
-            'routes': routes,
+            'year': year_iter,
+            'month': month_iter,
+            'month_name': calendar.month_name[month_iter],
+            'sold_count': sold_count_iter,
+            'sold_total': float(sold_total_iter),
+            'refunds_amount': round(refunds_amount_iter, 2),
+            'support_total': support_total_iter,
+            'support_processed': support_processed_iter,
+            'commission': round(commission_iter, 2),
         })
 
-    return render(request, 'dieller_reports.html', {'rows': rows})
+    return render(request, 'dieller_reports.html', {
+        'rows': rows,
+        'selected_month': selected_month_summary,
+        'year_options': year_options,
+        'month_options': month_options,
+        'all_carriers': all_carriers,
+        'selected_carrier': selected_carrier,
+        'selected_carrier_routes': selected_carrier_routes,
+    })
 
 
 @login_required
@@ -1898,15 +1899,16 @@ def carrier_dashboard(request):
 
     from django.db.models.functions import ExtractMonth
     from django.db.models import Count, Sum
+    from datetime import date
 
-    # Default to 2026 per request; show May..Dec for 2026, otherwise show full year
+    today = date.today()
     try:
-        year = int(request.GET.get('year') or 2026)
+        year = int(request.GET.get('year') or today.year)
     except Exception:
-        year = 2026
+        year = today.year
 
-    if year == 2026:
-        months_range = list(range(5, 13))  # May..December
+    if year == today.year:
+        months_range = list(range(1, today.month + 1))
     else:
         months_range = list(range(1, 13))
 
@@ -3221,11 +3223,7 @@ def checkout(request, trip_id):
 
         # Try explicit TripFare lookup for the exact pair
         if from_stop and to_stop:
-            try:
-                from .models import TripFare
-                explicit_fare = TripFare.objects.filter(trip=trip, from_city=from_stop.city, to_city=to_stop.city).first()
-            except Exception:
-                explicit_fare = None
+            explicit_fare = find_trip_fare(trip, getattr(from_stop, 'city', None), getattr(to_stop, 'city', None))
 
             if explicit_fare and getattr(explicit_fare, 'price', None) is not None and float(explicit_fare.price or 0) > 0:
                 price = float(explicit_fare.price)
@@ -3642,9 +3640,7 @@ def checkout(request, trip_id):
 def _generate_ticket_pdf_bytes(ticket, request=None):
     """Return PDF bytes for a Ticket using reportlab.
 
-    If `request` is provided (when generating for a browser view), the
-    verification URL embedded in the QR will be absolute. Otherwise a
-    signature-only QR is embedded.
+    The PDF includes carrier information, but does not embed a QR code.
     """
     try:
         from reportlab.lib.pagesizes import A4
@@ -3653,15 +3649,29 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
         from reportlab.lib.units import mm
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
-        from reportlab.graphics.barcode.qr import QrCodeWidget
         from reportlab.graphics.shapes import Drawing
-        from reportlab.graphics import renderPDF
     except Exception:
         return None
 
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
+
+    carrier_name = ''
+    carrier_business_number = ''
+    carrier_phone = ''
+    try:
+        if getattr(ticket, 'trip', None):
+            if getattr(ticket.trip, 'carrier_user', None):
+                carrier = getattr(ticket.trip.carrier_user, 'carrier_account', None)
+                if carrier:
+                    carrier_name = carrier.company_name or carrier.username or ticket.trip.carrier or ''
+                    carrier_business_number = carrier.business_number or ''
+                    carrier_phone = carrier.phone or ''
+    except Exception:
+        pass
+    if not carrier_name:
+        carrier_name = ticket.trip.carrier if getattr(ticket, 'trip', None) else ''
 
     # Try to register a TTF font for Cyrillic if available (Windows or common Linux paths)
     regular_font = 'Helvetica'
@@ -3816,25 +3826,18 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
                 c.drawString(left_x, left_top - 16, f"Дата: {date_str}")
                 c.drawString(left_x, left_top - 30, f"Пасажирів: {ticket.passengers}")
 
-                # QR top-right inside the box
+                # Carrier details in the info box
                 try:
-                    sig = _ticket_signature(ticket)
-                    if sig:
-                        verification_path = reverse('main:ticket_verify', args=(ticket.id, sig))
-                        verification_url = request.build_absolute_uri(verification_path) if request is not None else verification_path
-                    else:
-                        verification_url = f"ticket:{ticket.id}:{sig}"
-                except Exception:
-                    verification_url = f"ticket:{ticket.id}"
-
-                qr_size = min(box_h - 12, draw_w * 0.18)
-                try:
-                    qr = QrCodeWidget(verification_url)
-                    d = Drawing(qr_size, qr_size)
-                    d.add(qr)
-                    qr_x = box_x + box_w - qr_size - 12
-                    qr_y = box_y + box_h - qr_size - 8
-                    renderPDF.draw(d, c, qr_x, qr_y)
+                    info_y = left_top - 46
+                    if carrier_name:
+                        c.drawString(left_x, info_y, f"Перевізник: {carrier_name}")
+                        info_y -= 12
+                    if carrier_business_number:
+                        c.drawString(left_x, info_y, f"ФОП/ТОВ: {carrier_business_number}")
+                        info_y -= 12
+                    if carrier_phone:
+                        c.drawString(left_x, info_y, f"Телефон: {carrier_phone}")
+                        info_y -= 12
                 except Exception:
                     pass
 
@@ -4072,7 +4075,6 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
         date_box_w = 140
         date_box_h = 24
         dep_x = left_x
-        dep_y = carrier_y - (12 + date_box_h)
         c.setFillColor(colors.HexColor('#F0F4F8'))
         c.roundRect(dep_x, dep_y, date_box_w, date_box_h, 4, fill=1, stroke=0)
         c.setFillColor(colors.black)
@@ -4103,47 +4105,18 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
             c.setFont('Helvetica', 10)
         c.drawRightString(box_x + box_w - 12, price_y - 18, f"Дата покупки: {purchase}")
 
-        # QR moved to bottom-right inside a framed box with decorative stripe
-        qr_size = 50 * mm
-        qr_frame_w = qr_size + 12
-        qr_frame_h = qr_size + 32
-        qr_x = width - margin - qr_frame_w
-        qr_y = margin + (8 * mm)
-        # frame background and border
-        c.setFillColor(colors.white)
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(1)
-        c.rect(qr_x, qr_y, qr_frame_w, qr_frame_h, stroke=1, fill=1)
-        # small stripe on QR frame
-        c.setFillColor(stripe_color)
-        c.rect(qr_x, qr_y + qr_frame_h - 8, qr_frame_w, 8, fill=1, stroke=0)
-
-        # verification URL
+        # Carrier details below route information
         try:
-            sig = _ticket_signature(ticket)
-            if sig:
-                verification_path = reverse('main:ticket_verify', args=(ticket.id, sig))
-                verification_url = request.build_absolute_uri(verification_path) if request is not None else verification_path
-            else:
-                verification_url = f"ticket:{ticket.id}:{sig}"
+            current_y = carrier_y
+            if carrier_business_number:
+                current_y -= 14
+                c.drawString(left_x, current_y, f"ФОП/ТОВ: {carrier_business_number}")
+            if carrier_phone:
+                current_y -= 14
+                c.drawString(left_x, current_y, f"Телефон: {carrier_phone}")
+            dep_y = current_y - (date_box_h + 10)
         except Exception:
-            verification_url = f"ticket:{ticket.id}"
-
-        try:
-            qr = QrCodeWidget(verification_url)
-            d = Drawing(qr_size, qr_size)
-            d.add(qr)
-            renderPDF.draw(d, c, qr_x + 6, qr_y + 26)
-        except Exception:
-            pass
-
-        # QR caption
-        try:
-            c.setFont(regular_font, 9)
-        except Exception:
-            c.setFont('Helvetica', 9)
-        c.setFillColor(colors.black)
-        c.drawCentredString(qr_x + qr_frame_w / 2, qr_y + 8, 'Код перевірки')
+            dep_y = carrier_y - (date_box_h + 10)
 
     # Passenger list
     c.setFont(bold_font, 12)
@@ -4193,7 +4166,14 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
     # Footer: carrier/license info
     try:
         c.setFont(regular_font, 8)
-        footer_text = 'Перевізник: Dieller Bus — договір перевізника та ліцензія'
+        footer_items = []
+        if carrier_name:
+            footer_items.append(f"Перевізник: {carrier_name}")
+        if carrier_business_number:
+            footer_items.append(f"ФОП/ТОВ: {carrier_business_number}")
+        if carrier_phone:
+            footer_items.append(f"Телефон: {carrier_phone}")
+        footer_text = ' · '.join(footer_items) if footer_items else 'Перевізник: Dieller Bus'
         c.drawString(margin, 28, footer_text)
     except Exception:
         pass
@@ -4429,24 +4409,33 @@ def ticket_view(request, ticket_id):
     except Exception:
         last_payment = None
 
-    # Build verification URL and QR image for the view
-    sig = _ticket_signature(ticket)
-    verification_url = request.build_absolute_uri(reverse('main:ticket_verify', args=(ticket.id, sig))) if sig else ''
-    qr_b64 = None
+    # Carrier details for display on the ticket
+    carrier_name = ''
+    carrier_business_number = ''
+    carrier_phone = ''
     try:
-        png = _qr_png_bytes(verification_url, size=220)
-        if png:
-            qr_b64 = base64.b64encode(png).decode('ascii')
+        if getattr(ticket, 'trip', None) and getattr(ticket.trip, 'carrier_user', None):
+            carrier = getattr(ticket.trip.carrier_user, 'carrier_account', None)
+            if carrier:
+                carrier_name = carrier.company_name or carrier.username or ticket.trip.carrier or ''
+                carrier_business_number = carrier.business_number or ''
+                carrier_phone = carrier.phone or ''
     except Exception:
-        qr_b64 = None
+        carrier_name = ticket.trip.carrier if getattr(ticket, 'trip', None) else ''
+
+    if not carrier_name:
+        carrier_name = ticket.trip.carrier if getattr(ticket, 'trip', None) else ''
+
+    sig = _ticket_signature(ticket)
 
     return render(request, 'ticket_view.html', {
         'ticket': ticket,
         'passengers': passengers,
-        'verification_url': verification_url,
-        'qr_b64': qr_b64,
         'sig': sig,
         'last_payment': last_payment,
+        'carrier_name': carrier_name,
+        'carrier_business_number': carrier_business_number,
+        'carrier_phone': carrier_phone,
         'is_carrier_view': getattr(request.user, 'profile', None) and getattr(request.user.profile, 'is_carrier', False),
     })
 
