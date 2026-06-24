@@ -22,7 +22,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark" aria-label="Main navigation">
       <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="{% url 'main:home' %}">
-          <img src="{% static 'img/logo_bodia.png' %}" alt="logo" class="brand-img-small"> 
+          <img src="{% static 'img/логоБодяD.png' %}" alt="logo" class="brand-img-small" onerror="this.onerror=null;this.src='{% static 'img/logo_bodia.png' %}';"> 
           <span class="brand">{{ site_config.shop_name|default:'Dieller Bus' }}</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">

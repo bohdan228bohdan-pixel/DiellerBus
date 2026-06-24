@@ -5,9 +5,108 @@
 <div class="container py-4">
   <h1 style="margin-bottom:16px">Звіти Dieller — останні 6 місяців</h1>
 
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;align-items:flex-end">
+    <div>
+      <label style="display:block;margin-bottom:6px;font-weight:700">Рік</label>
+      <select name="year" style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.12)">
+        {% for y in year_options %}
+          <option value="{{ y }}" {% if selected_month.year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:6px;font-weight:700">Місяць</label>
+      <select name="month" style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.12)">
+        {% for m in month_options %}
+          <option value="{{ m.value }}" {% if selected_month.month == m.value %}selected{% endif %}>{{ m.value }} — {{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:6px;font-weight:700">Перевізник</label>
+      <select name="carrier_id" style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.12)">
+        <option value="">Всі перевізники</option>
+        {% for carrier in all_carriers %}
+          <option value="{{ carrier.id }}" {% if selected_carrier and carrier.id == selected_carrier.id %}selected{% endif %}>{{ carrier.company_name|default:carrier.username }}{% if carrier.phone %} — {{ carrier.phone }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" style="padding:10px 18px;border:none;border-radius:10px;background:#0f8aff;color:#fff;font-weight:800">Оновити</button>
+  </form>
+
+  {% if selected_month %}
+    <div style="background:#f7f9fb;border:1px solid #d7dde2;padding:18px;border-radius:12px;color:#1f2a37;margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:18px">
+        <div>
+          <div style="font-size:1.25rem;font-weight:800">{{ selected_month.month_name }} {{ selected_month.year }}</div>
+          {% if selected_carrier %}
+            <div style="margin-top:6px;color:#55606a">Перевізник: {{ selected_carrier.company_name|default:selected_carrier.username }}</div>
+          {% endif %}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;width:100%;max-width:560px;">
+          <div style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 16px rgba(15,23,42,0.08)">
+            <div style="font-weight:800;font-size:1.2rem">{{ selected_month.sold_count }}</div>
+            <div style="color:#5b6b7b">Продано квитків</div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 16px rgba(15,23,42,0.08)">
+            <div style="font-weight:800;font-size:1.2rem">{{ selected_month.sold_total|floatformat:2 }} грн</div>
+            <div style="color:#5b6b7b">Загальний дохід</div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 16px rgba(15,23,42,0.08)">
+            <div style="font-weight:800;font-size:1.2rem">{{ selected_month.refunds_amount|floatformat:2 }} грн</div>
+            <div style="color:#5b6b7b">Повернень</div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 4px 16px rgba(15,23,42,0.08)">
+            <div style="font-weight:800;font-size:1.2rem">{{ selected_month.commission|floatformat:2 }} грн</div>
+            <div style="color:#5b6b7b">Комісія (10%)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:18px">
+        <div style="flex:1;min-width:220px;background:#fff;border-radius:10px;padding:14px;box-shadow:0 4px 16px rgba(15,23,42,0.06)">
+          <div style="font-weight:700;margin-bottom:8px">Топ перевізники</div>
+          {% if selected_month.carriers %}
+            <ul style="margin:0;padding-left:18px;list-style-type:disc">
+              {% for c in selected_month.carriers %}
+                <li style="margin-bottom:6px">{{ c.label }} — {{ c.count }} квитків — {{ c.amount|floatformat:2 }} грн</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="muted">Немає даних по перевізникам.</div>
+          {% endif %}
+        </div>
+        <div style="flex:1;min-width:220px;background:#fff;border-radius:10px;padding:14px;box-shadow:0 4px 16px rgba(15,23,42,0.06)">
+          <div style="font-weight:700;margin-bottom:8px">Топ маршрутів</div>
+          {% if selected_month.routes %}
+            <ul style="margin:0;padding-left:18px;list-style-type:disc">
+              {% for r in selected_month.routes %}
+                <li style="margin-bottom:6px">{{ r.label }} — {{ r.count }} квитків — {{ r.amount|floatformat:2 }} грн</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="muted">Немає даних по маршрутах.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if selected_carrier and selected_carrier_routes %}
+        <div style="margin-top:18px;background:#eef4ff;border:1px solid #c8daf5;border-radius:10px;padding:14px">
+          <div style="font-weight:700;margin-bottom:10px">Маршрути для обраного перевізника</div>
+          <ul style="margin:0;padding-left:18px;list-style-type:disc">
+            {% for r in selected_carrier_routes %}
+              <li style="margin-bottom:6px">{{ r.label }} — {{ r.count }} квитків — {{ r.amount|floatformat:2 }} грн</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <h2 style="margin-top:0;margin-bottom:14px">Огляд по місяцях</h2>
   {% for row in rows %}
     <div style="background:#0f0f0f;border:1px solid rgba(255,255,255,0.04);padding:16px;margin-bottom:18px;border-radius:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
         <div style="font-weight:800">{{ row.month_name }} {{ row.year }}</div>
         <div style="text-align:right">
           <div>Продано: <strong>{{ row.sold_count }}</strong></div>
@@ -16,36 +115,7 @@
           <div>Комісія (10%): <strong>{{ row.commission|floatformat:2 }} грн</strong></div>
         </div>
       </div>
-      <hr style="border-color:rgba(255,255,255,0.04);margin:12px 0">
-      <div style="display:flex;gap:18px;flex-wrap:wrap">
-        <div style="flex:1;min-width:260px">
-          <h4 style="margin-top:0">Перевізники</h4>
-          {% if row.carriers %}
-            <ul style="margin:0;padding-left:18px">
-              {% for c in row.carriers %}
-                <li style="margin-bottom:6px">{{ c.label }} — <strong>{{ c.count }}</strong> — {{ c.amount|floatformat:2 }} грн</li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <div class="muted">Немає даних по перевізникам.</div>
-          {% endif %}
-        </div>
-
-        <div style="flex:1;min-width:260px">
-          <h4 style="margin-top:0">Топ маршрутів</h4>
-          {% if row.routes %}
-            <ul style="margin:0;padding-left:18px">
-              {% for r in row.routes %}
-                <li style="margin-bottom:6px">{{ r.label }} — <strong>{{ r.count }}</strong> — {{ r.amount|floatformat:2 }} грн</li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <div class="muted">Немає даних по маршрутах.</div>
-          {% endif %}
-        </div>
-      </div>
     </div>
   {% endfor %}
-
 </div>
 {% endblock %}

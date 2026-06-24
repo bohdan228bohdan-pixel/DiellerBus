@@ -16,7 +16,7 @@ class RouteStopInline(admin.TabularInline):
 
 @admin.register(Route)
 class RouteAdmin(admin.ModelAdmin):
-    list_display = ('name', 'active')
+    list_display = ('name', 'active', 'include_subcities')
     search_fields = ('^name',)
     ordering = ('name',)
     inlines = [RouteStopInline]
@@ -252,9 +252,17 @@ class TripAdmin(admin.ModelAdmin):
 
 @admin.register(City)
 class CityAdmin(admin.ModelAdmin):
-    list_display = ('name', 'country')
+    # show parent (main city) and allow editing subcities inline
+    list_display = ('name', 'country', 'parent')
     search_fields = ('^name',)
     ordering = ('name',)
+    class SubcityInline(admin.TabularInline):
+        model = City
+        fk_name = 'parent'
+        extra = 0
+        fields = ('name', 'country')
+        autocomplete_fields = ()
+    inlines = [SubcityInline]
 
 
 @admin.register(Profile)
@@ -418,12 +426,19 @@ class SupportWorkerAdmin(admin.ModelAdmin):
 
 @admin.register(Carrier)
 class CarrierAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'company_name', 'email', 'user', 'created_at')
-    search_fields = ('^company_name', '^username', '^email', '^user__username')
+    list_display = ('__str__', 'company_name', 'business_number', 'phone', 'email', 'user', 'created_at')
+    search_fields = ('^company_name', '^username', '^email', '^user__username', '^business_number', '^phone')
     readonly_fields = ('user', 'created_at')
-    fields = ('company_name', 'username', 'email', 'phone', 'avatar', 'user', 'created_at', 'related_links')
+    fields = ('company_name', 'business_number', 'phone', 'username', 'email', 'avatar', 'user', 'created_at', 'related_links')
     ordering = ('company_name',)
     readonly_fields = readonly_fields + ('related_links',)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields['company_name'].required = True
+        form.base_fields['business_number'].required = True
+        form.base_fields['phone'].required = True
+        return form
 
     def related_links(self, obj):
         """Render quick links to Trips / Add trip / Fares filtered to this carrier."""

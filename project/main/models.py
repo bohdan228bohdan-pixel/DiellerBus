@@ -178,6 +178,8 @@ class Passenger(models.Model):
 class City(models.Model):
     name = models.CharField(max_length=200)
     country = models.CharField(max_length=100, blank=True)
+    # optional link to a main/parent city (subcity relationship)
+    parent = models.ForeignKey('self', null=True, blank=True, related_name='subcities', on_delete=models.SET_NULL, verbose_name='Головне місто')
 
     class Meta:
         verbose_name = "Місто"
@@ -191,6 +193,8 @@ class Route(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     active = models.BooleanField(default=True)
+    # when True, fares defined for a main city will be applied for its subcities
+    include_subcities = models.BooleanField(default=False, verbose_name='Включати підміста', help_text='Якщо відмічено, підміста рахуються по тарифу головного міста')
 
     class Meta:
         verbose_name = "Маршрут"
@@ -619,6 +623,7 @@ class Carrier(models.Model):
     username = models.CharField(max_length=150, blank=True, help_text='Логін для створення користувача (необов\'язково)')
     email = models.EmailField(blank=True)
     company_name = models.CharField(max_length=255, blank=True)
+    business_number = models.CharField(max_length=64, blank=True, verbose_name='ФОП/ТОВ')
     phone = models.CharField(max_length=32, blank=True)
     avatar = models.ImageField(upload_to='carriers/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
