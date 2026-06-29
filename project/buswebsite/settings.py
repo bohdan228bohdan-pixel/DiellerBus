@@ -228,19 +228,20 @@ def _get_env(key, default=None, cast=None, required_in_prod=False):
 # Email configuration (Brevo SMTP). Values must be supplied via environment
 # variables in production. Defaults are lenient for local development only.
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = _get_env('EMAIL_HOST', None, cast=str, required_in_prod=True) or os.environ.get('EMAIL_HOST', 'smtp-relay.brevo.com')
+# Do not raise during import for missing email env vars; keep a fallback where appropriate.
+EMAIL_HOST = _get_env('EMAIL_HOST', None, cast=str, required_in_prod=False) or os.environ.get('EMAIL_HOST', 'smtp-relay.brevo.com')
 EMAIL_PORT = _get_env('EMAIL_PORT', '587', cast=int)
 EMAIL_USE_TLS = _get_env('EMAIL_USE_TLS', 'True', cast=bool)
 EMAIL_USE_SSL = _get_env('EMAIL_USE_SSL', 'False', cast=bool)
 if EMAIL_USE_SSL:
     EMAIL_USE_TLS = False
-
-EMAIL_HOST_USER = _get_env('EMAIL_HOST_USER', None, cast=str, required_in_prod=True)
-EMAIL_HOST_PASSWORD = _get_env('EMAIL_HOST_PASSWORD', None, cast=str, required_in_prod=True)
+EMAIL_HOST_USER = _get_env('EMAIL_HOST_USER', None, cast=str, required_in_prod=False)
+EMAIL_HOST_PASSWORD = _get_env('EMAIL_HOST_PASSWORD', None, cast=str, required_in_prod=False)
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or (f"Dieller Bus <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else None)
-if not DEFAULT_FROM_EMAIL and not DEBUG:
-    raise ImproperlyConfigured('DEFAULT_FROM_EMAIL environment variable is required in production')
+# Only enforce DEFAULT_FROM_EMAIL in production when a real SMTP backend is configured.
+if not DEFAULT_FROM_EMAIL and not DEBUG and EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
+    raise ImproperlyConfigured('DEFAULT_FROM_EMAIL environment variable is required in production when using SMTP')
 
 # Comma-separated list of usernames or emails that should be allowed access
 # to support/admin endpoints in addition to staff users. Example: "dieller,ops@org.com"

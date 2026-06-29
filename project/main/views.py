@@ -17,7 +17,7 @@ import stripe
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from .models import Ticket, Payment
+from .models import Ticket, Payment, Carrier
 from .models import Bus, SupportTicket, SupportMessage, SupportPresetQuestion
 from django.views.generic import ListView, DetailView, FormView
 from django.shortcuts import get_object_or_404, redirect
@@ -1706,189 +1706,637 @@ def profile(request):
 
 @login_required
 def dieller_reports(request):
-    """Simple monthly reports view for the `dieller` account (or staff).
-
-    Shows last 6 months: tickets sold, revenue, refunds, support requests,
-    and a per-carrier breakdown. Accessible only to user `dieller` or staff.
-    """
-    if not ((getattr(request.user, 'username', '') or '').lower() == 'dieller' and getattr(request.user, 'is_authenticated', False)) and not getattr(request.user, 'is_staff', False):
+    """Advanced statistics page available only for the `dieller` user."""
+    if not request.user.is_authenticated or (getattr(request.user, 'username', '') or '').lower() != 'dieller':
         return HttpResponse(status=403)
 
-    from django.db.models import Sum, Count
-    from datetime import date
-    import calendar
-    from .models import Carrier
+    from django.db.models import Sum, Count, Q, F, Value, DecimalField, ExpressionWrapper
+    from django.db.models.functions import Coalesce
+    from datetime import timedelta, datetime
 
-    today = date.today()
-    try:
-        year = int(request.GET.get('year') or today.year)
-    except Exception:
-        year = today.year
-    try:
-        month = int(request.GET.get('month') or today.month)
-    except Exception:
-        month = today.month
-
-    try:
-        selected_month = date(year, month, 1)
-    except Exception:
-        year = today.year
-        month = today.month
-        selected_month = date(year, month, 1)
-
-    month_options = [
-        {'value': m, 'name': calendar.month_name[m]}
-        for m in range(1, 13)
-    ]
-    year_options = [today.year, today.year - 1]
-
-    months = []
-    for i in range(6):
-        month_index = today.month - i
-        year_iter = today.year
-        while month_index <= 0:
-            month_index += 12
-            year_iter -= 1
-        months.append((year_iter, month_index))
-    months = list(reversed(months))
-
-    # Create a detailed summary for the selected period.
-    start = selected_month
-    if month == 12:
-        end = date(year + 1, 1, 1)
-    else:
-        end = date(year, month + 1, 1)
-
-    tickets_qs = Ticket.objects.filter(paid=True, created_at__gte=start, created_at__lt=end)
-    selected_carrier = None
+    today = timezone.localdate()
+    filter_period = request.GET.get('filter', 'this_month')
+    query = (request.GET.get('q') or '').strip()
+    sort = request.GET.get('sort', 'sales_desc')
     carrier_id = request.GET.get('carrier_id')
+    custom_start = request.GET.get('start_date')
+    custom_end = request.GET.get('end_date')
+    ajax_request = request.GET.get('ajax') == '1'
+
+    def first_day_of_month(date_obj):
+        return date_obj.replace(day=1)
+
+    def next_month_first(date_obj):
+        if date_obj.month == 12:
+            return date_obj.replace(year=date_obj.year + 1, month=1, day=1)
+        return date_obj.replace(month=date_obj.month + 1, day=1)
+
+    if filter_period == 'today':
+        start_date = today
+        end_date = today + timedelta(days=1)
+        period_label = 'Сьогодні'
+    elif filter_period == 'yesterday':
+        start_date = today - timedelta(days=1)
+        end_date = today
+        period_label = 'Вчора'
+    elif filter_period == 'this_week':
+        start_date = today - timedelta(days=today.weekday())
+        end_date = start_date + timedelta(days=7)
+        period_label = 'Цей тиждень'
+    elif filter_period == 'last_month':
+        first_of_this_month = first_day_of_month(today)
+        last_month_end = first_of_this_month
+        start_date = first_day_of_month(last_month_end - timedelta(days=1))
+        end_date = last_month_end
+        period_label = 'Минулий місяць'
+    elif filter_period == 'custom':
+        try:
+            start_date = timezone.datetime.strptime(custom_start or '', '%Y-%m-%d').date()
+        except Exception:
+            start_date = first_day_of_month(today)
+        try:
+            end_date = timezone.datetime.strptime(custom_end or '', '%Y-%m-%d').date() + timedelta(days=1)
+        except Exception:
+            end_date = today + timedelta(days=1)
+        period_label = f"{start_date.strftime('%d.%m.%Y')} — {(end_date - timedelta(days=1)).strftime('%d.%m.%Y')}"
+    else:
+        start_date = first_day_of_month(today)
+        end_date = next_month_first(today)
+        period_label = 'Цей місяць'
+
+    if start_date >= end_date:
+        start_date = first_day_of_month(today)
+        end_date = next_month_first(today)
+        period_label = 'Цей місяць'
+
+    ticket_date_filter = Q(paid=True, created_at__date__gte=start_date, created_at__date__lt=end_date)
+    tickets_qs = Ticket.objects.filter(ticket_date_filter)
+
+    selected_carrier = None
     if carrier_id:
         try:
             selected_carrier = Carrier.objects.filter(pk=int(carrier_id)).first()
-            if selected_carrier:
-                tickets_qs = tickets_qs.filter(trip__carrier_user=selected_carrier.user)
         except Exception:
             selected_carrier = None
+    if selected_carrier and selected_carrier.user:
+        tickets_qs = tickets_qs.filter(trip__carrier_user=selected_carrier.user)
 
-    sold_count = tickets_qs.count()
-    sold_total = tickets_qs.aggregate(total=Sum('total_price'))['total'] or 0
-    payments_refunded_sum = Payment.objects.filter(status='refunded', created_at__gte=start, created_at__lt=end).aggregate(total=Sum('amount'))['total'] or 0
-    try:
-        refunds_amount = abs(float(payments_refunded_sum)) if float(payments_refunded_sum) else 0.0
-    except Exception:
-        refunds_amount = float(payments_refunded_sum or 0)
+    carrier_filter = Q()
+    if query:
+        carrier_filter = Q(company_name__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query)
 
-    support_total = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end).count()
-    support_processed = SupportTicket.objects.filter(created_at__gte=start, created_at__lt=end, status=SupportTicket.STATUS_CLOSED).count()
-    commission = float(sold_total) * 0.10 if sold_total else 0.0
+    carrier_stats_qs = Carrier.objects.filter(carrier_filter).annotate(
+        trips_count=Count(
+            'user__carrier_trips',
+            filter=Q(
+                user__carrier_trips__tickets__paid=True,
+                user__carrier_trips__tickets__created_at__date__gte=start_date,
+                user__carrier_trips__tickets__created_at__date__lt=end_date,
+            ),
+            distinct=True,
+        ),
+        tickets_count=Count(
+            'user__carrier_trips__tickets',
+            filter=Q(
+                user__carrier_trips__tickets__paid=True,
+                user__carrier_trips__tickets__created_at__date__gte=start_date,
+                user__carrier_trips__tickets__created_at__date__lt=end_date,
+            ),
+            distinct=True,
+        ),
+        total_sales=Coalesce(
+            Sum(
+                'user__carrier_trips__tickets__total_price',
+                filter=Q(
+                    user__carrier_trips__tickets__paid=True,
+                    user__carrier_trips__tickets__created_at__date__gte=start_date,
+                    user__carrier_trips__tickets__created_at__date__lt=end_date,
+                )
+            ),
+            Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
+        total_commission=Coalesce(
+            Sum(
+                ExpressionWrapper(
+                    F('user__carrier_trips__tickets__total_price') * Value(Decimal('0.15')),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                ),
+                filter=Q(
+                    user__carrier_trips__tickets__paid=True,
+                    user__carrier_trips__tickets__created_at__date__gte=start_date,
+                    user__carrier_trips__tickets__created_at__date__lt=end_date,
+                ),
+            ),
+            Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
+    )
 
-    carriers = []
-    carriers_user_qs = tickets_qs.filter(trip__carrier_user__isnull=False).values(
-        'trip__carrier_user__carrier_account__id',
-        'trip__carrier_user__carrier_account__company_name',
-        'trip__carrier_user__carrier_account__username',
-        'trip__carrier_user__username',
-    ).annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-    for c in carriers_user_qs:
-        label = c.get('trip__carrier_user__carrier_account__company_name') or c.get('trip__carrier_user__carrier_account__username') or c.get('trip__carrier_user__username')
-        if not label:
-            continue
-        carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0), 'id': c.get('trip__carrier_user__carrier_account__id')})
-
-    carriers_name_qs = tickets_qs.filter(trip__carrier_user__isnull=True, trip__carrier__isnull=False).values('trip__carrier').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-    for c in carriers_name_qs:
-        label = c.get('trip__carrier')
-        if not label:
-            continue
-        carriers.append({'label': label, 'count': c.get('count') or 0, 'amount': float(c.get('amount') or 0.0), 'id': None})
-
-    routes = []
-    routes_trip_qs = tickets_qs.filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-    for r in routes_trip_qs:
-        label = r.get('trip__route__name')
-        if not label:
-            continue
-        routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
-
-    routes_ticket_qs = tickets_qs.filter(trip__isnull=True).values('route').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-    for r in routes_ticket_qs:
-        label = r.get('route')
-        if not label:
-            continue
-        routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
-
-    selected_carrier_routes = []
-    if selected_carrier:
-        carrier_route_qs = Ticket.objects.filter(
-            paid=True,
-            created_at__gte=start,
-            created_at__lt=end,
-            trip__carrier_user=selected_carrier.user,
-        ).filter(trip__isnull=False).values('trip__route__name').annotate(count=Count('id'), amount=Sum('total_price')).order_by('-amount')
-        for r in carrier_route_qs:
-            label = r.get('trip__route__name')
-            if not label:
-                continue
-            selected_carrier_routes.append({'label': label, 'count': r.get('count') or 0, 'amount': float(r.get('amount') or 0.0)})
-
-    all_carriers = Carrier.objects.order_by('company_name', 'username')
-    selected_month_summary = {
-        'year': year,
-        'month': month,
-        'month_name': calendar.month_name[month],
-        'sold_count': sold_count,
-        'sold_total': float(sold_total),
-        'refunds_amount': round(refunds_amount, 2),
-        'support_total': support_total,
-        'support_processed': support_processed,
-        'commission': round(commission, 2),
-        'carriers': carriers,
-        'routes': routes,
+    sort_map = {
+        'sales_desc': '-total_sales',
+        'sales_asc': 'total_sales',
+        'profit_desc': '-total_sales',
+        'profit_asc': 'total_sales',
+        'commission_desc': '-total_commission',
+        'commission_asc': 'total_commission',
+        'name_asc': 'company_name',
+        'name_desc': '-company_name',
     }
+    carrier_stats_qs = carrier_stats_qs.order_by(sort_map.get(sort, '-total_sales'))
 
-    rows = []
-    for year_iter, month_iter in months:
-        start_iter = date(year_iter, month_iter, 1)
-        if month_iter == 12:
-            end_iter = date(year_iter + 1, 1, 1)
-        else:
-            end_iter = date(year_iter, month_iter + 1, 1)
+    carrier_rows = []
+    for c in carrier_stats_qs:
+        total_sales = float(c.total_sales or 0)
+        commission_amount = float(c.total_commission or 0)
+        carrier_rows.append({
+            'id': c.id,
+            'name': c.company_name or c.username or (c.user.username if c.user else '—'),
+            'email': c.email or (c.user.email if c.user else ''),
+            'phone': c.phone,
+            'trips_count': c.trips_count or 0,
+            'tickets_count': c.tickets_count or 0,
+            'total_sales': total_sales,
+            'commission': round(commission_amount, 2),
+            'status': 'active' if getattr(c.user, 'is_active', False) else 'inactive',
+        })
 
-        tickets_iter = Ticket.objects.filter(paid=True, created_at__gte=start_iter, created_at__lt=end_iter)
-        sold_count_iter = tickets_iter.count()
-        sold_total_iter = tickets_iter.aggregate(total=Sum('total_price'))['total'] or 0
+    day_list = []
+    day = start_date
+    while day < end_date:
+        day_list.append(day)
+        day += timedelta(days=1)
 
-        payments_refunded_sum_iter = Payment.objects.filter(status='refunded', created_at__gte=start_iter, created_at__lt=end_iter).aggregate(total=Sum('amount'))['total'] or 0
-        try:
-            refunds_amount_iter = abs(float(payments_refunded_sum_iter)) if float(payments_refunded_sum_iter) else 0.0
-        except Exception:
-            refunds_amount_iter = float(payments_refunded_sum_iter or 0)
+    totals_by_day = {d: {'sales': 0.0, 'tickets': 0} for d in day_list}
+    daily_qs = Ticket.objects.filter(ticket_date_filter)
+    if selected_carrier and selected_carrier.user:
+        daily_qs = daily_qs.filter(trip__carrier_user=selected_carrier.user)
+    daily_data = daily_qs.values('created_at__date').annotate(total=Sum('total_price'), count=Count('id'))
+    for item in daily_data:
+        day_key = item.get('created_at__date')
+        if day_key in totals_by_day:
+            totals_by_day[day_key]['sales'] = float(item.get('total') or 0)
+            totals_by_day[day_key]['tickets'] = item.get('count') or 0
 
-        support_total_iter = SupportTicket.objects.filter(created_at__gte=start_iter, created_at__lt=end_iter).count()
-        support_processed_iter = SupportTicket.objects.filter(created_at__gte=start_iter, created_at__lt=end_iter, status=SupportTicket.STATUS_CLOSED).count()
-        commission_iter = float(sold_total_iter) * 0.10 if sold_total_iter else 0.0
+    chart_labels = [d.strftime('%d.%m') for d in day_list]
+    chart_sales = [totals_by_day[d]['sales'] for d in day_list]
+    chart_tickets = [totals_by_day[d]['tickets'] for d in day_list]
+    chart_profit = [round(v * 0.85, 2) for v in chart_sales]
+    chart_labels_json = json.dumps(chart_labels)
+    chart_sales_json = json.dumps(chart_sales)
+    chart_tickets_json = json.dumps(chart_tickets)
+    chart_profit_json = json.dumps(chart_profit)
 
-        rows.append({
-            'year': year_iter,
-            'month': month_iter,
-            'month_name': calendar.month_name[month_iter],
-            'sold_count': sold_count_iter,
-            'sold_total': float(sold_total_iter),
-            'refunds_amount': round(refunds_amount_iter, 2),
-            'support_total': support_total_iter,
-            'support_processed': support_processed_iter,
-            'commission': round(commission_iter, 2),
+    top_carriers = sorted(carrier_rows, key=lambda c: c['total_sales'], reverse=True)[:8]
+
+    sales_summary_qs = Ticket.objects.filter(ticket_date_filter)
+    if selected_carrier and selected_carrier.user:
+        sales_summary_qs = sales_summary_qs.filter(trip__carrier_user=selected_carrier.user)
+
+    sold_count = sales_summary_qs.count()
+    sold_total = float(sales_summary_qs.aggregate(total=Coalesce(Sum('total_price'), Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)), output_field=DecimalField(max_digits=14, decimal_places=2)))['total'] or 0)
+    commission_total = float(sales_summary_qs.aggregate(
+        total=Coalesce(
+            Sum(ExpressionWrapper(F('total_price') * Value(Decimal('0.15')), output_field=DecimalField(max_digits=14, decimal_places=2))),
+            Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        )
+    )['total'] or 0)
+    net_profit = round(sold_total - commission_total, 2)
+    net_profit = round(sold_total - commission_total, 2)
+
+    ticket_rows = []
+    if selected_carrier and selected_carrier.user:
+        ticket_qs = sales_summary_qs.select_related('user', 'trip__route').prefetch_related('passenger_set')
+
+        def ticket_route(ticket):
+            if ticket.trip and getattr(ticket.trip, 'route', None):
+                return ticket.trip.route.name
+            if ticket.from_city and ticket.to_city:
+                return f"{ticket.from_city} → {ticket.to_city}"
+            return ticket.route or '—'
+
+        def ticket_time(ticket):
+            if ticket.trip:
+                first_stop = ticket.trip.trip_stops.order_by('order').first()
+                if first_stop and getattr(first_stop, 'departure_time', None):
+                    return first_stop.departure_time.strftime('%H:%M')
+            return ''
+
+        for ticket in ticket_qs.order_by('-created_at'):
+            passengers = [f"{p.first_name} {p.last_name}".strip() for p in ticket.passenger_set.all()]
+            passenger_label = ', '.join(passengers) if passengers else (ticket.user.username if ticket.user else '')
+            seat_label = getattr(ticket, 'seat', None) or (f"{ticket.passengers} місць" if ticket.passengers else '—')
+            ticket_rows.append({
+                'id': ticket.id,
+                'route': ticket_route(ticket),
+                'date': ticket.travel_date.strftime('%d.%m.%Y') if ticket.travel_date else '',
+                'time': ticket_time(ticket),
+                'place': seat_label,
+                'passenger': passenger_label,
+                'phone': ticket.contact_phone or '',
+                'email': ticket.contact_email or '',
+                'price': float(ticket.total_price or 0),
+                'status': 'Оплачено' if ticket.paid else 'Не оплачено',
+            })
+
+    if ajax_request:
+        return JsonResponse({
+            'summary': {
+                'tickets': sold_count,
+                'sales': sold_total,
+                'commission': commission_total,
+            },
+            'chart_labels': chart_labels,
+            'chart_sales': chart_sales,
+            'chart_profit': chart_profit,
+            'chart_tickets': chart_tickets,
+            'top_carriers': top_carriers,
+            'carrier_selected_id': selected_carrier.id if selected_carrier else None,
+            'tickets': ticket_rows,
         })
 
     return render(request, 'dieller_reports.html', {
-        'rows': rows,
-        'selected_month': selected_month_summary,
-        'year_options': year_options,
-        'month_options': month_options,
-        'all_carriers': all_carriers,
+        'period_label': period_label,
+        'filter_period': filter_period,
+        'query': query,
+        'sort': sort,
+        'carriers': carrier_rows,
         'selected_carrier': selected_carrier,
-        'selected_carrier_routes': selected_carrier_routes,
+        'carrier_tickets': ticket_rows,
+        'carrier_selected_id': selected_carrier.id if selected_carrier else None,
+        'summary': {
+            'tickets': sold_count,
+            'sales': sold_total,
+            'commission': commission_total,
+            'profit': net_profit,
+        },
+        'chart_labels_json': chart_labels_json,
+        'chart_sales_json': chart_sales_json,
+        'chart_tickets_json': chart_tickets_json,
+        'top_carriers': top_carriers,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': (end_date - timedelta(days=1)).strftime('%Y-%m-%d'),
+        'filters': {
+            'today': filter_period == 'today',
+            'yesterday': filter_period == 'yesterday',
+            'this_week': filter_period == 'this_week',
+            'this_month': filter_period == 'this_month',
+            'last_month': filter_period == 'last_month',
+            'custom': filter_period == 'custom',
+        },
     })
+
+
+def _route_report_context(request):
+    from datetime import datetime, timedelta
+    from django.db.models import Q
+
+    today = timezone.localdate()
+    filter_period = request.GET.get('filter', 'this_month')
+    custom_start = request.GET.get('start_date')
+    custom_end = request.GET.get('end_date')
+    route_id = request.GET.get('route_id')
+
+    def first_day_of_month(date_obj):
+        return date_obj.replace(day=1)
+
+    def last_day_of_month(date_obj):
+        next_month = date_obj.replace(day=28) + timedelta(days=4)
+        return next_month.replace(day=1) - timedelta(days=1)
+
+    if filter_period == 'today':
+        start_date = today
+        end_date = today
+        period_label = 'Сьогодні'
+    elif filter_period == 'yesterday':
+        start_date = today - timedelta(days=1)
+        end_date = start_date
+        period_label = 'Вчора'
+    elif filter_period == 'this_week':
+        start_date = today - timedelta(days=today.weekday())
+        end_date = start_date + timedelta(days=6)
+        period_label = 'Цей тиждень'
+    elif filter_period == 'last_month':
+        first_of_this_month = first_day_of_month(today)
+        last_month_end = first_of_this_month - timedelta(days=1)
+        start_date = first_day_of_month(last_month_end)
+        end_date = last_month_end
+        period_label = 'Минулий місяць'
+    elif filter_period == 'custom':
+        try:
+            start_date = datetime.strptime(custom_start or '', '%Y-%m-%d').date()
+        except Exception:
+            start_date = first_day_of_month(today)
+        try:
+            end_date = datetime.strptime(custom_end or '', '%Y-%m-%d').date()
+        except Exception:
+            end_date = today
+        period_label = f"{start_date.strftime('%d.%m.%Y')} — {end_date.strftime('%d.%m.%Y')}"
+    else:
+        start_date = first_day_of_month(today)
+        end_date = last_day_of_month(today)
+        period_label = 'Цей місяць'
+
+    if start_date > end_date:
+        start_date = first_day_of_month(today)
+        end_date = last_day_of_month(today)
+        period_label = 'Цей місяць'
+
+    routes = list(Route.objects.filter(active=True).order_by('name'))
+    selected_route = None
+    if route_id:
+        try:
+            selected_route = Route.objects.filter(pk=int(route_id)).first()
+        except Exception:
+            selected_route = None
+
+    date_filter = Q(paid=True) & (
+        Q(travel_date__gte=start_date, travel_date__lte=end_date)
+        | Q(trip__date__gte=start_date, trip__date__lte=end_date)
+    )
+
+    tickets_qs = Ticket.objects.filter(date_filter).select_related('trip__route', 'trip__carrier_user').prefetch_related('trip__trip_stops').order_by('-travel_date', '-created_at')
+    if selected_route:
+        tickets_qs = tickets_qs.filter(trip__route=selected_route)
+
+    def ticket_route_label(ticket):
+        if getattr(ticket, 'trip', None) and getattr(getattr(ticket, 'trip', None), 'route', None):
+            return ticket.trip.route.name
+        if ticket.from_city and ticket.to_city:
+            return f"{ticket.from_city} → {ticket.to_city}"
+        return ticket.route or '—'
+
+    def ticket_date_value(ticket):
+        if getattr(ticket, 'travel_date', None):
+            return ticket.travel_date
+        if getattr(ticket, 'trip', None) and getattr(ticket.trip, 'date', None):
+            return ticket.trip.date
+        return None
+
+    def ticket_depart_time(ticket):
+        if getattr(ticket, 'trip', None):
+            try:
+                stop = ticket.trip.trip_stops.order_by('order').first()
+                if stop and getattr(stop, 'departure_time', None):
+                    return stop.departure_time.strftime('%H:%M')
+            except Exception:
+                pass
+        return ''
+
+    total_tickets = 0
+    total_sales = 0.0
+    total_commission = 0.0
+    total_carrier_pay = 0.0
+    currency_totals = {}
+    route_totals = {}
+    trip_totals = {}
+    daily_totals = {}
+    ticket_rows = []
+
+    for ticket in tickets_qs:
+        route_label = ticket_route_label(ticket)
+        travel_date = ticket_date_value(ticket)
+        if not travel_date:
+            continue
+
+        price = float(ticket.total_price or 0.0)
+        commission = round(price * 0.15, 2)
+        carrier_pay = round(price - commission, 2)
+        currency = ticket.currency or 'UAH'
+        trip_label = 'Без рейсу'
+        trip_id = None
+        if getattr(ticket, 'trip', None):
+            trip_id = ticket.trip.id
+            trip_label = ticket.trip.title or f"Рейс #{ticket.trip.id}"
+
+        total_tickets += 1
+        total_sales += price
+        total_commission += commission
+        total_carrier_pay += carrier_pay
+
+        currency_totals.setdefault(currency, {'tickets': 0, 'sales': 0.0, 'commission': 0.0, 'carrier_pay': 0.0})
+        currency_totals[currency]['tickets'] += 1
+        currency_totals[currency]['sales'] += price
+        currency_totals[currency]['commission'] += commission
+        currency_totals[currency]['carrier_pay'] += carrier_pay
+
+        route_totals.setdefault(route_label, {'tickets': 0, 'sales': 0.0, 'commission': 0.0, 'carrier_pay': 0.0})
+        route_totals[route_label]['tickets'] += 1
+        route_totals[route_label]['sales'] += price
+        route_totals[route_label]['commission'] += commission
+        route_totals[route_label]['carrier_pay'] += carrier_pay
+
+        if trip_id is not None:
+            trip_totals.setdefault(trip_id, {'trip': ticket.trip, 'tickets': 0, 'sales': 0.0, 'commission': 0.0, 'carrier_pay': 0.0})
+            trip_totals[trip_id]['tickets'] += 1
+            trip_totals[trip_id]['sales'] += price
+            trip_totals[trip_id]['commission'] += commission
+            trip_totals[trip_id]['carrier_pay'] += carrier_pay
+
+        daily_totals.setdefault(travel_date, {'sales': 0.0, 'tickets': 0})
+        daily_totals[travel_date]['sales'] += price
+        daily_totals[travel_date]['tickets'] += 1
+
+        ticket_rows.append({
+            'id': ticket.id,
+            'route': route_label,
+            'trip': trip_label,
+            'date': travel_date.strftime('%d.%m.%Y'),
+            'time': ticket_depart_time(ticket),
+            'passengers': ticket.passengers,
+            'phone': ticket.contact_phone or '',
+            'email': ticket.contact_email or '',
+            'price': price,
+            'currency': currency,
+            'commission': commission,
+            'carrier_pay': carrier_pay,
+        })
+
+    day_list = []
+    current_day = start_date
+    while current_day <= end_date:
+        day_list.append(current_day)
+        current_day += timedelta(days=1)
+
+    chart_labels = [d.strftime('%d.%m') for d in day_list]
+    chart_sales = [round(daily_totals.get(d, {}).get('sales', 0.0), 2) for d in day_list]
+    chart_tickets = [daily_totals.get(d, {}).get('tickets', 0) for d in day_list]
+
+    route_rows = [
+        {
+            'route': name,
+            'tickets': values['tickets'],
+            'sales': round(values['sales'], 2),
+            'commission': round(values['commission'], 2),
+            'carrier_pay': round(values['carrier_pay'], 2),
+        }
+        for name, values in route_totals.items()
+    ]
+    route_rows.sort(key=lambda x: x['sales'], reverse=True)
+
+    trip_rows = [
+        {
+            'trip_id': trip_id,
+            'trip': values['trip'],
+            'tickets': values['tickets'],
+            'sales': round(values['sales'], 2),
+            'commission': round(values['commission'], 2),
+            'carrier_pay': round(values['carrier_pay'], 2),
+        }
+        for trip_id, values in trip_totals.items()
+    ]
+    trip_rows.sort(key=lambda x: x['sales'], reverse=True)
+
+    currency_rows = [
+        {
+            'currency': currency,
+            'tickets': values['tickets'],
+            'sales': round(values['sales'], 2),
+            'commission': round(values['commission'], 2),
+            'carrier_pay': round(values['carrier_pay'], 2),
+        }
+        for currency, values in currency_totals.items()
+    ]
+    currency_rows.sort(key=lambda x: x['sales'], reverse=True)
+
+    return {
+        'filter_period': filter_period,
+        'period_label': period_label,
+        'routes': routes,
+        'selected_route': selected_route,
+        'selected_route_id': selected_route.id if selected_route else None,
+        'ticket_rows': ticket_rows,
+        'route_rows': route_rows,
+        'trip_rows': trip_rows,
+        'currency_rows': currency_rows,
+        'summary': {
+            'tickets': total_tickets,
+            'sales': round(total_sales, 2),
+            'commission': round(total_commission, 2),
+            'carrier_pay': round(total_carrier_pay, 2),
+        },
+        'chart_labels_json': json.dumps(chart_labels),
+        'chart_sales_json': json.dumps(chart_sales),
+        'chart_tickets_json': json.dumps(chart_tickets),
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        'filters': {
+            'today': filter_period == 'today',
+            'yesterday': filter_period == 'yesterday',
+            'this_week': filter_period == 'this_week',
+            'this_month': filter_period == 'this_month',
+            'last_month': filter_period == 'last_month',
+            'custom': filter_period == 'custom',
+        },
+    }
+
+
+@login_required
+def route_reports(request):
+    if not request.user.is_authenticated or (getattr(request.user, 'username', '') or '').lower() != 'dieller':
+        return HttpResponse(status=403)
+
+    context = _route_report_context(request)
+    return render(request, 'route_reports.html', context)
+
+
+@login_required
+def route_reports_export_excel(request):
+    if not request.user.is_authenticated or (getattr(request.user, 'username', '') or '').lower() != 'dieller':
+        return HttpResponse(status=403)
+
+    context = _route_report_context(request)
+    out = io.StringIO()
+    out.write('\ufeff')
+    writer = csv.writer(out)
+    writer.writerow(['ticket_id', 'route', 'trip', 'travel_date', 'departure_time', 'passengers', 'phone', 'email', 'price', 'currency', 'commission', 'carrier_pay'])
+    for row in context['ticket_rows']:
+        writer.writerow([
+            row['id'],
+            row['route'],
+            row['trip'],
+            row['date'],
+            row['time'],
+            row['passengers'],
+            row['phone'],
+            row['email'],
+            f"{row['price']:.2f}",
+            row['currency'],
+            f"{row['commission']:.2f}",
+            f"{row['carrier_pay']:.2f}",
+        ])
+
+    filename = f"route_report_{context['start_date']}_{context['end_date']}.csv"
+    resp = HttpResponse(out.getvalue(), content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+def route_reports_export_pdf(request):
+    if not request.user.is_authenticated or (getattr(request.user, 'username', '') or '').lower() != 'dieller':
+        return HttpResponse(status=403)
+
+    if A4 is None:
+        return HttpResponse('PDF generation is not available in this environment.', status=500)
+
+    context = _route_report_context(request)
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    margin = 40
+    y = height - margin
+
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(margin, y, 'Звіт за маршрутами')
+    c.setFont('Helvetica', 10)
+    y -= 20
+    c.drawString(margin, y, f"Період: {context['period_label']}")
+    if context['selected_route']:
+        y -= 14
+        c.drawString(margin, y, f"Маршрут: {context['selected_route'].name}")
+
+    y -= 24
+    c.drawString(margin, y, f"Квитків: {context['summary']['tickets']}")
+    c.drawString(margin + 140, y, f"Дохід: {context['summary']['sales']:.2f}")
+    c.drawString(margin + 300, y, f"Комісія: {context['summary']['commission']:.2f}")
+    c.drawString(margin + 430, y, f"Перевізнику: {context['summary']['carrier_pay']:.2f}")
+
+    y -= 24
+    c.setFont('Helvetica-Bold', 10)
+    headers = ['ID', 'Дата', 'Маршрут', 'Ціна', 'Валюта', 'Комісія', 'Перевізнику']
+    x_positions = [margin, margin+40, margin+90, margin+310, margin+360, margin+420, margin+480]
+    for x, label in zip(x_positions, headers):
+        c.drawString(x, y, label)
+
+    c.setFont('Helvetica', 9)
+    y -= 16
+
+    for row in context['ticket_rows']:
+        if y < margin + 40:
+            c.showPage()
+            y = height - margin
+            c.setFont('Helvetica-Bold', 10)
+            for x, label in zip(x_positions, headers):
+                c.drawString(x, y, label)
+            c.setFont('Helvetica', 9)
+            y -= 16
+
+        c.drawString(x_positions[0], y, str(row['id']))
+        c.drawString(x_positions[1], y, row['date'])
+        c.drawString(x_positions[2], y, row['route'][:32])
+        c.drawRightString(x_positions[3] + 40, y, f"{row['price']:.2f}")
+        c.drawString(x_positions[4], y, row['currency'])
+        c.drawRightString(x_positions[5] + 40, y, f"{row['commission']:.2f}")
+        c.drawRightString(x_positions[6] + 40, y, f"{row['carrier_pay']:.2f}")
+        y -= 14
+
+    c.save()
+    buf.seek(0)
+    resp = HttpResponse(buf.getvalue(), content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="route_report_{context['start_date']}_{context['end_date']}.pdf"'
+    return resp
 
 
 @login_required

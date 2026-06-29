@@ -165,7 +165,7 @@
 
     <a href="{% url 'main:password_change' %}" class="change-pass-btn">🔐 Змінити пароль</a>
 
-    <form method="post" action="{% url 'main:kvitokindex' %}">
+    <form method="post" action="{% url 'main:logout' %}">
       {% csrf_token %}
       <button type="submit" class="logout-btn">🚪 Вийти з акаунту</button>
     </form>

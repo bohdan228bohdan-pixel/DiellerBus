@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+
+{% block title %}Звіт за маршрутами{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-4">Звіт за маршрутами</h1>
+
+  <form method="get" class="row g-3 align-items-end mb-4">
+    <div class="col-md-3">
+      <label class="form-label">Маршрут</label>
+      <select class="form-select" name="route_id">
+        <option value="">Усі маршрути</option>
+        {% for route in routes %}
+          <option value="{{ route.id }}" {% if selected_route_id == route.id %}selected{% endif %}>{{ route.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Початок</label>
+      <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Кінець</label>
+      <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Період</label>
+      <select class="form-select" name="filter">
+        <option value="this_month" {% if filters.this_month %}selected{% endif %}>Цей місяць</option>
+        <option value="today" {% if filters.today %}selected{% endif %}>Сьогодні</option>
+        <option value="yesterday" {% if filters.yesterday %}selected{% endif %}>Вчора</option>
+        <option value="this_week" {% if filters.this_week %}selected{% endif %}>Цей тиждень</option>
+        <option value="last_month" {% if filters.last_month %}selected{% endif %}>Минулий місяць</option>
+        <option value="custom" {% if filters.custom %}selected{% endif %}>Обраний діапазон</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-grid">
+      <button type="submit" class="btn btn-primary">Оновити</button>
+    </div>
+  </form>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="card-title">Період</h6>
+          <p class="card-text">{{ period_label }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="card-title">Квитків</h6>
+          <p class="card-text fs-4 fw-bold">{{ summary.tickets }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="card-title">Продажі</h6>
+          <p class="card-text fs-4 fw-bold">{{ summary.sales|floatformat:2 }} грн</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="card-title">Комісія</h6>
+          <p class="card-text fs-4 fw-bold">{{ summary.commission|floatformat:2 }} грн</p>
+          <p class="card-text text-muted mb-0">Перевізнику: {{ summary.carrier_pay|floatformat:2 }} грн</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-4 d-flex flex-wrap gap-2">
+    <a href="{% url 'main:route_reports_export_excel' %}?route_id={{ selected_route_id }}&start_date={{ start_date }}&end_date={{ end_date }}&filter={{ filter_period }}" class="btn btn-outline-success">Експорт CSV</a>
+    <a href="{% url 'main:route_reports_export_pdf' %}?route_id={{ selected_route_id }}&start_date={{ start_date }}&end_date={{ end_date }}&filter={{ filter_period }}" class="btn btn-outline-danger">Експорт PDF</a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Продажі за період</h5>
+          <canvas id="routeSalesChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Рейси</h5>
+          {% if trip_rows %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Рейс</th>
+                    <th>Квитків</th>
+                    <th>Продажі</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for trip in trip_rows|slice:":6" %}
+                    <tr>
+                      <td>{{ trip.trip }}</td>
+                      <td>{{ trip.tickets }}</td>
+                      <td>{{ trip.sales|floatformat:2 }} грн</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="mb-0 text-muted">Немає рейсів.</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Валюти</h5>
+          {% if currency_rows %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Валюта</th>
+                    <th>Квитків</th>
+                    <th>Продажі</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for currency in currency_rows %}
+                    <tr>
+                      <td>{{ currency.currency }}</td>
+                      <td>{{ currency.tickets }}</td>
+                      <td>{{ currency.sales|floatformat:2 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="mb-0 text-muted">Немає даних по валютам.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Маршрутні підсумки</h5>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Маршрут</th>
+                  <th>Квитків</th>
+                  <th>Продажі</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in route_rows %}
+                  <tr>
+                    <td>{{ row.route }}</td>
+                    <td>{{ row.tickets }}</td>
+                    <td>{{ row.sales|floatformat:2 }} грн</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-muted">Немає даних.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Квитки</h5>
+          <div class="table-responsive" style="max-height: 440px; overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Дата</th>
+                  <th>Маршрут</th>
+                  <th>Ціна</th>
+                  <th>Комісія</th>
+                  <th>Перевізнику</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ticket in ticket_rows %}
+                  <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.date }}</td>
+                    <td>{{ ticket.route }}</td>
+                    <td>{{ ticket.price|floatformat:2 }} {{ ticket.currency }}</td>
+                    <td>{{ ticket.commission|floatformat:2 }}</td>
+                    <td>{{ ticket.carrier_pay|floatformat:2 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="text-muted">Немає квитків за обраний період.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('routeSalesChart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: {{ chart_labels_json|safe }},
+          datasets: [
+            {
+              label: 'Продажі',
+              data: {{ chart_sales_json|safe }},
+              borderColor: '#dc3545',
+              backgroundColor: 'rgba(220,53,69,0.12)',
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: 'Квитків',
+              data: {{ chart_tickets_json|safe }},
+              borderColor: '#0d6efd',
+              backgroundColor: 'rgba(13,110,253,0.12)',
+              tension: 0.4,
+              fill: true,
+              yAxisID: 'yTickets',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: { display: true, text: 'Продажі (грн)' }
+            },
+            yTickets: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              title: { display: true, text: 'Квитків' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}
