@@ -26,9 +26,18 @@
       <label class="form-label">Кінець</label>
       <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label">Пошук перевізника</label>
       <input type="search" class="form-control" name="q" value="{{ query }}" placeholder="Назва, email або телефон">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Перевізник</label>
+      <select class="form-select" name="carrier_id" onchange="this.form.submit()">
+        <option value="">Усі перевізники</option>
+        {% for carrier in carriers %}
+          <option value="{{ carrier.id }}" {% if carrier_selected_id == carrier.id %}selected{% endif %}>{{ carrier.name }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-2">
       <label class="form-label">Сортування</label>
@@ -152,13 +161,13 @@
 
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <h5 class="card-title">Перевізники</h5>
+      <h5 class="card-title">Підсумок по перевізниках</h5>
       <div class="table-responsive">
         <table class="table table-hover align-middle">
           <thead>
             <tr>
               <th>Назва</th>
-              <th>Тріпів</th>
+              <th>Рейсів</th>
               <th>Квитків</th>
               <th>Дохід</th>
               <th>Комісія</th>
@@ -175,7 +184,7 @@
                 <td>{{ carrier.total_sales|floatformat:2 }} грн</td>
                 <td>{{ carrier.commission|floatformat:2 }} грн</td>
                 <td>{{ carrier.status }}</td>
-                <td><a href="?filter={{ filter_period }}&q={{ query }}&sort={{ sort }}&carrier_id={{ carrier.id }}&start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-sm btn-outline-dark">Відкрити</a></td>
+                <td><a href="?filter={{ filter_period }}&q={{ query }}&sort={{ sort }}&carrier_id={{ carrier.id }}&start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-sm btn-outline-dark">Показати квитки</a></td>
               </tr>
             {% empty %}
               <tr><td colspan="7" class="text-muted">Немає перевізників для показу.</td></tr>
@@ -203,24 +212,32 @@
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Маршрут</th>
-                  <th>Дата</th>
-                  <th>Час</th>
                   <th>Пасажир</th>
-                  <th>Контакти</th>
+                  <th>Телефон</th>
+                  <th>Email</th>
+                  <th>Маршрут</th>
+                  <th>Дата поїздки</th>
+                  <th>Час</th>
+                  <th>Місць</th>
                   <th>Ціна</th>
+                  <th>Статус</th>
+                  <th>Куплено</th>
                 </tr>
               </thead>
               <tbody>
                 {% for ticket in carrier_tickets %}
                   <tr>
                     <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.passenger }}</td>
+                    <td>{{ ticket.phone }}</td>
+                    <td>{{ ticket.email }}</td>
                     <td>{{ ticket.route }}</td>
                     <td>{{ ticket.date }}</td>
                     <td>{{ ticket.time }}</td>
-                    <td>{{ ticket.passenger }}</td>
-                    <td>{{ ticket.phone }}<br>{{ ticket.email }}</td>
+                    <td>{{ ticket.seats }}</td>
                     <td>{{ ticket.price|floatformat:2 }} грн</td>
+                    <td>{{ ticket.status }}</td>
+                    <td>{{ ticket.created_at }}</td>
                   </tr>
                 {% endfor %}
               </tbody>

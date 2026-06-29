@@ -1,7 +1,13 @@
+from datetime import date, timedelta
+
 from django.test import TestCase
 from django.test import RequestFactory
+from django.contrib.auth import get_user_model
+from django.urls import reverse
 from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability
 from .views import api_trips
+
+User = get_user_model()
 
 
 class SubcityMatchingTests(TestCase):
@@ -37,3 +43,38 @@ class SubcityMatchingTests(TestCase):
 		trip = data['trips'][0]
 		self.assertEqual(trip['id'], self.trip.id)
 		self.assertEqual(trip['price'], 1100.0)
+
+
+class CheckoutPhoneValidationTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username='buyer', email='buyer@example.com', password='pass1234')
+		self.city1 = City.objects.create(name='Львів', country='UA')
+		self.city2 = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ', active=True)
+		self.trip = Trip.objects.create(
+			route=self.route,
+			title='Тестовий рейс',
+			seats=20,
+			base_price=100.0,
+			start_city=self.city1,
+			end_city=self.city2,
+			active=True,
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city1, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=self.trip, city=self.city2, order=2, arrival_time='12:00')
+
+	def test_checkout_requires_phone(self):
+		self.client.force_login(self.user)
+		response = self.client.post(
+			reverse('main:checkout', args=[self.trip.id]),
+			{
+				'passengers': '1',
+				'email': 'buyer@example.com',
+				'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+				'passenger_first': ['Іван'],
+				'passenger_last': ['Іваненко'],
+				'accept_agreements': 'on',
+			},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Будь ласка, вкажіть номер телефону')

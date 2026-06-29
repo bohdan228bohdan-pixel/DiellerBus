@@ -1932,12 +1932,13 @@ def dieller_reports(request):
                 'route': ticket_route(ticket),
                 'date': ticket.travel_date.strftime('%d.%m.%Y') if ticket.travel_date else '',
                 'time': ticket_time(ticket),
-                'place': seat_label,
+                'seats': seat_label,
                 'passenger': passenger_label,
                 'phone': ticket.contact_phone or '',
                 'email': ticket.contact_email or '',
                 'price': float(ticket.total_price or 0),
                 'status': 'Оплачено' if ticket.paid else 'Не оплачено',
+                'created_at': ticket.created_at.strftime('%d.%m.%Y %H:%M') if ticket.created_at else '',
             })
 
     if ajax_request:
@@ -3862,7 +3863,22 @@ def checkout(request, trip_id):
     contact_phone = (
         request.POST.get('phone')
         or ''
-    )
+    ).strip()
+
+    if not contact_phone:
+        messages.error(request, 'Будь ласка, вкажіть номер телефону для оформлення квитка')
+        return render(request, 'checkout.html', {
+            'trip': trip,
+            'pax': pax,
+            'price_per_ticket': price_after,
+            'total': total,
+            'discount_percent': discount_percent,
+            'user_email': contact_email,
+            'travel_date': travel_date,
+            'selected_from': display_from,
+            'selected_to': display_to,
+            'display_currency': display_currency,
+        })
 
     # -----------------------------
     # CREATE TICKET
