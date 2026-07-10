@@ -6,7 +6,7 @@
   <div class="card p-4 text-center">
     <h3>Переадресація на WayForPay...</h3>
     <p>Якщо оплата не почнеться автоматично, натисніть кнопку "Оплатити" нижче.</p>
-    <form id="wayforpayForm" method="post" action="{{ wayforpay_url|default:'https://wayforpay.com' }}">
+    <form id="wayforpayForm" method="post" action="https://wayforpay.com">
       <input type="hidden" name="merchantAccount" value="{{ merchant_login|default:'' }}">
       <input type="hidden" name="merchantDomainName" value="{{ merchant_domain|default:'' }}">
       <input type="hidden" name="merchantSignature" value="{{ merchant_signature|default:'' }}">
