@@ -75,7 +75,7 @@ def _verify_ticket_signature(ticket, sig):
 
 
 def _wayforpay_signature(*parts):
-    secret = (getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or '').strip()
+    secret = (getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or '').strip()
     payload = ';'.join(str(p or '') for p in parts + (secret,))
     return hashlib.sha1(payload.encode('utf-8')).hexdigest()
 
@@ -154,8 +154,8 @@ def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provi
 def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_phone=''):
     order_reference = f"ticket-{ticket.id}"
     amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
-    merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', '') or ''
-    merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', '') or request.get_host().split(':')[0] or 'localhost'
+    merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', None) or ''
+    merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', None) or request.get_host().split(':')[0] or 'localhost'
     return_url = request.build_absolute_uri(reverse('main:payment_success'))
     service_url = request.build_absolute_uri(reverse('main:wayforpay_callback'))
     product_names = [f"Квиток {ticket.from_city} → {ticket.to_city}"]

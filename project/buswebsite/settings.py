@@ -248,9 +248,10 @@ if not DEFAULT_FROM_EMAIL and not DEBUG and EMAIL_BACKEND == 'django.core.mail.b
 SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(',') if u.strip()]
 
 # WayForPay (use environment variables for merchant credentials)
-WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN", "")
-WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET", os.environ.get("WAYFORPAY_SECRET_KEY", ""))
-WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN", "diellerbus.com")
+WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN")
+WAYFORPAY_SECRET_KEY = os.environ.get("WAYFORPAY_SECRET_KEY")
+WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN")
+WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET") or WAYFORPAY_SECRET_KEY
 WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://wayforpay.com")
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')

@@ -119,7 +119,7 @@ class DirectCheckoutRedirectTests(TestCase):
 		self.assertEqual(payment.status, 'pending')
 
 
-@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_SECRET_KEY='test-secret')
 class WayForPayCheckoutTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(username='payer', email='payer@example.com', password='pass1234')

@@ -29,7 +29,7 @@ def generate_wayforpay_signature(
     product_prices,
 ):
     """Generate WayForPay merchantSignature using HMAC-MD5."""
-    secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
+    secret = getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
     names_str = _normalize_value(product_names)
     counts_str = _normalize_value(product_counts)
     prices_str = _normalize_value(product_prices)
@@ -58,7 +58,7 @@ def verify_wayforpay_signature(signature, data):
     """Verify incoming WayForPay callback signature."""
     if not signature:
         return False
-    secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
+    secret = getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
     if not secret:
         return False
     fields = [
@@ -80,7 +80,8 @@ def build_wayforpay_callback_response(order_reference, status='accept', timestam
     """Build the JSON response that WayForPay expects from server-to-server callbacks."""
     if timestamp is None:
         timestamp = int(time.time())
-    signature = _hmac_md5_signature([order_reference, status, timestamp], getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or '')
+    secret = getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
+    signature = _hmac_md5_signature([order_reference, status, timestamp], secret)
     return {
         'orderReference': str(order_reference),
         'status': status,
