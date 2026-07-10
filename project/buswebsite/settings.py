@@ -251,7 +251,7 @@ SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(
 WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN", "")
 WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET", os.environ.get("WAYFORPAY_SECRET_KEY", ""))
 WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN", "diellerbus.com")
-WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://secure.wayforpay.com/pay")
+WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://wayforpay.com")
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
