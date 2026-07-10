@@ -1,32 +1,29 @@
 import random
-from django.shortcuts import render, redirect
-from django.http import HttpResponse, HttpResponseRedirect
+from urllib.parse import urlencode
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.utils import timezone
 import re
 import unicodedata
 import difflib
-import stripe
 from django.conf import settings
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from .models import Ticket, Payment, Carrier
-from .models import Bus, SupportTicket, SupportMessage, SupportPresetQuestion
+from .models import Ticket, Payment, Carrier, Bus, SupportTicket, SupportMessage, SupportPresetQuestion
+from .wayforpay import generate_wayforpay_signature, verify_wayforpay_signature, build_wayforpay_callback_response
 from django.views.generic import ListView, DetailView, FormView
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from .forms import BusBookingForm
 from .forms import SupportTicketForm, SupportMessageForm, TicketEditForm, PassengerFormSet, ProfileForm, SupportUserForm
 from .forms import RequestPasswordChangeForm
 
-# Additional imports for LiqPay, PDF generation and email attachments
+# Additional imports for PDF generation and email attachments
 import json
 import base64
 import hashlib
@@ -34,13 +31,10 @@ import logging
 import io
 import csv
 import zipfile
-from django.urls import reverse
-from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.template.loader import render_to_string
 import hmac
 import os
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
 from decimal import Decimal
 try:
 
@@ -161,11 +155,10 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
     order_reference = f"ticket-{ticket.id}"
     amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
     merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', '') or ''
-    merchant_secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
-    merchant_domain = request.get_host().split(':')[0] or 'localhost'
+    merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', '') or request.get_host().split(':')[0] or 'localhost'
     return_url = request.build_absolute_uri(reverse('main:payment_success'))
     service_url = request.build_absolute_uri(reverse('main:wayforpay_callback'))
-    merchant_signature = _wayforpay_signature(
+    merchant_signature = generate_wayforpay_signature(
         merchant_login,
         merchant_domain,
         order_reference,
@@ -186,6 +179,7 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         'merchant_login': merchant_login,
         'merchant_domain': merchant_domain,
         'merchant_signature': merchant_signature,
+        'merchant_auth_type': 'HMAC',
         'order_reference': order_reference,
         'amount': amount_value,
         'currency': (payment.currency or 'UAH').upper(),
@@ -195,6 +189,7 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         'product_price': amount_value,
         'return_url': return_url,
         'service_url': service_url,
+        'language': 'RU',
         'client_first_name': getattr(request.user, 'first_name', '') or '',
         'client_last_name': getattr(request.user, 'last_name', '') or '',
         'client_email': contact_email,
@@ -230,41 +225,6 @@ def _support_user_allowed(user, require_worker=False):
     except Exception:
         pass
     return False
-
-
-@staff_member_required
-def liqpay_debug(request):
-    """Staff-only debug endpoint: return sample LiqPay `data` and `signature`.
-
-    Use this in development to check that signature generation matches LiqPay.
-    Does NOT return the private key.
-    """
-    try:
-        # Build a minimal payload for testing
-        payload = {
-            'public_key': settings.LIQPAY_PUBLIC_KEY,
-            'version': '3',
-            'action': 'pay',
-            'amount': request.GET.get('amount', '1'),
-            'currency': request.GET.get('currency', 'UAH'),
-            'description': 'Debug payment',
-            'order_id': request.GET.get('order_id', 'debug-' + str(int(timezone.now().timestamp()))),
-            'sandbox': '1',
-            'server_url': request.build_absolute_uri(reverse('main:liqpay_callback')),
-            'result_url': request.build_absolute_uri(reverse('main:payment_success')),
-            'language': 'uk'
-        }
-        json_data = json.dumps(payload)
-        data_b64 = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
-        sign = base64.b64encode(
-            hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data_b64 + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()
-        ).decode('utf-8')
-        return JsonResponse({'public_key': settings.LIQPAY_PUBLIC_KEY, 'data': data_b64, 'signature': sign, 'liqpay_url': 'https://www.liqpay.ua/api/3/checkout'})
-    except Exception:
-        return JsonResponse({'error': 'failed to generate debug payload'}, status=500)
-
-
-
 
 
 def _qr_png_bytes(data, size=220):
@@ -3013,55 +2973,12 @@ def check_user_availability(request):
     return JsonResponse(resp)
 
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
-
-@login_required
-def create_ticket(request):
-    if request.method == "POST":
-        from_city = request.POST["from"]
-        to_city = request.POST["to"]
-        passengers = int(request.POST["passengers"])
-        travel_date = request.POST["date"]
-        price = int(request.POST["price"])  # грн
-
-        ticket = Ticket.objects.create(
-            user=request.user,
-            from_city=from_city,
-            to_city=to_city,
-            travel_date=travel_date,
-            passengers=passengers,
-            total_price=price * passengers,
-            currency='UAH',
-            discount_percent=0,
-            contact_email=(request.POST.get('email') or request.user.email),
-            contact_phone=(request.POST.get('phone') or '')
-        )
-        try:
-            request.session['last_ticket_id'] = ticket.id
-        except Exception:
-            pass
-
-        payment = Payment.objects.create(
-            ticket=ticket,
-            user=request.user,
-            provider='wayforpay',
-            amount=(price * passengers),
-            currency='UAH',
-            status='pending'
-        )
-
-        return _render_wayforpay_form(request, ticket, payment, contact_email=(request.POST.get('email') or request.user.email), contact_phone=(request.POST.get('phone') or ''))
-
-    return redirect("main:home")
-
-
 @csrf_exempt
 def payment_success(request):
-    """Handle post-payment redirect from providers (LiqPay / Stripe).
+    """Handle post-payment redirect from WayForPay.
 
-    Tries to detect provider payload in GET/POST, update Payment/Ticket state,
-    send ticket email if needed, and render a friendly success page.
+    Detects signed WayForPay payload, updates Payment/Ticket state, sends ticket email,
+    and renders a friendly success page.
     """
     ticket = None
     payment = None
@@ -3093,28 +3010,7 @@ def payment_success(request):
         except Exception:
             pass
 
-    # 2) Stripe: redirect includes `session_id` param
-    if not processed:
-        session_id = request.GET.get('session_id')
-        if session_id:
-            # try to find ticket created with this stripe session id
-            ticket = Ticket.objects.filter(stripe_session_id=session_id).first()
-            if ticket:
-                from .models import Payment
-                payment = Payment.objects.create(ticket=ticket, user=ticket.user, provider='stripe', provider_payment_id=session_id, amount=ticket.total_price, currency=(ticket.currency if hasattr(ticket, 'currency') else 'UAH'), status='success')
-                ticket.paid = True
-                ticket.save(update_fields=['paid'])
-                try:
-                    _send_ticket_email(ticket, payment)
-                except Exception:
-                    pass
-                try:
-                    request.session.pop('last_ticket_id', None)
-                except Exception:
-                    pass
-                processed = True
-
-    # 3) If no provider payload, allow query param order_id=ticket-<id>
+    # 2) If no provider payload, allow query param order_id=ticket-<id>
     if not processed and not ticket:
         order = request.GET.get('order_id') or request.GET.get('order') or request.GET.get('ticket')
         if order and order.startswith('ticket-'):
@@ -3124,8 +3020,8 @@ def payment_success(request):
             except Exception:
                 ticket = None
 
-    # 4) Fallback for environments where server-to-server callback isn't available
-    # If we have an order param but no signed payload, allow marking as paid in debug/local mode
+    # 3) Fallback for environments where server-to-server callback isn't available
+    # If we have an order in session or a success GET status in DEBUG, mark ticket paid.
     if not processed and not ticket:
         # try session-based fallback (user returned after creating ticket)
         try:
@@ -3137,7 +3033,7 @@ def payment_success(request):
 
     if not processed and ticket:
         status_param = (request.GET.get('status') or '').lower()
-        allow_fallback = settings.DEBUG or not settings.LIQPAY_PRIVATE_KEY or (status_param in ('success', 'processing'))
+        allow_fallback = settings.DEBUG or (status_param in ('success', 'processing'))
         if allow_fallback:
             try:
                 from .models import Payment
@@ -3222,9 +3118,6 @@ def payment_success(request):
 def payment_cancel(request):
     return render(request, "payment_cancel.html")
 
-
-
-stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 def kvitokindex(request):
@@ -3447,205 +3340,16 @@ def oplata(request):
 
 @login_required
 def buy_trip(request, trip_id):
-
-    """Create a Stripe checkout session for the whole trip and redirect to it.
-
-    Accepts optional GET param `pax` (passengers). Requires login.
-    """
-    from datetime import date, datetime
-
-    try:
-        trip = Trip.objects.get(pk=trip_id, active=True)
-    except Trip.DoesNotExist:
-        return redirect('main:kvitokindex')
-
-    # compute price similarly to api_trips: prefer trip_stops prices
-    trip_stops = list(trip.trip_stops.all())
-    price = 0.0
-    try:
-        price_sum = 0.0
-        missing_price = False
-        if trip_stops:
-            for s in trip_stops:
-                p = float(getattr(s, 'price', 0.0) or 0.0)
-                if p <= 0:
-                    missing_price = True
-                price_sum += p
-        if price_sum > 0 and not missing_price:
-            price = price_sum
-        else:
-            price = float(trip.base_price or 0.0)
-    except Exception:
-        price = float(trip.base_price or 0.0)
-
-    pax = int(request.GET.get('pax') or 1)
-
-    # Determine selected travel date: prefer explicit `date`/`travel_date` GET param (ISO or DD.MM.YYYY),
-    # otherwise default to trip.date (if set) or today.
-    date_str = request.GET.get('date') or request.GET.get('travel_date')
-    travel_date = None
-    if date_str:
-        try:
-            travel_date = datetime.fromisoformat(date_str).date()
-        except Exception:
-            try:
-                travel_date = datetime.strptime(date_str, '%d.%m.%Y').date()
-            except Exception:
-                travel_date = None
-    if travel_date is None:
-        travel_date = trip.date or date.today()
-
-    # Prevent buying tickets for a selected date in the past
-    try:
-        if travel_date < date.today():
-            messages.error(request, 'Цей рейс вже відправився — купити квиток неможливо')
-            return redirect('main:kvitokindex')
-
-        first_stop = trip.trip_stops.order_by('order').first()
-        if first_stop and first_stop.departure_time:
-            # combine selected date + time and compare aware datetimes
-            dep_naive = datetime.combine(travel_date, first_stop.departure_time)
-            try:
-                dep_dt = timezone.make_aware(dep_naive, timezone.get_current_timezone())
-            except Exception:
-                dep_dt = dep_naive
-            now = timezone.now()
-            if now >= dep_dt:
-                messages.error(request, 'Цей рейс вже відправився — купити квиток неможливо')
-                return redirect('main:kvitokindex')
-    except Exception:
-        pass
-
-    # Check per-day schedule availability (admin-controlled)
-    try:
-        if not trip.is_available_on(travel_date):
-            messages.error(request, 'Цей рейс не виконується у вибрану дату — купити квиток неможливо')
-            return redirect('main:kvitokindex')
-    except Exception:
-        pass
-    cur = (trip.currency or 'UAH').lower()
-
-    # Compute total and optionally apply exchange credit
-    total = round(price * pax, 2)
-    exchange_old_ticket = None
-    exchange_credit = 0.0
-    net_total = total
-    try:
-        exch_param = request.GET.get('exchange_ticket')
-        if exch_param:
-            try:
-                exch_id = int(exch_param)
-                old = Ticket.objects.filter(pk=exch_id).first()
-                if old and getattr(old, 'paid', False) and getattr(old, 'user_id', None) == getattr(request.user, 'id', None):
-                    exchange_old_ticket = old
-                    exchange_credit = float(old.total_price or 0.0)
-                    net_total = round(max(0.0, total - exchange_credit), 2)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    # Check seats availability for the selected date (prevent oversell)
-    try:
-        sold = Ticket.objects.filter(trip=trip, travel_date=travel_date).aggregate(total=Sum('passengers'))['total'] or 0
-        seats_left = (trip.seats or 0) - int(sold or 0)
-        if seats_left < pax:
-            messages.error(request, 'Недостатньо вільних місць на цей рейс')
-            return redirect('main:kvitokindex')
-    except Exception:
-        pass
-
-    # If net_total is zero, skip creating a payment form and mark the ticket paid
-    if net_total <= 0:
-        ticket = Ticket.objects.create(
-            user=request.user,
-            trip=trip,
-            from_city=(trip.start_city.name if trip.start_city else ''),
-            to_city=(trip.end_city.name if trip.end_city else ''),
-            travel_date=travel_date,
-            passengers=pax,
-            total_price=net_total,
-            currency=(trip.currency or 'UAH'),
-            discount_percent=(trip.discount_percent or 0),
-            paid=True,
-            contact_email=(request.GET.get('email') or request.user.email),
-            contact_phone=(request.GET.get('phone') or '')
-        )
-        try:
-            from .models import Payment
-            Payment.objects.create(ticket=ticket, user=request.user, provider='stripe', provider_payment_id='exchange_zero', amount=0, currency=(ticket.currency or 'UAH'), status='success')
-        except Exception:
-            pass
-        try:
-            _send_ticket_email(ticket, None)
-        except Exception:
-            pass
-        # apply exchange credit for old ticket
-        try:
-            if exchange_old_ticket:
-                refund_amount = float(exchange_old_ticket.total_price or 0.0)
-                try:
-                    Payment.objects.create(ticket=None, user=exchange_old_ticket.user, amount=-abs(refund_amount), currency=(exchange_old_ticket.currency or 'UAH'), status='refunded', provider='exchange', data={'by': request.user.username if request.user.is_authenticated else 'system', 'old_ticket': exchange_old_ticket.id, 'new_ticket': ticket.id})
-                except Exception:
-                    pass
-                try:
-                    profile = exchange_old_ticket.user.profile
-                    profile.balance = (profile.balance or 0) + refund_amount
-                    profile.save(update_fields=['balance'])
-                except Exception:
-                    pass
-                try:
-                    exchange_old_ticket.delete()
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        try:
-            request.session['last_ticket_id'] = ticket.id
-        except Exception:
-            pass
-        return render(request, 'payment_success.html', {'ticket': ticket, 'processed': True})
-
-    payment = Payment.objects.create(
-        ticket=None,
-        user=request.user,
-        provider='wayforpay',
-        amount=net_total,
-        currency=(trip.currency or 'UAH'),
-        status='pending'
-    )
-
-    ticket = Ticket.objects.create(
-        user=request.user,
-        trip=trip,
-        from_city=(trip.start_city.name if trip.start_city else ''),
-        to_city=(trip.end_city.name if trip.end_city else ''),
-        travel_date=travel_date,
-        passengers=pax,
-        total_price=net_total,
-        currency=(trip.currency or 'UAH'),
-        discount_percent=(trip.discount_percent or 0),
-        contact_email=(request.GET.get('email') or request.user.email),
-        contact_phone=(request.GET.get('phone') or '')
-    )
-    try:
-        request.session['last_ticket_id'] = ticket.id
-        # if this purchase is an exchange, remember the original ticket id in session
-        try:
-            if exchange_old_ticket:
-                request.session['exchange_old_ticket_id'] = int(exchange_old_ticket.id)
-            else:
-                exch = request.GET.get('exchange_ticket')
-                if exch:
-                    request.session['exchange_old_ticket_id'] = int(exch)
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-    payment.ticket = ticket
-    payment.save(update_fields=['ticket'])
-    return _render_wayforpay_form(request, ticket, payment, contact_email=(request.GET.get('email') or request.user.email), contact_phone=(request.GET.get('phone') or ''))
+    """Redirect legacy buy links to the checkout page for WayForPay."""
+    params = {}
+    for key in ('pax', 'date', 'travel_date', 'from', 'to', 'email', 'phone', 'exchange_ticket'):
+        value = request.GET.get(key)
+        if value:
+            params[key] = value
+    url = reverse('main:checkout', args=[trip_id])
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    return redirect(url)
 
 
 @login_required
@@ -3681,11 +3385,11 @@ def checkout_root(request):
 
 @login_required
 def checkout(request, trip_id):
-    """Checkout + LiqPay"""
+    """Checkout + WayForPay"""
 
     from datetime import date, datetime
 
-    # Checkout flow: render form (GET) or create Ticket + Payment and render LiqPay form (POST)
+    # Checkout flow: render form (GET) or create Ticket + Payment and render WayForPay form (POST)
 
     # -----------------------------
     # GET TRIP
@@ -3937,6 +3641,76 @@ def checkout(request, trip_id):
         display_currency = (trip.currency or 'UAH')
 
     if request.method == 'GET':
+        # Direct checkout for logged-in users with saved phone: skip the form and
+        # create the ticket/payment immediately, then render the WayForPay auto-submit page.
+        profile_phone = ''
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=request.user).first()
+            if profile:
+                profile_phone = (getattr(profile, 'phone', '') or '').strip()
+        except Exception:
+            profile_phone = ''
+
+        if profile_phone:
+            contact_email = (request.GET.get('email') or request.user.email or '').strip()
+            contact_phone = request.GET.get('phone') or profile_phone
+            posted_from = display_from
+            posted_to = display_to
+            try:
+                ticket = Ticket.objects.create(
+                    user=request.user,
+                    trip=trip,
+                    from_city=(posted_from or (trip.start_city.name if trip.start_city else '')),
+                    to_city=(posted_to or (trip.end_city.name if trip.end_city else '')),
+                    travel_date=travel_date,
+                    passengers=pax,
+                    total_price=net_total,
+                    currency=(trip.currency or 'UAH'),
+                    discount_percent=discount_percent,
+                    paid=False,
+                    contact_email=contact_email,
+                    contact_phone=contact_phone,
+                    route=(trip.route.name if trip.route else '')
+                )
+                request.session['last_ticket_id'] = ticket.id
+            except Exception:
+                ticket = None
+
+            if ticket:
+                from .models import Passenger
+                for i in range(pax):
+                    Passenger.objects.create(
+                        ticket=ticket,
+                        first_name='-',
+                        last_name=''
+                    )
+                from .models import Payment
+                payment = Payment.objects.create(
+                    ticket=ticket,
+                    user=request.user,
+                    provider='wayforpay',
+                    amount=net_total,
+                    currency=(display_currency or trip.currency or 'UAH'),
+                    status='pending'
+                )
+                if net_total <= 0:
+                    try:
+                        payment.status = 'success'
+                        payment.save(update_fields=['status'])
+                        ticket.paid = True
+                        ticket.save(update_fields=['paid'])
+                        _send_ticket_email(ticket, payment)
+                    except Exception:
+                        pass
+                    try:
+                        request.session.pop('last_ticket_id', None)
+                    except Exception:
+                        pass
+                    return render(request, 'payment_success.html', {'ticket': ticket, 'processed': True})
+
+                return _render_wayforpay_form(request, ticket, payment, contact_email=contact_email, contact_phone=contact_phone)
+
         return render(request, 'checkout.html', {
             'trip': trip,
             'pax': pax,
@@ -4077,12 +3851,12 @@ def checkout(request, trip_id):
                         data={'by': 'balance_usage', 'prev_balance': profile_balance}
                     )
                 except Exception:
-                    logger.exception('Failed to create internal credit payment for ticket %s', getattr(ticket, 'id', None))
+                    logging.exception('Failed to create internal credit payment for ticket %s', getattr(ticket, 'id', None))
                 try:
                     profile.balance = (profile_balance - credit_applied)
                     profile.save(update_fields=['balance'])
                 except Exception:
-                    logger.exception('Failed to deduct profile.balance for user %s', getattr(request.user, 'id', None))
+                    logging.exception('Failed to deduct profile.balance for user %s', getattr(request.user, 'id', None))
     except Exception:
         credit_applied = 0.0
 
@@ -4760,7 +4534,7 @@ def wayforpay_callback(request):
     if not merchant_signature or not order_reference:
         return HttpResponse(status=400)
 
-    if not _verify_wayforpay_signature(merchant_signature, request.POST):
+    if not verify_wayforpay_signature(merchant_signature, request.POST):
         logger.warning('WayForPay signature mismatch for order=%s', order_reference)
         return HttpResponse(status=400)
 
@@ -4782,8 +4556,10 @@ def wayforpay_callback(request):
 
     status_value = (request.POST.get('reasonCode') or request.POST.get('transactionStatus') or '').strip()
     transaction_id = request.POST.get('invoiceId') or request.POST.get('transactionId') or request.POST.get('paymentId') or ''
+    success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+
     if ticket:
-        if str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid'):
+        if success:
             _mark_ticket_paid(
                 ticket,
                 payment,
@@ -4799,12 +4575,11 @@ def wayforpay_callback(request):
                 payment.provider_payment_id = transaction_id or payment.provider_payment_id
                 payment.data = dict(request.POST)
                 payment.save()
-    return HttpResponse('OK')
 
-
-@csrf_exempt
-def liqpay_callback(request):
-    return wayforpay_callback(request)
+    response_status = 'accept' if success else 'reject'
+    response_data = build_wayforpay_callback_response(order_reference, status=response_status)
+    logger.info('WayForPay callback processed for order=%s status=%s', order_reference, response_status)
+    return JsonResponse(response_data)
 
 
 def download_ticket(request, ticket_id):
@@ -5119,86 +4894,22 @@ def ticket_refund(request, ticket_id):
     except Exception:
         pdf_bytes = None
 
-    # Attempt to refund via original payment provider (Stripe / LiqPay) when possible
-    refunded_to_card = False
-    refund_provider_info = None
+    # Legacy provider refunds are removed. Always record a manual refund and credit the user balance.
     try:
         from .models import Payment
-        orig_payment = Payment.objects.filter(ticket=ticket, status='success').order_by('-created_at').first()
-        if orig_payment:
-            # Stripe refund attempt
-            if orig_payment.provider == 'stripe' and settings.STRIPE_SECRET_KEY:
-                try:
-                    # try to retrieve checkout session or use provided payment id
-                    sess_id = orig_payment.provider_payment_id
-                    pi = None
-                    if sess_id:
-                        try:
-                            sess = stripe.checkout.Session.retrieve(sess_id)
-                            pi = sess.get('payment_intent') if isinstance(sess, dict) else getattr(sess, 'payment_intent', None)
-                        except Exception:
-                            # fallback: provider_payment_id might already be a payment_intent
-                            pi = sess_id
-                    if pi:
-                        amt = int((refund_amount * Decimal('100')).quantize(Decimal('1')))
-                        refund = stripe.Refund.create(payment_intent=pi, amount=amt)
-                        Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='stripe', provider_payment_id=(getattr(refund, 'id', None) or refund.get('id') if isinstance(refund, dict) else None), data={'by': request.user.username, 'refund_result': str(refund)})
-                        refunded_to_card = True
-                        refund_provider_info = {'provider': 'stripe', 'result': str(refund)}
-                except Exception:
-                    logging.exception('Stripe refund failed')
-
-            # LiqPay refund attempt
-            if not refunded_to_card and orig_payment.provider == 'liqpay' and getattr(settings, 'LIQPAY_PRIVATE_KEY', None) and getattr(settings, 'LIQPAY_PUBLIC_KEY', None):
-                try:
-                    trans_id = orig_payment.provider_payment_id
-                    if trans_id:
-                        payload = {
-                            'public_key': settings.LIQPAY_PUBLIC_KEY,
-                            'version': '3',
-                            'action': 'refund',
-                            'transaction_id': trans_id,
-                            'amount': str(refund_amount),
-                            'currency': (ticket.currency or 'UAH')
-                        }
-                        data = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
-                        signature = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
-                        try:
-                            import urllib.parse, urllib.request
-                            postdata = urllib.parse.urlencode({'data': data, 'signature': signature}).encode('utf-8')
-                            req = urllib.request.Request('https://www.liqpay.ua/api/request', data=postdata)
-                            resp = urllib.request.urlopen(req, timeout=15)
-                            resp_text = resp.read().decode('utf-8')
-                            try:
-                                resp_json = json.loads(resp_text)
-                            except Exception:
-                                resp_json = {'raw': resp_text}
-                            Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='liqpay', provider_payment_id=trans_id, data={'by': request.user.username, 'refund_result': resp_json})
-                            refunded_to_card = True
-                            refund_provider_info = {'provider': 'liqpay', 'result': resp_json}
-                        except Exception:
-                            logging.exception('LiqPay refund HTTP call failed')
-                except Exception:
-                    logging.exception('LiqPay refund build failed')
-
-        # If we didn't refund to card, create a ledger Payment and credit user balance
-        if not refunded_to_card:
-            try:
-                Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'ticket_id': ticket.id, 'by': request.user.username, 'refund_percent': refund_percent})
-            except Exception:
-                try:
-                    Payment.objects.create(ticket=ticket, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'by': request.user.username, 'refund_percent': refund_percent})
-                except Exception:
-                    pass
-
-            try:
-                profile = ticket.user.profile
-                profile.balance = (profile.balance or Decimal('0.00')) + refund_amount
-                profile.save(update_fields=['balance'])
-            except Exception:
-                logging.exception('Failed to credit user balance')
+        Payment.objects.create(ticket=None, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'ticket_id': ticket.id, 'by': request.user.username, 'refund_percent': refund_percent})
     except Exception:
-        logging.exception('Refund processing error')
+        try:
+            Payment.objects.create(ticket=ticket, user=ticket.user, amount=-abs(refund_amount), currency=(ticket.currency or 'UAH'), status='refunded', provider='manual_refund', data={'by': request.user.username, 'refund_percent': refund_percent})
+        except Exception:
+            pass
+
+    try:
+        profile = ticket.user.profile
+        profile.balance = (profile.balance or Decimal('0.00')) + refund_amount
+        profile.save(update_fields=['balance'])
+    except Exception:
+        logging.exception('Failed to credit user balance')
 
     # mark unpaid (or partially refunded)
     try:
@@ -5210,10 +4921,7 @@ def ticket_refund(request, ticket_id):
     # Send notification email to user
     try:
         subject = f"Повернення коштів за квиток #{ticket.id}"
-        if refunded_to_card:
-            body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Сума {refund_amount} {ticket.currency or 'UAH'} була надіслана на платіжний засіб, яким було сплачено (провайдер: {refund_provider_info.get('provider')}). Якщо ви не бачите коштів — зверніться до платіжного провайдера. Квиток більше недійсний."
-        else:
-            body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Сума {refund_amount} {ticket.currency or 'UAH'} зарахована на ваш баланс в системі ({refund_percent}% від суми). Квиток більше недійсний."
+        body = f"Ваш квиток #{ticket.id} було оброблено для повернення. Сума {refund_amount} {ticket.currency or 'UAH'} зарахована на ваш баланс в системі ({refund_percent}% від суми). Квиток більше недійсний."
         msg = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [ticket.user.email])
         if pdf_bytes and isinstance(pdf_bytes, (bytes, bytearray)) and pdf_bytes.strip().startswith(b'%PDF'):
             try:
@@ -5231,19 +4939,11 @@ def ticket_refund(request, ticket_id):
         user_id = ticket.user_id if hasattr(ticket, 'user_id') else None
 
     if request.method == 'POST':
-        if refunded_to_card:
-            messages.info(request, f'Квиток оброблено. Сума {refund_amount} {ticket.currency or "UAH"} повернена на платіжний засіб ({refund_provider_info.get("provider")} ).')
-        else:
-            messages.info(request, f'Квиток оброблено. На баланс користувача зараховано {refund_amount} {ticket.currency or "UAH"} ({refund_percent}%).')
+        messages.info(request, f'Квиток оброблено. На баланс користувача зараховано {refund_amount} {ticket.currency or "UAH"} ({refund_percent}%).')
         if user_id:
             return redirect('main:support_admin_user', user_id)
         return redirect('main:profile')
     return JsonResponse({'ok': True, 'refund_amount': float(refund_amount), 'refund_percent': refund_percent})
-
-from django.views.generic import ListView, DetailView
-from .models import Bus
-from .forms import BusBookingForm
-
 
 class BusListView(ListView):
     model = Bus
@@ -5276,13 +4976,6 @@ def bus_booking(request, slug):
             return redirect("main:bus_detail", slug=slug)
 
     return redirect("main:bus_detail", slug=slug)
-
-from django.views.generic import DetailView
-from .models import Bus
-
-
-from django.shortcuts import render, get_object_or_404
-from .models import Bus
 
 def bus_detail(request, slug):
     bus = get_object_or_404(Bus, slug=slug)

@@ -30,8 +30,12 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
+    try:
+        profile = Profile.objects.filter(user=instance).first()
+        if profile:
+            profile.save()
+    except Exception:
+        pass
 
 
 @receiver(post_delete, sender=Profile)
@@ -130,7 +134,7 @@ class Payment(models.Model):
 
     ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    provider = models.CharField(max_length=50, default='liqpay')
+    provider = models.CharField(max_length=50, default='wayforpay')
     provider_payment_id = models.CharField(max_length=255, blank=True, null=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     currency = models.CharField(max_length=10, default='UAH')

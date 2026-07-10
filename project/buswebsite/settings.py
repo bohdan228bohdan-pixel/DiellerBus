@@ -247,19 +247,11 @@ if not DEFAULT_FROM_EMAIL and not DEBUG and EMAIL_BACKEND == 'django.core.mail.b
 # to support/admin endpoints in addition to staff users. Example: "dieller,ops@org.com"
 SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(',') if u.strip()]
 
-# Stripe
-STRIPE_PUBLIC_KEY = ""
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 # WayForPay (use environment variables for merchant credentials)
 WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN", "")
-WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET", "")
+WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET", os.environ.get("WAYFORPAY_SECRET_KEY", ""))
+WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN", "diellerbus.com")
 WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://secure.wayforpay.com/pay")
-# LiqPay (use environment variables for keys)
-LIQPAY_PUBLIC_KEY = os.environ.get("LIQPAY_PUBLIC_KEY", "")
-LIQPAY_PRIVATE_KEY = os.environ.get("LIQPAY_PRIVATE_KEY", "")
-# When True, accept LiqPay callbacks even if signature verification fails.
-# Use only for emergency/manual reconciliation (opt-in via env).
-LIQPAY_ALLOW_UNVERIFIED = os.environ.get('LIQPAY_ALLOW_UNVERIFIED', 'False') == 'True'
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 

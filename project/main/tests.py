@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.test import RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment
+from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile
 from .views import api_trips
 
 User = get_user_model()
@@ -80,6 +80,45 @@ class CheckoutPhoneValidationTests(TestCase):
 		self.assertContains(response, 'Будь ласка, вкажіть номер телефону')
 
 
+class DirectCheckoutRedirectTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username='directpayer', email='directpayer@example.com', password='pass1234')
+		self.city1 = City.objects.create(name='Львів', country='UA')
+		self.city2 = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ', active=True)
+		self.trip = Trip.objects.create(
+			route=self.route,
+			title='Тестовий рейс',
+			seats=20,
+			base_price=100.0,
+			start_city=self.city1,
+			end_city=self.city2,
+			active=True,
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city1, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=self.trip, city=self.city2, order=2, arrival_time='12:00')
+		Profile.objects.update_or_create(user=self.user, defaults={'phone': '+380501112233'})
+
+	def test_get_checkout_with_profile_phone_renders_wayforpay_form(self):
+		self.client.force_login(self.user)
+		response = self.client.get(
+			reverse('main:checkout', args=[self.trip.id]),
+			{
+				'pax': '1',
+				'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+				'from': 'Львів',
+				'to': 'Київ',
+			},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'wayforpay')
+		ticket = Ticket.objects.get(user=self.user)
+		self.assertTrue(ticket.payments.exists())
+		payment = ticket.payments.first()
+		self.assertEqual(payment.provider, 'wayforpay')
+		self.assertEqual(payment.status, 'pending')
+
+
 @override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 class WayForPayCheckoutTests(TestCase):
 	def setUp(self):
@@ -115,6 +154,8 @@ class WayForPayCheckoutTests(TestCase):
 		)
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, 'wayforpay')
+		self.assertContains(response, 'merchantAuthType')
+		self.assertContains(response, 'language')
 		ticket = Ticket.objects.get(user=self.user)
 		self.assertTrue(ticket.payments.exists())
 		payment = ticket.payments.first()
