@@ -6,15 +6,19 @@
   <div class="card p-4 text-center">
     <h3>Переадресація на WayForPay...</h3>
     <p>Якщо оплата не почнеться автоматично, натисніть кнопку "Оплатити" нижче.</p>
+    
+    <!-- ВИПРАВЛЕНО URL: Тепер запит йде на правильний платіжний шлюз /page -->
     <form id="wayforpayForm" method="post" action="https://wayforpay.com">
-      <input type="hidden" name="merchantAccount" value="{{ merchant_login|default:'' }}">
-      <input type="hidden" name="merchantDomainName" value="{{ merchant_domain|default:'' }}">
-      <input type="hidden" name="merchantSignature" value="{{ merchant_signature|default:'' }}">
-      <input type="hidden" name="merchantAuthType" value="{{ merchant_auth_type|default:'HMAC' }}">
-      <input type="hidden" name="orderReference" value="{{ order_reference|default:'' }}">
-      <input type="hidden" name="orderDate" value="{{ order_date|default:'' }}">
-      <input type="hidden" name="amount" value="{{ amount|default:'' }}">
-      <input type="hidden" name="currency" value="{{ currency|default:'' }}">
+      <input type="hidden" name="merchantAccount" value="{{ merchant_login }}">
+      <input type="hidden" name="merchantDomainName" value="{{ merchant_domain }}">
+      <input type="hidden" name="merchantSignature" value="{{ merchant_signature }}">
+      <input type="hidden" name="merchantAuthType" value="HMAC">
+      <input type="hidden" name="orderReference" value="{{ order_reference }}">
+      <input type="hidden" name="orderDate" value="{{ order_date }}">
+      <input type="hidden" name="amount" value="{{ amount }}">
+      <input type="hidden" name="currency" value="{{ currency|default:'UAH' }}">
+      
+      <!-- Списки товарів (Квадратні дужки обов'язкові) -->
       {% for name in product_names %}
         <input type="hidden" name="productName[]" value="{{ name }}">
       {% endfor %}
@@ -24,10 +28,13 @@
       {% for price in product_prices %}
         <input type="hidden" name="productPrice[]" value="{{ price }}">
       {% endfor %}
+      
+      <!-- Дані клієнта -->
       <input type="hidden" name="clientFirstName" value="{{ client_first_name|default:'' }}">
       <input type="hidden" name="clientLastName" value="{{ client_last_name|default:'' }}">
       <input type="hidden" name="clientEmail" value="{{ client_email|default:'' }}">
       <input type="hidden" name="clientPhone" value="{{ client_phone|default:'' }}">
+      
       <input type="hidden" name="serviceUrl" value="{{ service_url }}">
       <input type="hidden" name="returnUrl" value="{{ return_url }}">
       <button type="submit" class="btn btn-success">Оплатити</button>
@@ -35,5 +42,8 @@
   </div>
 </div>
 
-<script>document.getElementById('wayforpayForm').submit();</script>
+<script>
+  // Скрипт спрацює автоматично після завантаження сторінки
+  document.getElementById('wayforpayForm').submit();
+</script>
 {% endblock %}
