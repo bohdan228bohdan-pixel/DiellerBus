@@ -158,15 +158,18 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
     merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', '') or request.get_host().split(':')[0] or 'localhost'
     return_url = request.build_absolute_uri(reverse('main:payment_success'))
     service_url = request.build_absolute_uri(reverse('main:wayforpay_callback'))
+    product_names = [f"Квиток {ticket.from_city} → {ticket.to_city}"]
+    product_counts = ['1']
+    product_prices = [amount_value]
     merchant_signature = generate_wayforpay_signature(
         merchant_login,
         merchant_domain,
         order_reference,
         amount_value,
         (payment.currency or 'UAH').upper(),
-        f"Квиток {ticket.from_city} → {ticket.to_city}",
-        '1',
-        amount_value,
+        product_names,
+        product_counts,
+        product_prices,
     )
 
     try:
@@ -184,9 +187,9 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         'amount': amount_value,
         'currency': (payment.currency or 'UAH').upper(),
         'order_date': int(timezone.now().timestamp()),
-        'product_names': [f"Квиток {ticket.from_city} → {ticket.to_city}"],
-        'product_counts': ['1'],
-        'product_prices': [amount_value],
+        'product_names': product_names,
+        'product_counts': product_counts,
+        'product_prices': product_prices,
         'return_url': return_url,
         'service_url': service_url,
         'language': 'RU',

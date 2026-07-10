@@ -24,21 +24,24 @@ def generate_wayforpay_signature(
     order_reference,
     amount,
     currency,
-    product_name,
-    product_count,
-    product_price,
+    product_names,
+    product_counts,
+    product_prices,
 ):
     """Generate WayForPay merchantSignature using HMAC-MD5."""
     secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
+    names_str = _normalize_value(product_names)
+    counts_str = _normalize_value(product_counts)
+    prices_str = _normalize_value(product_prices)
     fields = [
         merchant_account,
         merchant_domain,
         order_reference,
         amount,
         currency,
-        product_name,
-        product_count,
-        product_price,
+        names_str,
+        counts_str,
+        prices_str,
     ]
     return _hmac_md5_signature(fields, secret)
 
