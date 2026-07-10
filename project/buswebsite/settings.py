@@ -250,6 +250,10 @@ SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(
 # Stripe
 STRIPE_PUBLIC_KEY = ""
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+# WayForPay (use environment variables for merchant credentials)
+WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN", "")
+WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET", "")
+WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://secure.wayforpay.com/pay")
 # LiqPay (use environment variables for keys)
 LIQPAY_PUBLIC_KEY = os.environ.get("LIQPAY_PUBLIC_KEY", "")
 LIQPAY_PRIVATE_KEY = os.environ.get("LIQPAY_PRIVATE_KEY", "")

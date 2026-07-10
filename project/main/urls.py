@@ -62,6 +62,7 @@ urlpatterns = [
     path("checkout/<int:trip_id>/", views.checkout, name="checkout"),
     path("debug/liqpay/", views.liqpay_debug, name="liqpay_debug"),
     path("liqpay-callback/", views.liqpay_callback, name="liqpay_callback"),
+    path("wayforpay-callback/", views.wayforpay_callback, name="wayforpay_callback"),
     path("ticket/<int:ticket_id>/download/", views.download_ticket, name="download_ticket"),
     path("ticket/verify/<int:ticket_id>/<str:signature>/", views.ticket_verify, name="ticket_verify"),
     path("cancellation/<int:ticket_id>/", views.cancellation_manage, name="cancellation_manage"),

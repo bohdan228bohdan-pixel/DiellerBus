@@ -58,7 +58,7 @@
             <input type="checkbox" id="accept_agreements" name="accept_agreements" required>
             <span>Я приймаю <a href="{% url 'main:agreements' %}" id="agreementsLink" style="color:#007bff;text-decoration:underline">ліцензійні згоди</a></span>
           </label>
-          <button class="pay-btn" type="submit">Перейти до оплати (LiqPay)</button>
+          <button class="pay-btn" type="submit">Перейти до оплати (WayForPay)</button>
           <a href="{{ trip.get_absolute_url|default:'#' }}" class="btn" style="background:#f3f3f3;color:#333;border-radius:8px;padding:10px 14px;text-decoration:none">Назад</a>
         </div>
       </form>

@@ -455,6 +455,14 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
             currency: x.currency || 'UAH',
             free: Number(x.free) || 0, carrier: x.carrier || '', stops: x.stops || []
           }));
+          list.sort((a, b) => {
+            const parseTime = (val) => {
+              if (!val) return 9999;
+              const parts = val.split(':').map(x => Number(x));
+              return parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) ? parts[0] * 60 + parts[1] : 9999;
+            };
+            return parseTime(a.depart || a.arrive) - parseTime(b.depart || b.arrive);
+          });
       }
     }catch(e){ console.warn('API trips fetch failed', e); }
 

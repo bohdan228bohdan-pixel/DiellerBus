@@ -80,6 +80,129 @@ def _verify_ticket_signature(ticket, sig):
         return False
 
 
+def _wayforpay_signature(*parts):
+    secret = (getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or '').strip()
+    payload = ';'.join(str(p or '') for p in parts + (secret,))
+    return hashlib.sha1(payload.encode('utf-8')).hexdigest()
+
+
+def _verify_wayforpay_signature(signature, data):
+    try:
+        if not signature:
+            return False
+        normalized = {}
+        if isinstance(data, dict):
+            normalized = {str(k): str(v) for k, v in data.items() if v is not None}
+        elif hasattr(data, 'dict'):
+            normalized = {str(k): str(v) for k, v in data.dict().items() if v is not None}
+        merchant_account = normalized.get('merchantAccount', '') or normalized.get('merchant_account', '')
+        merchant_domain = normalized.get('merchantDomainName', '') or normalized.get('merchant_domain_name', '')
+        order_reference = normalized.get('orderReference', '') or normalized.get('order_reference', '')
+        amount = normalized.get('amount', '')
+        currency = normalized.get('currency', '')
+        auth_code = normalized.get('authCode', '') or normalized.get('auth_code', '')
+        card_mask = normalized.get('cardMask', '') or normalized.get('card_mask', '')
+        product_name = normalized.get('productName', '') or normalized.get('product_name', '')
+        product_count = normalized.get('productCount', '') or normalized.get('product_count', '')
+        product_price = normalized.get('productPrice', '') or normalized.get('product_price', '')
+        candidates = [
+            _wayforpay_signature(merchant_account, merchant_domain, order_reference, amount, currency, product_name, product_count, product_price),
+            _wayforpay_signature(merchant_account, merchant_domain, order_reference, amount, currency, merchant_account),
+            _wayforpay_signature(merchant_account, order_reference, amount, currency, auth_code, card_mask),
+            _wayforpay_signature(merchant_account, order_reference, amount, currency, merchant_account),
+        ]
+        return any(candidate == (signature or '').strip() for candidate in candidates)
+    except Exception:
+        return False
+
+
+def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provider_payment_id=None, payload=None):
+    from .models import Payment
+    if not ticket:
+        return None
+
+    if payment is None:
+        payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
+
+    if payment:
+        payment.provider = provider
+        payment.provider_payment_id = provider_payment_id or payment.provider_payment_id
+        payment.status = 'success'
+        if payload is not None:
+            payment.data = payload
+        payment.save()
+    else:
+        payment = Payment.objects.create(
+            ticket=ticket,
+            user=ticket.user if hasattr(ticket, 'user') else None,
+            provider=provider,
+            provider_payment_id=provider_payment_id or '',
+            amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
+            currency=(getattr(ticket, 'currency', None) or 'UAH'),
+            status='success',
+            data=payload or {}
+        )
+
+    ticket.paid = True
+    ticket.save(update_fields=['paid'])
+    try:
+        _send_ticket_email(ticket, payment)
+    except Exception:
+        pass
+    try:
+        if request is not None:
+            request.session.pop('last_ticket_id', None)
+    except Exception:
+        pass
+    return payment
+
+
+def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_phone=''):
+    order_reference = f"ticket-{ticket.id}"
+    amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
+    merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', '') or ''
+    merchant_secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', '') or ''
+    merchant_domain = request.get_host().split(':')[0] or 'localhost'
+    return_url = request.build_absolute_uri(reverse('main:payment_success'))
+    service_url = request.build_absolute_uri(reverse('main:wayforpay_callback'))
+    merchant_signature = _wayforpay_signature(
+        merchant_login,
+        merchant_domain,
+        order_reference,
+        amount_value,
+        (payment.currency or 'UAH').upper(),
+        f"Квиток {ticket.from_city} → {ticket.to_city}",
+        '1',
+        amount_value,
+    )
+
+    try:
+        logger = logging.getLogger('main')
+        logger.info('WayForPay checkout: ticket=%s amount=%s currency=%s order_reference=%s', ticket.id, payment.amount, payment.currency, order_reference)
+    except Exception:
+        pass
+
+    return render(request, 'wayforpay_form.html', {
+        'merchant_login': merchant_login,
+        'merchant_domain': merchant_domain,
+        'merchant_signature': merchant_signature,
+        'order_reference': order_reference,
+        'amount': amount_value,
+        'currency': (payment.currency or 'UAH').upper(),
+        'order_date': int(timezone.now().timestamp()),
+        'product_name': f"Квиток {ticket.from_city} → {ticket.to_city}",
+        'product_count': '1',
+        'product_price': amount_value,
+        'return_url': return_url,
+        'service_url': service_url,
+        'client_first_name': getattr(request.user, 'first_name', '') or '',
+        'client_last_name': getattr(request.user, 'last_name', '') or '',
+        'client_email': contact_email,
+        'client_phone': contact_phone,
+        'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay')
+    })
+
+
 def _support_user_allowed(user, require_worker=False):
     """Return True if the given user should be allowed to access support/admin endpoints.
 
@@ -1385,28 +1508,44 @@ def api_trips(request):
                 include_sub = bool(getattr(getattr(trip, 'route', None), 'include_subcities', False))
             except Exception:
                 include_sub = False
+            subcity_ids = set()
             if include_sub:
                 # add parent chain
                 cur = city_obj
                 while cur and getattr(cur, 'parent', None):
                     cur = cur.parent
                     if cur and getattr(cur, 'id', None):
-                        cand_ids.add(cur.id)
+                        subcity_ids.add(cur.id)
                 # if city_obj is a parent (no parent), include its direct subcities
                 try:
                     if getattr(city_obj, 'parent', None) is None:
                         for ch in city_obj.subcities.all():
                             if getattr(ch, 'id', None):
-                                cand_ids.add(ch.id)
+                                subcity_ids.add(ch.id)
                 except Exception:
                     pass
+                cand_ids |= subcity_ids
 
-            for s in stops_list:
+            exact_ids = {city_obj.id}
+            if purpose == 'from':
+                stops_iter = stops_list
+            else:
+                stops_iter = list(reversed(stops_list))
+
+            for s in stops_iter:
                 try:
-                    if getattr(s, 'city', None) and getattr(s.city, 'id', None) in cand_ids:
+                    if getattr(s, 'city', None) and getattr(s.city, 'id', None) in exact_ids:
                         return s
                 except Exception:
                     continue
+
+            if subcity_ids:
+                for s in stops_iter:
+                    try:
+                        if getattr(s, 'city', None) and getattr(s.city, 'id', None) in subcity_ids:
+                            return s
+                    except Exception:
+                        continue
 
         # If token appears to be a country, match city.country instead.
         country_code = normalize_country(token)
@@ -1638,17 +1777,16 @@ def api_cities(request):
     """
     direction = request.GET.get('dir')
 
-    # prefer explicit country flags; fall back to any cities present
-    ua_qs = City.objects.filter(country__iexact='UA').order_by('name')
-    pl_qs = City.objects.filter(country__iexact='PL').order_by('name')
+    # prefer explicit country flags; also include blank-country cities for autocomplete
+    ua_ids = set(TripStop.objects.filter(trip__direction__in=['UA_PL', 'UA_UA']).values_list('city_id', flat=True))
+    pl_ids = set(TripStop.objects.filter(trip__direction='PL_UA').values_list('city_id', flat=True))
+    ua_qs = City.objects.filter(Q(country__iexact='UA') | Q(country='') | Q(country__isnull=True) | Q(id__in=ua_ids)).distinct().order_by('name')
+    pl_qs = City.objects.filter(Q(country__iexact='PL') | Q(country='') | Q(country__isnull=True) | Q(id__in=pl_ids)).distinct().order_by('name')
 
-    # if countries are not set, include cities referenced by trips
+    # if countries are not set and no cities were found this way, fall back to trip stops
     if not ua_qs.exists() or not pl_qs.exists():
-        # include cities referenced by trips; treat UA_UA as Ukrainian trips as well
-        ua_ids = set(TripStop.objects.filter(trip__direction__in=['UA_PL', 'UA_UA']).values_list('city_id', flat=True))
-        pl_ids = set(TripStop.objects.filter(trip__direction='PL_UA').values_list('city_id', flat=True))
-        ua_qs = City.objects.filter(id__in=ua_ids).order_by('name') if ua_ids else ua_qs
-        pl_qs = City.objects.filter(id__in=pl_ids).order_by('name') if pl_ids else pl_qs
+        ua_qs = City.objects.filter(id__in=ua_ids).distinct().order_by('name') if ua_ids else ua_qs
+        pl_qs = City.objects.filter(id__in=pl_ids).distinct().order_by('name') if pl_ids else pl_qs
 
     ua_list = [{'id': c.id, 'name': c.name} for c in ua_qs]
     pl_list = [{'id': c.id, 'name': c.name} for c in pl_qs]
@@ -2887,23 +3025,6 @@ def create_ticket(request):
         travel_date = request.POST["date"]
         price = int(request.POST["price"])  # грн
 
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": "uah",
-                    "product_data": {
-                        "name": f"Квиток {from_city} → {to_city}",
-                    },
-                    "unit_amount": price * 100,
-                },
-                "quantity": passengers,
-            }],
-            mode="payment",
-            success_url=request.build_absolute_uri("/payment-success/") + "?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=request.build_absolute_uri("/payment-cancel/"),
-        )
-
         ticket = Ticket.objects.create(
             user=request.user,
             from_city=from_city,
@@ -2913,22 +3034,29 @@ def create_ticket(request):
             total_price=price * passengers,
             currency='UAH',
             discount_percent=0,
-            stripe_session_id=session.id,
             contact_email=(request.POST.get('email') or request.user.email),
             contact_phone=(request.POST.get('phone') or '')
         )
-        # remember last created ticket in session so we can reliably mark it paid on return
         try:
             request.session['last_ticket_id'] = ticket.id
         except Exception:
             pass
 
-        return redirect(session.url)
+        payment = Payment.objects.create(
+            ticket=ticket,
+            user=request.user,
+            provider='wayforpay',
+            amount=(price * passengers),
+            currency='UAH',
+            status='pending'
+        )
+
+        return _render_wayforpay_form(request, ticket, payment, contact_email=(request.POST.get('email') or request.user.email), contact_phone=(request.POST.get('phone') or ''))
 
     return redirect("main:home")
 
 
-@login_required
+@csrf_exempt
 def payment_success(request):
     """Handle post-payment redirect from providers (LiqPay / Stripe).
 
@@ -2939,40 +3067,29 @@ def payment_success(request):
     payment = None
     processed = False
 
-    # 1) LiqPay may POST or GET `data` + `signature`
-    data = request.POST.get('data') or request.GET.get('data')
-    signature = request.POST.get('signature') or request.GET.get('signature')
-    if data and signature and settings.LIQPAY_PRIVATE_KEY:
+    # 1) WayForPay may POST/GET `orderReference` + `merchantSignature`
+    order_reference = request.POST.get('orderReference') or request.GET.get('orderReference')
+    merchant_signature = request.POST.get('merchantSignature') or request.GET.get('merchantSignature')
+    if not processed and order_reference and merchant_signature and settings.WAYFORPAY_MERCHANT_SECRET:
         try:
-            expected = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
-            if signature == expected:
-                payload = json.loads(base64.b64decode(data).decode('utf-8'))
-                order_id = payload.get('order_id') or ''
-                if order_id and order_id.startswith('ticket-'):
+            if _verify_wayforpay_signature(merchant_signature, request.POST if request.method == 'POST' else request.GET):
+                if order_reference.startswith('ticket-'):
                     try:
-                        ticket_id = int(order_id.split('-', 1)[1])
+                        ticket_id = int(order_reference.split('-', 1)[1])
                         ticket = Ticket.objects.filter(pk=ticket_id).first()
                     except Exception:
                         ticket = None
-
-                # update payment record if exists
-                from .models import Payment
-                if ticket:
-                    payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
-                    status = payload.get('status')
-                    if payment and status and status.lower() in ('success', 'processing'):
-                        payment.status = 'success'
-                        payment.provider_payment_id = payload.get('transaction_id') or payment.provider_payment_id
-                        payment.data = payload
-                        payment.save()
-                        ticket.paid = True
-                        ticket.save(update_fields=['paid'])
-                        _send_ticket_email(ticket, payment)
-                        try:
-                            request.session.pop('last_ticket_id', None)
-                        except Exception:
-                            pass
-                        processed = True
+                status_value = (request.POST.get('reasonCode') or request.GET.get('reasonCode') or request.POST.get('transactionStatus') or request.GET.get('transactionStatus') or '').strip()
+                if ticket and str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid'):
+                    payment = _mark_ticket_paid(
+                        ticket,
+                        None,
+                        request=request,
+                        provider='wayforpay',
+                        provider_payment_id=(request.POST.get('invoiceId') or request.GET.get('invoiceId') or request.POST.get('transactionId') or request.GET.get('transactionId') or ''),
+                        payload=dict(request.POST if request.method == 'POST' else request.GET)
+                    )
+                    processed = payment is not None
         except Exception:
             pass
 
@@ -3029,6 +3146,7 @@ def payment_success(request):
                 provider_tx = request.GET.get('transaction_id') or request.GET.get('payment_id') or request.GET.get('provider_id') or ''
                 if payment:
                     payment.status = 'success'
+                    payment.provider = 'wayforpay'
                     if provider_tx:
                         payment.provider_payment_id = provider_tx
                     try:
@@ -3043,7 +3161,7 @@ def payment_success(request):
                     payment = Payment.objects.create(
                         ticket=ticket,
                         user=ticket.user if hasattr(ticket, 'user') else None,
-                        provider='liqpay',
+                        provider='wayforpay',
                         provider_payment_id=provider_tx,
                         amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
                         currency=(getattr(ticket, 'currency', None) or 'UAH'),
@@ -3219,28 +3337,11 @@ def kvitokindex(request):
 @login_required
 def create_ticket(request):
     if request.method == "POST":
-        from_city = request.POST["from_city"]
-        to_city = request.POST["to_city"]
-        passengers = int(request.POST["passengers"])
-        travel_date = request.POST["travel_date"]
-        price = int(request.POST["price"])  # за 1 квиток
-
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": "uah",
-                    "product_data": {
-                        "name": f"Квиток {from_city} → {to_city}",
-                    },
-                    "unit_amount": price * 100,
-                },
-                "quantity": passengers,
-            }],
-            mode="payment",
-            success_url=request.build_absolute_uri("/payment-success/") + "?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=request.build_absolute_uri("/payment-cancel/"),
-        )
+        from_city = request.POST.get("from_city") or request.POST.get("from") or ''
+        to_city = request.POST.get("to_city") or request.POST.get("to") or ''
+        passengers = int(request.POST.get("passengers") or 1)
+        travel_date = request.POST.get("travel_date") or request.POST.get("date") or ''
+        price = int(request.POST.get("price") or 0)  # за 1 квиток
 
         ticket = Ticket.objects.create(
             user=request.user,
@@ -3251,17 +3352,24 @@ def create_ticket(request):
             total_price=price * passengers,
             currency='UAH',
             discount_percent=0,
-            stripe_session_id=session.id,
             contact_email=(request.POST.get('email') or request.user.email),
             contact_phone=(request.POST.get('phone') or '')
         )
-        # remember last created ticket in session for fallback
         try:
             request.session['last_ticket_id'] = ticket.id
         except Exception:
             pass
 
-        return redirect(session.url)
+        payment = Payment.objects.create(
+            ticket=ticket,
+            user=request.user,
+            provider='wayforpay',
+            amount=(price * passengers),
+            currency='UAH',
+            status='pending'
+        )
+
+        return _render_wayforpay_form(request, ticket, payment, contact_email=(request.POST.get('email') or request.user.email), contact_phone=(request.POST.get('phone') or ''))
 
     return redirect("main:kvitokindex")
 
@@ -3447,7 +3555,7 @@ def buy_trip(request, trip_id):
     except Exception:
         pass
 
-    # If net_total is zero, skip creating a Stripe session and mark the ticket paid
+    # If net_total is zero, skip creating a payment form and mark the ticket paid
     if net_total <= 0:
         ticket = Ticket.objects.create(
             user=request.user,
@@ -3498,19 +3606,13 @@ def buy_trip(request, trip_id):
             pass
         return render(request, 'payment_success.html', {'ticket': ticket, 'processed': True})
 
-    session = stripe.checkout.Session.create(
-        payment_method_types=["card"],
-        line_items=[{
-            "price_data": {
-                "currency": cur,
-                "product_data": {"name": f"Квиток {trip.start_city.name if trip.start_city else ''} → {trip.end_city.name if trip.end_city else ''}"},
-                "unit_amount": int(round(net_total * 100)),
-            },
-            "quantity": 1,
-        }],
-        mode="payment",
-        success_url=request.build_absolute_uri("/payment-success/") + "?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url=request.build_absolute_uri("/payment-cancel/"),
+    payment = Payment.objects.create(
+        ticket=None,
+        user=request.user,
+        provider='wayforpay',
+        amount=net_total,
+        currency=(trip.currency or 'UAH'),
+        status='pending'
     )
 
     ticket = Ticket.objects.create(
@@ -3523,7 +3625,6 @@ def buy_trip(request, trip_id):
         total_price=net_total,
         currency=(trip.currency or 'UAH'),
         discount_percent=(trip.discount_percent or 0),
-        stripe_session_id=session.id,
         contact_email=(request.GET.get('email') or request.user.email),
         contact_phone=(request.GET.get('phone') or '')
     )
@@ -3542,7 +3643,9 @@ def buy_trip(request, trip_id):
     except Exception:
         pass
 
-    return redirect(session.url)
+    payment.ticket = ticket
+    payment.save(update_fields=['ticket'])
+    return _render_wayforpay_form(request, ticket, payment, contact_email=(request.GET.get('email') or request.user.email), contact_phone=(request.GET.get('phone') or ''))
 
 
 @login_required
@@ -3986,6 +4089,7 @@ def checkout(request, trip_id):
     payment = Payment.objects.create(
         ticket=ticket,
         user=request.user,
+        provider='wayforpay',
         amount=net_total,
         currency=(display_currency or trip.currency or 'UAH'),
         status='pending'
@@ -4047,58 +4151,9 @@ def checkout(request, trip_id):
         return render(request, 'payment_success.html', { 'ticket': ticket, 'processed': True })
 
     # -----------------------------
-    # LIQPAY
+    # WAYFORPAY
     # -----------------------------
-    liqpay_payload = {
-        'public_key': settings.LIQPAY_PUBLIC_KEY,
-        'version': '3',
-        'action': 'pay',
-        'amount': str(payment.amount),
-        'currency': payment.currency or 'UAH',
-        'description': f"Квиток {ticket.from_city} → {ticket.to_city}",
-        'order_id': f"ticket-{ticket.id}",
-        'sandbox': '1' if settings.DEBUG else '0',
-        'server_url': request.build_absolute_uri(
-            reverse('main:liqpay_callback')
-        ),
-        'result_url': request.build_absolute_uri(
-            reverse('main:payment_success')
-        ),
-        'language': 'uk'
-    }
-
-    json_data = json.dumps(liqpay_payload)
-
-    data_b64 = base64.b64encode(
-        json_data.encode('utf-8')
-    ).decode('utf-8')
-
-    sign = base64.b64encode(
-        hashlib.sha1(
-            (
-                settings.LIQPAY_PRIVATE_KEY
-                + data_b64
-                + settings.LIQPAY_PRIVATE_KEY
-            ).encode('utf-8')
-        ).digest()
-    ).decode('utf-8')
-
-    # Log LiqPay payload and signature for debugging (INFO level)
-    try:
-        logger = logging.getLogger('main')
-        logger.info('LiqPay checkout: ticket=%s amount=%s currency=%s order_id=%s', ticket.id, payment.amount, payment.currency, f'ticket-{ticket.id}')
-        logger.info('LiqPay data (base64): %s', data_b64)
-        logger.info('LiqPay signature: %s', sign)
-    except Exception:
-        pass
-
-    # render LiqPay form
-
-    return render(request, 'liqpay_form.html', {
-        'data': data_b64,
-        'signature': sign,
-        'liqpay_url': 'https://www.liqpay.ua/api/3/checkout'
-    })
+    return _render_wayforpay_form(request, ticket, payment, contact_email=contact_email, contact_phone=contact_phone)
 
 
 def _generate_ticket_pdf_bytes(ticket, request=None):
@@ -4696,66 +4751,28 @@ def _send_ticket_email(ticket, payment):
 
 
 @csrf_exempt
-def liqpay_callback(request):
-    """Handle LiqPay server callback (POST).
-
-    Note: LiqPay server will POST to this endpoint without a CSRF token,
-    so it must be exempt from Django CSRF verification. The view still
-    validates the LiqPay signature before processing.
-    """
+def wayforpay_callback(request):
+    """Handle WayForPay server callback (POST)."""
     import logging
     logger = logging.getLogger(__name__)
-    data = request.POST.get('data')
-    signature = request.POST.get('signature')
-    if not data or not signature:
-        return HttpResponse(status=400)
-    try:
-        # lightweight debug: log incoming signature and data length (truncate to avoid huge logs)
-        preview = None
-        try:
-            preview = json.loads(base64.b64decode(data).decode('utf-8'))
-        except Exception:
-            preview = {'raw_len': len(data)}
-        try:
-            logger.info('LiqPay callback received: sig=%s expected_prefix=... data_len=%d order=%s status=%s', (signature or '')[:16], len(data), preview.get('order_id') if isinstance(preview, dict) else None, preview.get('status') if isinstance(preview, dict) else None)
-        except Exception:
-            logger.exception('Failed to log liqpay callback preview')
-    except Exception:
-        pass
-    expected = base64.b64encode(hashlib.sha1((settings.LIQPAY_PRIVATE_KEY + data + settings.LIQPAY_PRIVATE_KEY).encode('utf-8')).digest()).decode('utf-8')
-    unverified_callback = False
-    if signature != expected:
-        # signature mismatch - allow opting out for emergency reconciliation
-        allow_unverified = getattr(settings, 'LIQPAY_ALLOW_UNVERIFIED', False)
-        try:
-            payload_preview = json.loads(base64.b64decode(data).decode('utf-8'))
-        except Exception:
-            payload_preview = {'raw': data[:200]}
-        if not allow_unverified:
-            logger.warning('LiqPay signature mismatch: order=%s payload_preview=%s', payload_preview.get('order_id') if isinstance(payload_preview, dict) else None, str(payload_preview))
-            return HttpResponse(status=400)
-        else:
-            unverified_callback = True
-            logger.warning('LiqPay signature mismatch but LIQPAY_ALLOW_UNVERIFIED=True, proceeding: order=%s payload_preview=%s', payload_preview.get('order_id') if isinstance(payload_preview, dict) else None, str(payload_preview))
-
-    try:
-        payload = json.loads(base64.b64decode(data).decode('utf-8'))
-    except Exception:
+    merchant_signature = request.POST.get('merchantSignature') or ''
+    order_reference = request.POST.get('orderReference') or ''
+    if not merchant_signature or not order_reference:
         return HttpResponse(status=400)
 
-    order_id = payload.get('order_id') or ''
-    # order_id was set as ticket-<id>
+    if not _verify_wayforpay_signature(merchant_signature, request.POST):
+        logger.warning('WayForPay signature mismatch for order=%s', order_reference)
+        return HttpResponse(status=400)
+
     ticket_id = None
-    if order_id and order_id.startswith('ticket-'):
+    if order_reference.startswith('ticket-'):
         try:
-            ticket_id = int(order_id.split('-', 1)[1])
+            ticket_id = int(order_reference.split('-', 1)[1])
         except Exception:
             ticket_id = None
 
-    # find ticket/payment
-    from .models import Payment
-    payment = None
     ticket = None
+    payment = None
     if ticket_id:
         try:
             ticket = Ticket.objects.get(pk=ticket_id)
@@ -4763,37 +4780,31 @@ def liqpay_callback(request):
         except Ticket.DoesNotExist:
             ticket = None
 
-    status = payload.get('status')
-    transaction_id = payload.get('transaction_id') or payload.get('payment_id') or payload.get('transaction_id')
-
-    if payment:
-        payment.provider_payment_id = transaction_id or payment.provider_payment_id
-        # attach payload and mark if callback was accepted without signature
-        try:
-            payment.data = payload
-            if unverified_callback:
-                try:
-                    if isinstance(payment.data, dict):
-                        payment.data['unverified_callback'] = True
-                except Exception:
-                    pass
-        except Exception:
-            payment.data = {'raw': payload}
-        if status and status.lower() in ('success', 'processing'):
-            payment.status = 'success'
-            if ticket:
-                ticket.paid = True
-                ticket.save(update_fields=['paid'])
-            # send ticket by email
-            try:
-                _send_ticket_email(ticket, payment)
-            except Exception:
-                pass
+    status_value = (request.POST.get('reasonCode') or request.POST.get('transactionStatus') or '').strip()
+    transaction_id = request.POST.get('invoiceId') or request.POST.get('transactionId') or request.POST.get('paymentId') or ''
+    if ticket:
+        if str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid'):
+            _mark_ticket_paid(
+                ticket,
+                payment,
+                request=request,
+                provider='wayforpay',
+                provider_payment_id=transaction_id,
+                payload=dict(request.POST)
+            )
         else:
-            payment.status = 'failure'
-        payment.save()
-
+            if payment:
+                payment.status = 'failure'
+                payment.provider = 'wayforpay'
+                payment.provider_payment_id = transaction_id or payment.provider_payment_id
+                payment.data = dict(request.POST)
+                payment.save()
     return HttpResponse('OK')
+
+
+@csrf_exempt
+def liqpay_callback(request):
+    return wayforpay_callback(request)
 
 
 def download_ticket(request, ticket_id):

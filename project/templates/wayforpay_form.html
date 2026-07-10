@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Переадресація на оплату — Dieller Bus{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="card p-4 text-center">
+    <h3>Переадресація на WayForPay...</h3>
+    <p>Якщо оплата не почнеться автоматично, натисніть кнопку "Оплатити" нижче.</p>
+    <form id="wayforpayForm" method="post" action="{{ wayforpay_url }}">
+      <input type="hidden" name="merchantAccount" value="{{ merchant_login }}">
+      <input type="hidden" name="merchantDomainName" value="{{ merchant_domain }}">
+      <input type="hidden" name="merchantSignature" value="{{ merchant_signature }}">
+      <input type="hidden" name="orderReference" value="{{ order_reference }}">
+      <input type="hidden" name="orderDate" value="{{ order_date }}">
+      <input type="hidden" name="amount" value="{{ amount }}">
+      <input type="hidden" name="currency" value="{{ currency }}">
+      <input type="hidden" name="productName" value="{{ product_name }}">
+      <input type="hidden" name="productCount" value="{{ product_count }}">
+      <input type="hidden" name="productPrice" value="{{ product_price }}">
+      <input type="hidden" name="clientFirstName" value="{{ client_first_name }}">
+      <input type="hidden" name="clientLastName" value="{{ client_last_name }}">
+      <input type="hidden" name="clientEmail" value="{{ client_email }}">
+      <input type="hidden" name="clientPhone" value="{{ client_phone }}">
+      <input type="hidden" name="serviceUrl" value="{{ service_url }}">
+      <input type="hidden" name="returnUrl" value="{{ return_url }}">
+      <button type="submit" class="btn btn-success">Оплатити</button>
+    </form>
+  </div>
+</div>
+
+<script>document.getElementById('wayforpayForm').submit();</script>
+{% endblock %}
