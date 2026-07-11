@@ -16,7 +16,7 @@ import unicodedata
 import difflib
 from django.conf import settings
 from .models import Ticket, Payment, Carrier, Bus, SupportTicket, SupportMessage, SupportPresetQuestion
-from .wayforpay import generate_wayforpay_signature, verify_wayforpay_signature, build_wayforpay_callback_response
+from .wayforpay import create_wayforpay_invoice, generate_wayforpay_signature, verify_wayforpay_signature, build_wayforpay_callback_response
 from django.views.generic import ListView, DetailView, FormView
 from django.urls import reverse_lazy, reverse
 from .forms import BusBookingForm
@@ -156,11 +156,45 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
     amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
     merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', None) or ''
     merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', None) or request.get_host().split(':')[0] or 'localhost'
-    return_url = request.build_absolute_uri(reverse('main:payment_success'))
-    service_url = request.build_absolute_uri(reverse('main:wayforpay_callback'))
+    return_url = getattr(settings, 'WAYFORPAY_RETURN_URL', None) or request.build_absolute_uri(reverse('main:payment_success'))
+    service_url = getattr(settings, 'WAYFORPAY_CALLBACK_URL', None) or request.build_absolute_uri(reverse('main:wayforpay_callback'))
     product_names = [f"Квиток {ticket.from_city} → {ticket.to_city}"]
     product_counts = ['1']
     product_prices = [amount_value]
+
+    try:
+        logger = logging.getLogger('main')
+        logger.info('WayForPay checkout: ticket=%s amount=%s currency=%s order_reference=%s', ticket.id, payment.amount, payment.currency, order_reference)
+    except Exception:
+        pass
+
+    try:
+        invoice_payload = create_wayforpay_invoice(
+            order_reference=order_reference,
+            amount=amount_value,
+            currency=(payment.currency or 'UAH').upper(),
+            product_names=product_names,
+            product_counts=product_counts,
+            product_prices=product_prices,
+            merchant_login=merchant_login,
+            merchant_domain=merchant_domain,
+            return_url=return_url,
+            service_url=service_url,
+            client_first_name=getattr(request.user, 'first_name', '') or '',
+            client_last_name=getattr(request.user, 'last_name', '') or '',
+            client_email=contact_email,
+            client_phone=contact_phone,
+        )
+        invoice_url = (invoice_payload or {}).get('invoiceUrl') or (invoice_payload or {}).get('invoice_url') or (invoice_payload or {}).get('url')
+        if invoice_url:
+            payment.provider_payment_id = (invoice_payload or {}).get('invoiceId') or payment.provider_payment_id or ''
+            payment.data = {'invoice': invoice_payload}
+            payment.save(update_fields=['provider_payment_id', 'data'])
+            return redirect(invoice_url)
+    except Exception as exc:
+        logger = logging.getLogger('main')
+        logger.exception('WayForPay invoice creation failed for ticket %s', getattr(ticket, 'id', None))
+
     merchant_signature = generate_wayforpay_signature(
         merchant_login,
         merchant_domain,
@@ -172,17 +206,11 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         product_prices,
     )
 
-    try:
-        logger = logging.getLogger('main')
-        logger.info('WayForPay checkout: ticket=%s amount=%s currency=%s order_reference=%s', ticket.id, payment.amount, payment.currency, order_reference)
-    except Exception:
-        pass
-
     return render(request, 'wayforpay_form.html', {
         'merchant_login': merchant_login,
         'merchant_domain': merchant_domain,
         'merchant_signature': merchant_signature,
-        'merchant_auth_type': 'HMAC',
+        'merchant_auth_type': 'SimpleSignature',
         'order_reference': order_reference,
         'amount': amount_value,
         'currency': (payment.currency or 'UAH').upper(),
@@ -192,13 +220,71 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         'product_prices': product_prices,
         'return_url': return_url,
         'service_url': service_url,
-        'language': 'RU',
+        'language': 'UA',
         'client_first_name': getattr(request.user, 'first_name', '') or '',
         'client_last_name': getattr(request.user, 'last_name', '') or '',
         'client_email': contact_email,
         'client_phone': contact_phone,
         'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay')
     })
+
+
+def _apply_wayforpay_result(ticket, payment, request, payload, success, transaction_id=''):
+    from .models import Payment
+
+    if not ticket:
+        return None
+
+    if payment is None:
+        payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
+
+    if success:
+        if payment is None:
+            payment = Payment.objects.create(
+                ticket=ticket,
+                user=ticket.user if hasattr(ticket, 'user') else None,
+                provider='wayforpay',
+                provider_payment_id=transaction_id or '',
+                amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
+                currency=(getattr(ticket, 'currency', None) or 'UAH'),
+                status='success',
+                data=payload or {}
+            )
+        else:
+            payment.provider = 'wayforpay'
+            payment.provider_payment_id = transaction_id or payment.provider_payment_id or ''
+            payment.status = 'success'
+            payment.data = payload or {}
+            payment.save()
+        ticket.paid = True
+        ticket.save(update_fields=['paid'])
+        try:
+            _send_ticket_email(ticket, payment)
+        except Exception:
+            pass
+        return payment
+
+    if payment is None:
+        payment = Payment.objects.create(
+            ticket=ticket,
+            user=ticket.user if hasattr(ticket, 'user') else None,
+            provider='wayforpay',
+            provider_payment_id=transaction_id or '',
+            amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
+            currency=(getattr(ticket, 'currency', None) or 'UAH'),
+            status='failure',
+            data=payload or {}
+        )
+    else:
+        payment.provider = 'wayforpay'
+        payment.provider_payment_id = transaction_id or payment.provider_payment_id or ''
+        payment.status = 'failure'
+        payment.data = payload or {}
+        payment.save()
+
+    ticket.paid = False
+    ticket.save(update_fields=['paid'])
+    return payment
 
 
 def _support_user_allowed(user, require_worker=False):
@@ -2987,12 +3073,12 @@ def payment_success(request):
     payment = None
     processed = False
 
-    # 1) WayForPay may POST/GET `orderReference` + `merchantSignature`
     order_reference = request.POST.get('orderReference') or request.GET.get('orderReference')
     merchant_signature = request.POST.get('merchantSignature') or request.GET.get('merchantSignature')
-    if not processed and order_reference and merchant_signature and settings.WAYFORPAY_MERCHANT_SECRET:
+    payload = dict(request.POST if request.method == 'POST' else request.GET)
+    if not processed and order_reference and merchant_signature:
         try:
-            if _verify_wayforpay_signature(merchant_signature, request.POST if request.method == 'POST' else request.GET):
+            if verify_wayforpay_signature(merchant_signature, payload):
                 if order_reference.startswith('ticket-'):
                     try:
                         ticket_id = int(order_reference.split('-', 1)[1])
@@ -3000,14 +3086,15 @@ def payment_success(request):
                     except Exception:
                         ticket = None
                 status_value = (request.POST.get('reasonCode') or request.GET.get('reasonCode') or request.POST.get('transactionStatus') or request.GET.get('transactionStatus') or '').strip()
-                if ticket and str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid'):
-                    payment = _mark_ticket_paid(
+                success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+                if ticket:
+                    payment = _apply_wayforpay_result(
                         ticket,
                         None,
-                        request=request,
-                        provider='wayforpay',
-                        provider_payment_id=(request.POST.get('invoiceId') or request.GET.get('invoiceId') or request.POST.get('transactionId') or request.GET.get('transactionId') or ''),
-                        payload=dict(request.POST if request.method == 'POST' else request.GET)
+                        request,
+                        payload,
+                        success,
+                        transaction_id=(request.POST.get('invoiceId') or request.GET.get('invoiceId') or request.POST.get('transactionId') or request.GET.get('transactionId') or ''),
                     )
                     processed = payment is not None
         except Exception:
@@ -3039,45 +3126,14 @@ def payment_success(request):
         allow_fallback = settings.DEBUG or (status_param in ('success', 'processing'))
         if allow_fallback:
             try:
-                from .models import Payment
-                # try to find existing pending payment
-                payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
                 provider_tx = request.GET.get('transaction_id') or request.GET.get('payment_id') or request.GET.get('provider_id') or ''
-                if payment:
-                    payment.status = 'success'
-                    payment.provider = 'wayforpay'
-                    if provider_tx:
-                        payment.provider_payment_id = provider_tx
-                    try:
-                        # merge query params into data for traceability
-                        q = dict(request.GET)
-                        payment.data = (payment.data or {})
-                        payment.data.update({'fallback_marked': True, 'query': q})
-                    except Exception:
-                        pass
-                    payment.save()
-                else:
-                    payment = Payment.objects.create(
-                        ticket=ticket,
-                        user=ticket.user if hasattr(ticket, 'user') else None,
-                        provider='wayforpay',
-                        provider_payment_id=provider_tx,
-                        amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
-                        currency=(getattr(ticket, 'currency', None) or 'UAH'),
-                        status='success',
-                        data={'fallback_marked': True, 'query': dict(request.GET)}
-                    )
-                ticket.paid = True
-                ticket.save(update_fields=['paid'])
-                try:
-                    _send_ticket_email(ticket, payment)
-                except Exception:
-                    pass
+                payload = {'fallback_marked': True, 'query': dict(request.GET)}
+                payment = _apply_wayforpay_result(ticket, None, request, payload, True, transaction_id=provider_tx)
                 try:
                     request.session.pop('last_ticket_id', None)
                 except Exception:
                     pass
-                processed = True
+                processed = payment is not None
             except Exception:
                 pass
 
@@ -4562,22 +4618,7 @@ def wayforpay_callback(request):
     success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
 
     if ticket:
-        if success:
-            _mark_ticket_paid(
-                ticket,
-                payment,
-                request=request,
-                provider='wayforpay',
-                provider_payment_id=transaction_id,
-                payload=dict(request.POST)
-            )
-        else:
-            if payment:
-                payment.status = 'failure'
-                payment.provider = 'wayforpay'
-                payment.provider_payment_id = transaction_id or payment.provider_payment_id
-                payment.data = dict(request.POST)
-                payment.save()
+        _apply_wayforpay_result(ticket, payment, request, dict(request.POST), success, transaction_id=transaction_id)
 
     response_status = 'accept' if success else 'reject'
     response_data = build_wayforpay_callback_response(order_reference, status=response_status)

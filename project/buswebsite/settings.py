@@ -250,12 +250,15 @@ SUPPORT_ADMINS = [u.strip() for u in os.environ.get('SUPPORT_ADMINS', '').split(
 # WayForPay (use environment variables for merchant credentials)
 WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN")
 WAYFORPAY_SECRET_KEY = os.environ.get("WAYFORPAY_SECRET_KEY")
-WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN")
 WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET") or WAYFORPAY_SECRET_KEY
+WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN")
+WAYFORPAY_RETURN_URL = os.environ.get("WAYFORPAY_RETURN_URL")
+WAYFORPAY_CALLBACK_URL = os.environ.get("WAYFORPAY_CALLBACK_URL")
 WAYFORPAY_URL = os.environ.get(
     "WAYFORPAY_URL",
     "https://secure.wayforpay.com/pay"
 )
+WAYFORPAY_API_URL = os.environ.get("WAYFORPAY_API_URL", "https://api.wayforpay.com/api")
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
