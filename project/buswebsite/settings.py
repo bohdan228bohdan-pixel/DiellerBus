@@ -50,6 +50,10 @@ ALLOWED_HOSTS = [h.strip() for h in _raw_allowed.split(',') if h.strip()]
 _raw_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', ','.join(['https://' + h for h in ALLOWED_HOSTS if h and h != '*']))
 CSRF_TRUSTED_ORIGINS = [u.strip() for u in _raw_csrf.split(',') if u.strip()]
 
+# Allow WayForPay payment pages to post back to the site without CSRF rejection.
+if 'https://secure.wayforpay.com' not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append('https://secure.wayforpay.com')
+
 # When running with DEBUG enabled, allow common local development hosts so
 # the development server and local editors can access the site without
 # triggering DisallowedHost errors (for example, 127.0.0.1:8000).
