@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -166,6 +168,24 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertEqual(result['invoiceUrl'], 'https://secure.wayforpay.com/pay/test')
 		self.assertEqual(mocked_post.call_count, 1)
 
+	def test_wayforpay_signature_uses_hmac_md5_format(self):
+		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
+		signature = service.build_signature(
+			'merchant',
+			'example.com',
+			'ticket-42',
+			'100.00',
+			'UAH',
+			['Ticket'],
+			['1'],
+			['100.00'],
+			merchant_secret='secret',
+			order_date='1700000000',
+		)
+		message = ';'.join(['merchant', 'example.com', 'ticket-42', '1700000000', '100.00', 'UAH', 'Ticket', '1', '100.00'])
+		expected = hmac.new('secret'.encode('utf-8'), message.encode('utf-8'), hashlib.md5).hexdigest()
+		self.assertEqual(signature, expected)
+
 	def test_wayforpay_service_builds_invoice_payload_and_callback_response(self):
 		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
 		payload = service.build_invoice_payload(
@@ -181,6 +201,8 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertEqual(payload['merchantAccount'], 'merchant')
 		self.assertEqual(payload['merchantAuthType'], 'SimpleSignature')
 		self.assertTrue(payload['merchantSignature'])
+		self.assertTrue(payload.get('apiVersion'))
+		self.assertEqual(payload.get('transactionType'), 'CREATE_INVOICE')
 		callback_response = service.build_callback_response('ticket-42', status='accept', timestamp=1700000000)
 		self.assertEqual(callback_response['orderReference'], 'ticket-42')
 		self.assertEqual(callback_response['status'], 'accept')

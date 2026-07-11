@@ -30,9 +30,10 @@ class WayForPayService:
 
     @classmethod
     def _build_signature(cls, fields, secret):
-        secret_key = str(secret or '').encode('utf-8')
-        message = ';'.join(cls._normalize_value(field) for field in fields).encode('utf-8')
-        return hmac.new(secret_key, message, hashlib.sha1).hexdigest()
+        message = ';'.join(cls._normalize_value(field) for field in fields)
+        if secret:
+            return hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.md5).hexdigest()
+        return hashlib.md5(message.encode('utf-8')).hexdigest()
 
     @classmethod
     def _build_signature_for_callback(cls, fields, secret):
@@ -49,6 +50,7 @@ class WayForPayService:
         product_counts,
         product_prices,
         merchant_secret=None,
+        order_date=None,
     ):
         """Generate a WayForPay merchantSignature for invoice creation."""
         secret = merchant_secret or self.merchant_secret
@@ -59,6 +61,7 @@ class WayForPayService:
             merchant_account,
             merchant_domain,
             order_reference,
+            order_date or '',
             amount,
             currency,
             names_str,
@@ -101,14 +104,16 @@ class WayForPayService:
             'productName': list(product_names or [str(order_reference)]),
             'productCount': list(product_counts or ['1']),
             'productPrice': list(product_prices or [str(amount)]),
-            'clientFirstName': client_first_name or '',
-            'clientLastName': client_last_name or '',
-            'clientEmail': client_email or '',
-            'clientPhone': client_phone or '',
+            'clientFirstName': client_first_name or 'Customer',
+            'clientLastName': client_last_name or 'Customer',
+            'clientEmail': client_email or 'customer@example.com',
+            'clientPhone': client_phone or '+380000000000',
             'serviceUrl': service_url or self.callback_url or '',
             'returnUrl': return_url or self.return_url or '',
             'merchantAuthType': 'SimpleSignature',
             'language': 'UA',
+            'apiVersion': '1',
+            'transactionType': 'CREATE_INVOICE',
         }
         payload['merchantSignature'] = self.build_signature(
             payload['merchantAccount'],
@@ -120,6 +125,7 @@ class WayForPayService:
             payload['productCount'],
             payload['productPrice'],
             merchant_secret=merchant_secret,
+            order_date=payload['orderDate'],
         )
         return payload
 
@@ -131,14 +137,25 @@ class WayForPayService:
             try:
                 data = response.json()
             except ValueError:
-                data = {'raw': response.text}
+                response_text = getattr(response, 'text', None)
+                if response_text is None and hasattr(response, 'content'):
+                    response_text = response.content.decode('utf-8', errors='replace') if isinstance(response.content, (bytes, bytearray)) else str(response.content)
+                data = {'raw': response_text}
+
+            logger = logging.getLogger('main')
+            logger.debug('WayForPay request payload=%s', json.dumps(payload, ensure_ascii=False))
+            response_text = getattr(response, 'text', None)
+            if response_text is None and hasattr(response, 'content'):
+                response_text = response.content.decode('utf-8', errors='replace') if isinstance(response.content, (bytes, bytearray)) else str(response.content)
+            logger.debug('WayForPay response status=%s body=%s', response.status_code, response_text)
+
             if response.status_code >= 400 or not data:
                 logger = logging.getLogger('main')
-                logger.exception('WayForPay API request failed: status=%s payload=%s response=%s', response.status_code, payload, response.text)
+                logger.exception('WayForPay API request failed: status=%s payload=%s response=%s', response.status_code, payload, response_text)
                 return {
                     'error': 'WayForPay API request failed',
                     'status_code': response.status_code,
-                    'response_text': response.text,
+                    'response_text': response_text,
                     'response_json': data,
                     'payload': payload,
                 }
