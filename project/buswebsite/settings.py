@@ -263,6 +263,7 @@ WAYFORPAY_URL = os.environ.get(
     "https://secure.wayforpay.com/pay"
 )
 WAYFORPAY_API_URL = os.environ.get("WAYFORPAY_API_URL", "https://api.wayforpay.com/api")
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 

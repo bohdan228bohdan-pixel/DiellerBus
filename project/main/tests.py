@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile
 from .views import api_trips
-from .wayforpay import create_wayforpay_invoice, _build_signature
+from .wayforpay import WayForPayService, create_wayforpay_invoice, _build_signature
 
 User = get_user_model()
 
@@ -166,46 +166,109 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertEqual(result['invoiceUrl'], 'https://secure.wayforpay.com/pay/test')
 		self.assertEqual(mocked_post.call_count, 1)
 
-	def test_checkout_renders_wayforpay_form(self):
-		self.client.force_login(self.user)
-		response = self.client.post(
-			reverse('main:checkout', args=[self.trip.id]),
-			{
-				'passengers': '1',
-				'email': 'payer@example.com',
-				'phone': '+380501112233',
-				'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
-				'passenger_first': ['Іван'],
-				'passenger_last': ['Іваненко'],
-				'accept_agreements': 'on',
-			},
+	def test_wayforpay_service_builds_invoice_payload_and_callback_response(self):
+		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
+		payload = service.build_invoice_payload(
+			order_reference='ticket-42',
+			amount='100.00',
+			currency='UAH',
+			product_names=['Ticket'],
+			product_counts=['1'],
+			product_prices=['100.00'],
+			return_url='https://example.com/success',
+			service_url='https://example.com/callback',
 		)
-		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, 'wayforpay')
-		self.assertContains(response, 'merchantAuthType')
-		self.assertContains(response, 'language')
+		self.assertEqual(payload['merchantAccount'], 'merchant')
+		self.assertEqual(payload['merchantAuthType'], 'SimpleSignature')
+		self.assertTrue(payload['merchantSignature'])
+		callback_response = service.build_callback_response('ticket-42', status='accept', timestamp=1700000000)
+		self.assertEqual(callback_response['orderReference'], 'ticket-42')
+		self.assertEqual(callback_response['status'], 'accept')
+
+	def test_create_wayforpay_invoice_returns_error_details_on_api_failure(self):
+		class DummyResponse:
+			status_code = 400
+			text = 'invalid merchant'
+			content = b'invalid merchant'
+			def json(self):
+				return {'message': 'invalid merchant'}
+			def raise_for_status(self):
+				raise Exception('boom')
+
+		with patch('main.wayforpay.requests.post', return_value=DummyResponse()):
+			result = create_wayforpay_invoice(
+				order_reference='ticket-99',
+				amount='100.00',
+				currency='UAH',
+				product_names=['Ticket'],
+				product_counts=['1'],
+				product_prices=['100.00'],
+				merchant_login='merchant',
+				merchant_secret='secret',
+				merchant_domain='example.com',
+				return_url='https://example.com/success',
+				service_url='https://example.com/callback',
+			)
+		self.assertEqual(result['status_code'], 400)
+		self.assertIn('invalid merchant', result['response_text'])
+		self.assertEqual(result['error'], 'WayForPay API request failed')
+
+	def test_checkout_redirects_to_wayforpay_invoice(self):
+		class DummyResponse:
+			status_code = 200
+			content = b'{"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}'
+			def json(self):
+				return {"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}
+			def raise_for_status(self):
+				return None
+
+		self.client.force_login(self.user)
+		with patch('main.wayforpay.requests.post', return_value=DummyResponse()):
+			response = self.client.post(
+				reverse('main:checkout', args=[self.trip.id]),
+				{
+					'passengers': '1',
+					'email': 'payer@example.com',
+					'phone': '+380501112233',
+					'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+					'passenger_first': ['Іван'],
+					'passenger_last': ['Іваненко'],
+					'accept_agreements': 'on',
+				},
+			)
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response['Location'], 'https://secure.wayforpay.com/pay/test')
 		ticket = Ticket.objects.get(user=self.user)
 		self.assertTrue(ticket.payments.exists())
 		payment = ticket.payments.first()
 		self.assertEqual(payment.provider, 'wayforpay')
 		self.assertEqual(payment.status, 'pending')
 
-	def test_create_ticket_renders_wayforpay_form(self):
+	def test_create_ticket_redirects_to_wayforpay_invoice(self):
+		class DummyResponse:
+			status_code = 200
+			content = b'{"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}'
+			def json(self):
+				return {"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}
+			def raise_for_status(self):
+				return None
+
 		self.client.force_login(self.user)
-		response = self.client.post(
-			reverse('main:create_ticket'),
-			{
-				'from': 'Львів',
-				'to': 'Київ',
-				'passengers': '1',
-				'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
-				'price': '100',
-				'email': 'payer@example.com',
-				'phone': '+380501112233',
-			},
-		)
-		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, 'wayforpay')
+		with patch('main.wayforpay.requests.post', return_value=DummyResponse()):
+			response = self.client.post(
+				reverse('main:create_ticket'),
+				{
+					'from': 'Львів',
+					'to': 'Київ',
+					'passengers': '1',
+					'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+					'price': '100',
+					'email': 'payer@example.com',
+					'phone': '+380501112233',
+				},
+			)
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response['Location'], 'https://secure.wayforpay.com/pay/test')
 		ticket = Ticket.objects.get(user=self.user)
 		self.assertTrue(ticket.payments.exists())
 		payment = ticket.payments.first()
