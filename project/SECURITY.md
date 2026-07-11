@@ -14,7 +14,7 @@ Recommended production checklist (do these now):
 1) ENVIRONMENT / SECRETS
 - Set `DJANGO_SECRET_KEY` to a strong random value and remove the fallback in source control.
 - Do not commit any secrets (email passwords, API keys). Use environment variables or a secrets manager (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault).
-- Rotate Stripe/LiqPay keys if they were exposed.
+- Rotate WayForPay keys if they were exposed.
 
 2) HTTPS / HSTS
 - Enable TLS and set `SECURE_SSL_REDIRECT=True`, `SECURE_HSTS_SECONDS` (e.g. 31536000), `SECURE_HSTS_INCLUDE_SUBDOMAINS=True`, `SECURE_HSTS_PRELOAD=True` in the environment.
@@ -25,7 +25,7 @@ Recommended production checklist (do these now):
 - Keep `SESSION_COOKIE_HTTPONLY=True` (already enabled).
 
 4) PAYMENTS / PCI
-- Never store raw card PAN/CVV. Use PCI-compliant processors (Stripe, LiqPay) and rely on their tokens.
+- Never store raw card PAN/CVV. Use PCI-compliant processors (WayForPay) and rely on their tokens.
 - If you must store payment metadata, strip any fields that may contain sensitive card data.
 
 5) ADMIN & ACCESS
@@ -58,6 +58,6 @@ If you want, I can:
 # Where to start right now (recommended):
 1) Set env vars: `DJANGO_SECRET_KEY`, `EMAIL_HOST_PASSWORD`, `ALLOWED_HOSTS`.
 2) Enable `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` in production.
-3) Rotate any possibly leaked keys (Stripe/LiqPay, email SMTP password).
+3) Rotate any possibly leaked keys (WayForPay, email SMTP password).
 4) Run `python scripts/backup_db.py` to create a snapshot and move it to secure storage.
 

@@ -252,7 +252,10 @@ WAYFORPAY_MERCHANT_LOGIN = os.environ.get("WAYFORPAY_MERCHANT_LOGIN")
 WAYFORPAY_SECRET_KEY = os.environ.get("WAYFORPAY_SECRET_KEY")
 WAYFORPAY_DOMAIN = os.environ.get("WAYFORPAY_DOMAIN")
 WAYFORPAY_MERCHANT_SECRET = os.environ.get("WAYFORPAY_MERCHANT_SECRET") or WAYFORPAY_SECRET_KEY
-WAYFORPAY_URL = os.environ.get("WAYFORPAY_URL", "https://wayforpay.com")
+WAYFORPAY_URL = os.environ.get(
+    "WAYFORPAY_URL",
+    "https://secure.wayforpay.com/pay"
+)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
