@@ -59,7 +59,7 @@
         <div><strong>Перевізник:</strong> {{ carrier_name }}</div>
       {% endif %}
       {% if carrier_business_number %}
-        <div><strong>ФОП/ТОВ:</strong> {{ carrier_business_number }}</div>
+        <div><strong>{{ carrier_business_label|default:'ФОП/ТОВ' }}:</strong> {{ carrier_business_number }}</div>
       {% endif %}
       {% if carrier_phone %}
         <div><strong>Телефон:</strong> {{ carrier_phone }}</div>

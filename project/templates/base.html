@@ -43,7 +43,7 @@
           <div class="d-flex align-items-center ms-lg-3">
             {% if user.is_authenticated %}
               <a href="{% url 'main:support_home' %}" class="btn btn-outline-light me-2">🛠 Замовлення на тех підтримку</a>
-              {% if user.is_staff %}
+              {% if user.is_staff and not user.profile.is_carrier %}
                 <a href="{% url 'main:support_worker_queue' %}" class="btn btn-outline-light me-2">🔧 Черга підтримки</a>
               {% endif %}
               <a href="{% url 'main:profile' %}" class="btn btn-outline-light me-2 profile">👤 {{ user.username }}</a>

@@ -69,7 +69,9 @@
         <div style="font-weight:800;margin-bottom:8px">Швидкі посилання (адміністратор)</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <a href="{% url 'main:support_home' %}" class="btn btn-sm">Створити/Подивитись звернення</a>
-          <a href="{% url 'main:support_worker_queue' %}" class="btn btn-sm">Черга підтримки</a>
+          {% if not user.profile.is_carrier %}
+            <a href="{% url 'main:support_worker_queue' %}" class="btn btn-sm">Черга підтримки</a>
+          {% endif %}
           <a href="{% url 'main:support_admin' %}?status=closed" class="btn btn-sm">Архів звернень</a>
           <a href="{% url 'main:support_admin_cancel_trip' %}" class="btn btn-sm" style="background:#c0392b;color:#fff">Скасувати рейс</a>
           <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">Адмінка</a>
@@ -89,7 +91,7 @@
       <div class="info-row"><span class="profile-label">Баланс:</span><span class="profile-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
     </div>
 
-    {% if user.username|lower == 'dieller' or user.is_staff %}
+    {% if user.username|lower == 'dieller' or user.is_staff and not user.profile.is_carrier %}
       <div style="margin-top:10px">
         <a href="{% url 'main:dieller_reports' %}" class="btn btn-sm" style="background:#2d7a2d;color:#fff">📈 Звіти</a>
       </div>

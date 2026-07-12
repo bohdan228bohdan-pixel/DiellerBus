@@ -3025,7 +3025,17 @@ def payment_success(request):
     payment = None
     processed = False
 
-    order_reference = request.POST.get('orderReference') or request.GET.get('orderReference')
+    order_reference = (
+        request.POST.get('orderReference')
+        or request.GET.get('orderReference')
+        or request.POST.get('order_id')
+        or request.GET.get('order_id')
+        or request.POST.get('order')
+        or request.GET.get('order')
+        or request.POST.get('ticket')
+        or request.GET.get('ticket')
+        or ''
+    ).strip()
     merchant_signature = request.POST.get('merchantSignature') or request.GET.get('merchantSignature')
     payload = dict(request.POST if request.method == 'POST' else request.GET)
     if not processed and order_reference and merchant_signature:
@@ -3037,7 +3047,15 @@ def payment_success(request):
                         ticket = Ticket.objects.filter(pk=ticket_id).first()
                     except Exception:
                         ticket = None
-                status_value = (request.POST.get('reasonCode') or request.GET.get('reasonCode') or request.POST.get('transactionStatus') or request.GET.get('transactionStatus') or '').strip()
+                status_value = (
+                    request.POST.get('reasonCode')
+                    or request.GET.get('reasonCode')
+                    or request.POST.get('transactionStatus')
+                    or request.GET.get('transactionStatus')
+                    or request.POST.get('status')
+                    or request.GET.get('status')
+                    or ''
+                ).strip()
                 success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
                 if ticket:
                     payment = _apply_wayforpay_result(
@@ -3052,15 +3070,13 @@ def payment_success(request):
         except Exception:
             pass
 
-    # 2) If no provider payload, allow query param order_id=ticket-<id>
-    if not processed and not ticket:
-        order = request.GET.get('order_id') or request.GET.get('order') or request.GET.get('ticket')
-        if order and order.startswith('ticket-'):
-            try:
-                ticket_id = int(order.split('-', 1)[1])
-                ticket = Ticket.objects.filter(pk=ticket_id).first()
-            except Exception:
-                ticket = None
+    # 2) If no provider payload, allow query param orderReference/order_id=ticket-<id>
+    if not processed and not ticket and order_reference and order_reference.startswith('ticket-'):
+        try:
+            ticket_id = int(order_reference.split('-', 1)[1])
+            ticket = Ticket.objects.filter(pk=ticket_id).first()
+        except Exception:
+            ticket = None
 
     # 3) Fallback for environments where server-to-server callback isn't available
     # If we have an order in session or a success GET status in DEBUG, mark ticket paid.
@@ -3074,7 +3090,15 @@ def payment_success(request):
             ticket = None
 
     if not processed and ticket:
-        status_param = (request.GET.get('status') or '').lower()
+        status_param = (
+            request.POST.get('status')
+            or request.GET.get('status')
+            or request.POST.get('reasonCode')
+            or request.GET.get('reasonCode')
+            or request.POST.get('transactionStatus')
+            or request.GET.get('transactionStatus')
+            or ''
+        ).lower()
         allow_fallback = settings.DEBUG or (status_param in ('success', 'processing', 'accept', 'approved'))
         if allow_fallback:
             try:
@@ -3128,7 +3152,6 @@ def payment_success(request):
 @login_required
 def payment_cancel(request):
     return render(request, "payment_cancel.html")
-
 
 
 def kvitokindex(request):
@@ -3941,6 +3964,24 @@ def checkout(request, trip_id):
     return _render_wayforpay_form(request, ticket, payment, contact_email=contact_email, contact_phone=contact_phone)
 
 
+def _get_carrier_business_details(carrier):
+    business_number = (getattr(carrier, 'business_number', '') or '').strip()
+    business_type = (getattr(carrier, 'business_type', '') or '').strip()
+
+    if business_type == 'FOP':
+        return 'ФОП', business_number
+    if business_type == 'TOV':
+        return 'ТОВ', business_number
+
+    normalized = business_number.lower()
+    if normalized.startswith('тов'):
+        return 'ТОВ', business_number
+    if normalized.startswith('фоп'):
+        return 'ФОП', business_number
+
+    return 'ФОП/ТОВ', business_number
+
+
 def _generate_ticket_pdf_bytes(ticket, request=None):
     """Return PDF bytes for a Ticket using reportlab.
 
@@ -3962,6 +4003,7 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
     width, height = A4
 
     carrier_name = ''
+    carrier_business_label = ''
     carrier_business_number = ''
     carrier_phone = ''
     try:
@@ -3970,7 +4012,7 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
                 carrier = getattr(ticket.trip.carrier_user, 'carrier_account', None)
                 if carrier:
                     carrier_name = carrier.company_name or carrier.username or ticket.trip.carrier or ''
-                    carrier_business_number = carrier.business_number or ''
+                    carrier_business_label, carrier_business_number = _get_carrier_business_details(carrier)
                     carrier_phone = carrier.phone or ''
     except Exception:
         pass
@@ -4369,16 +4411,11 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
             c.drawString(left_x, route_top, route_text)
             carrier_y = route_top - (fs + 6)
 
-        try:
-            c.setFont(regular_font, 12)
-        except Exception:
-            c.setFont('Helvetica', 12)
-        c.drawString(left_x, carrier_y, f"Перевізник: {carrier_name}")
-
-        # Highlighted date/time boxes (placed below carrier)
+        # Highlighted date/time boxes (placed below route)
         date_box_w = 140
         date_box_h = 24
         dep_x = left_x
+        dep_y = carrier_y - (date_box_h + 10)
         c.setFillColor(colors.HexColor('#F0F4F8'))
         c.roundRect(dep_x, dep_y, date_box_w, date_box_h, 4, fill=1, stroke=0)
         c.setFillColor(colors.black)
@@ -4395,32 +4432,29 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
         c.setFillColor(colors.black)
         c.drawString(arr_x + 6, arr_y + 6, f"Прибуття: {arrive_time}")
 
-        # Right: price and purchase date inside info box (right-aligned)
+        # Right: price, travel date and carrier details inside info box (right-aligned)
         try:
             c.setFont(bold_font, 14)
         except Exception:
             c.setFont('Helvetica-Bold', 14)
-        # anchor price near the same top baseline as the route
         price_y = route_top
         c.drawRightString(box_x + box_w - 12, price_y, f"Сума: {total_price:.2f} {currency}")
         try:
             c.setFont(regular_font, 10)
         except Exception:
             c.setFont('Helvetica', 10)
-        c.drawRightString(box_x + box_w - 12, price_y - 18, f"Дата покупки: {purchase}")
+        travel_date_text = ticket.travel_date.strftime('%d.%m.%Y') if getattr(ticket, 'travel_date', None) else ''
+        c.drawRightString(box_x + box_w - 12, price_y - 16, f"Дата рейсу: {travel_date_text}")
+        c.drawRightString(box_x + box_w - 12, price_y - 32, f"Перевізник: {carrier_name}")
+        if carrier_business_number:
+            c.drawRightString(box_x + box_w - 12, price_y - 48, f"{carrier_business_label}: {carrier_business_number}")
+        if carrier_phone:
+            c.drawRightString(box_x + box_w - 12, price_y - 64, f"Телефон: {carrier_phone}")
 
-        # Carrier details below route information
         try:
-            current_y = carrier_y
-            if carrier_business_number:
-                current_y -= 14
-                c.drawString(left_x, current_y, f"ФОП/ТОВ: {carrier_business_number}")
-            if carrier_phone:
-                current_y -= 14
-                c.drawString(left_x, current_y, f"Телефон: {carrier_phone}")
-            dep_y = current_y - (date_box_h + 10)
+            dep_y = carrier_y - (date_box_h + 12)
         except Exception:
-            dep_y = carrier_y - (date_box_h + 10)
+            dep_y = box_y - box_h - 10
 
     # Passenger list
     c.setFont(bold_font, 12)
@@ -4474,7 +4508,7 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
         if carrier_name:
             footer_items.append(f"Перевізник: {carrier_name}")
         if carrier_business_number:
-            footer_items.append(f"ФОП/ТОВ: {carrier_business_number}")
+            footer_items.append(f"{carrier_business_label}: {carrier_business_number}")
         if carrier_phone:
             footer_items.append(f"Телефон: {carrier_phone}")
         footer_text = ' · '.join(footer_items) if footer_items else 'Перевізник: Dieller Bus'
@@ -4660,6 +4694,7 @@ def ticket_view(request, ticket_id):
 
     # Carrier details for display on the ticket
     carrier_name = ''
+    carrier_business_label = ''
     carrier_business_number = ''
     carrier_phone = ''
     try:
@@ -4667,7 +4702,7 @@ def ticket_view(request, ticket_id):
             carrier = getattr(ticket.trip.carrier_user, 'carrier_account', None)
             if carrier:
                 carrier_name = carrier.company_name or carrier.username or ticket.trip.carrier or ''
-                carrier_business_number = carrier.business_number or ''
+                carrier_business_label, carrier_business_number = _get_carrier_business_details(carrier)
                 carrier_phone = carrier.phone or ''
     except Exception:
         carrier_name = ticket.trip.carrier if getattr(ticket, 'trip', None) else ''
@@ -4683,6 +4718,7 @@ def ticket_view(request, ticket_id):
         'sig': sig,
         'last_payment': last_payment,
         'carrier_name': carrier_name,
+        'carrier_business_label': carrier_business_label,
         'carrier_business_number': carrier_business_number,
         'carrier_phone': carrier_phone,
         'is_carrier_view': getattr(request.user, 'profile', None) and getattr(request.user.profile, 'is_carrier', False),

@@ -7,8 +7,8 @@ from django.test import TestCase
 from django.test import RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile
-from .views import api_trips
+from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile, Carrier
+from .views import api_trips, _generate_ticket_pdf_bytes, _render_wayforpay_form
 from .wayforpay import WayForPayService, create_wayforpay_invoice, _build_signature
 
 User = get_user_model()
@@ -121,6 +121,114 @@ class DirectCheckoutRedirectTests(TestCase):
 		payment = ticket.payments.first()
 		self.assertEqual(payment.provider, 'wayforpay')
 		self.assertEqual(payment.status, 'pending')
+
+
+class TicketPdfAndPaymentFallbackTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username='pdfuser', email='pdf@example.com', password='pass1234')
+		self.city1 = City.objects.create(name='Львів', country='UA')
+		self.city2 = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ', active=True)
+		self.trip = Trip.objects.create(
+			route=self.route,
+			title='Тестовий рейс',
+			seats=20,
+			base_price=100.0,
+			start_city=self.city1,
+			end_city=self.city2,
+			active=True,
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city1, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=self.trip, city=self.city2, order=2, arrival_time='12:00')
+
+	def test_generate_ticket_pdf_bytes_does_not_crash(self):
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=date.today() + timedelta(days=1),
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=True,
+		)
+		pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
+		self.assertTrue(pdf_bytes)
+		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+	def test_generate_ticket_pdf_bytes_handles_missing_optional_details(self):
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=date.today() + timedelta(days=1),
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=False,
+		)
+		pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
+		self.assertTrue(pdf_bytes)
+		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+	def test_generate_ticket_pdf_includes_travel_date(self):
+		travel_date = date.today() + timedelta(days=2)
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=travel_date,
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=True,
+		)
+		pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
+		self.assertTrue(pdf_bytes)
+		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+	def test_generate_ticket_pdf_uses_business_type_label(self):
+		carrier_user = User.objects.create_user(username='carrieruser', email='carrier@example.com', password='pass1234')
+		carrier = Carrier.objects.create(
+			user=carrier_user,
+			company_name='Тестовий перевізник',
+			business_type='FOP',
+			business_number='1234567890',
+			phone='+380501234567',
+		)
+		self.trip.carrier_user = carrier_user
+		self.trip.save(update_fields=['carrier_user'])
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=date.today() + timedelta(days=3),
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=True,
+		)
+		pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
+		self.assertTrue(pdf_bytes)
+		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+	def test_render_wayforpay_form_falls_back_to_gateway_form(self):
+		class DummyService:
+			def create_invoice(self, **kwargs):
+				return {'merchantAccount': 'test-merchant', 'merchantDomainName': 'example.com'}
+
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		request = RequestFactory().get('/')
+		with patch('main.views.get_wayforpay_service', return_value=DummyService()):
+			response = _render_wayforpay_form(request, ticket, payment, contact_email='pdf@example.com', contact_phone='+380501112233')
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'https://secure.wayforpay.com/pay')
+		self.assertContains(response, 'merchantAccount')
 
 
 @override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_SECRET_KEY='test-secret')
@@ -330,3 +438,16 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertEqual(payment.status, 'success')
 		self.assertTrue(ticket.paid)
 		self.assertEqual(payment.provider_payment_id, 'tx-123')
+
+	def test_payment_success_marks_ticket_paid_from_order_reference_without_signature(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		response = self.client.get(reverse('main:payment_success'), {
+			'orderReference': f'ticket-{ticket.id}',
+			'status': 'success',
+			'transaction_id': 'tx-777',
+		})
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertTrue(ticket.paid)
+		self.assertTrue(ticket.payments.exists())
+		self.assertEqual(ticket.payments.latest('created_at').status, 'success')

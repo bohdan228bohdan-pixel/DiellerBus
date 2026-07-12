@@ -426,16 +426,17 @@ class SupportWorkerAdmin(admin.ModelAdmin):
 
 @admin.register(Carrier)
 class CarrierAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'company_name', 'business_number', 'phone', 'email', 'user', 'created_at')
+    list_display = ('__str__', 'company_name', 'business_type', 'business_number', 'phone', 'email', 'user', 'created_at')
     search_fields = ('^company_name', '^username', '^email', '^user__username', '^business_number', '^phone')
     readonly_fields = ('user', 'created_at')
-    fields = ('company_name', 'business_number', 'phone', 'username', 'email', 'avatar', 'user', 'created_at', 'related_links')
+    fields = ('company_name', 'business_type', 'business_number', 'phone', 'username', 'email', 'avatar', 'user', 'created_at', 'related_links')
     ordering = ('company_name',)
     readonly_fields = readonly_fields + ('related_links',)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         form.base_fields['company_name'].required = True
+        form.base_fields['business_type'].required = True
         form.base_fields['business_number'].required = True
         form.base_fields['phone'].required = True
         return form

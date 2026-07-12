@@ -623,11 +623,17 @@ class Carrier(models.Model):
     with `is_staff=True` so the carrier user can access the restricted admin
     views for managing their own trips and viewing sold tickets.
     """
+    BUSINESS_TYPE_CHOICES = [
+        ('FOP', 'ФОП'),
+        ('TOV', 'ТОВ'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='carrier_account')
     username = models.CharField(max_length=150, blank=True, help_text='Логін для створення користувача (необов\'язково)')
     email = models.EmailField(blank=True)
     company_name = models.CharField(max_length=255, blank=True)
-    business_number = models.CharField(max_length=64, blank=True, verbose_name='ФОП/ТОВ')
+    business_type = models.CharField(max_length=16, blank=True, choices=BUSINESS_TYPE_CHOICES, verbose_name='Тип юридичної форми')
+    business_number = models.CharField(max_length=64, blank=True, verbose_name='Номер / ІПН')
     phone = models.CharField(max_length=32, blank=True)
     avatar = models.ImageField(upload_to='carriers/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
