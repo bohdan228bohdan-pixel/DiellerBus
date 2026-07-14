@@ -94,16 +94,21 @@ class WayForPayService:
         if not merchant_login or not merchant_secret:
             raise ValueError('WayForPay merchant credentials are not configured')
 
+        # normalize product lists and amounts to match WayForPay expectations
+        product_names_list = [str(n) for n in (product_names or [str(order_reference)])]
+        product_counts_list = [str(int(c)) for c in (product_counts or ['1'])]
+        # prices must use dot and two decimal places (e.g. 10 -> 10.00)
+        product_prices_list = ["{:.2f}".format(float(p)) for p in (product_prices or [amount])]
         payload = {
             'merchantAccount': merchant_login,
             'merchantDomainName': merchant_domain,
             'orderReference': str(order_reference),
             'orderDate': int(time.time()),
-            'amount': str(amount),
+            'amount': "{:.2f}".format(float(amount)),
             'currency': str(currency or 'UAH').upper(),
-            'productName': list(product_names or [str(order_reference)]),
-            'productCount': list(product_counts or ['1']),
-            'productPrice': list(product_prices or [str(amount)]),
+            'productName': product_names_list,
+            'productCount': product_counts_list,
+            'productPrice': product_prices_list,
             'clientFirstName': client_first_name or 'Customer',
             'clientLastName': client_last_name or 'Customer',
             'clientEmail': client_email or 'customer@example.com',
