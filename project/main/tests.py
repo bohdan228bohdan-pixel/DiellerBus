@@ -451,3 +451,58 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertTrue(ticket.paid)
 		self.assertTrue(ticket.payments.exists())
 		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_redirects_to_cancel_and_deletes_ticket_on_failed_signed_return(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payload = {
+			'merchantAccount': 'test-merchant',
+			'merchantDomainName': 'example.com',
+			'orderReference': f'ticket-{ticket.id}',
+			'amount': '100.00',
+			'currency': 'UAH',
+			'productName': 'Ticket',
+			'productCount': '1',
+			'productPrice': '100.00',
+			'reasonCode': '1500',
+			'transactionStatus': 'failure',
+		}
+		payload['merchantSignature'] = _build_signature([
+			payload['orderReference'],
+			payload['reasonCode'],
+		], 'test-secret')
+		response = self.client.post(reverse('main:payment_success'), payload)
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response.url, reverse('main:payment_cancel'))
+		self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_callback_deletes_failed_ticket_on_wayforpay_failure(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		payload = {
+			'merchantAccount': 'test-merchant',
+			'merchantDomainName': 'example.com',
+			'orderReference': f'ticket-{ticket.id}',
+			'amount': '100.00',
+			'currency': 'UAH',
+			'productName': 'Ticket',
+			'productCount': '1',
+			'productPrice': '100.00',
+			'reasonCode': '1500',
+			'transactionId': 'tx-456',
+		}
+		payload['merchantSignature'] = _build_signature([
+			payload['merchantAccount'],
+			payload['merchantDomainName'],
+			payload['orderReference'],
+			payload['amount'],
+			payload['currency'],
+			payload['productName'],
+			payload['productCount'],
+			payload['productPrice'],
+		], 'test-secret')
+		response = self.client.post(reverse('main:wayforpay_callback'), payload)
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
+		self.assertFalse(Payment.objects.filter(pk=payment.id).exists())

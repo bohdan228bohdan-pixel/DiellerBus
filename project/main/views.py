@@ -130,7 +130,10 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
     order_reference = f"ticket-{ticket.id}"
     amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
     merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', None) or ''
-    merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', None) or request.get_host().split(':')[0] or 'localhost'
+    try:
+        merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', None) or request.get_host().split(':')[0] or 'localhost'
+    except Exception:
+        merchant_domain = getattr(settings, 'WAYFORPAY_DOMAIN', None) or 'localhost'
     return_url = getattr(settings, 'WAYFORPAY_RETURN_URL', None) or request.build_absolute_uri(reverse('main:payment_success'))
     service_url = getattr(settings, 'WAYFORPAY_CALLBACK_URL', None) or request.build_absolute_uri(reverse('main:wayforpay_callback'))
     product_names = [f"Квиток {ticket.from_city} → {ticket.to_city}"]
@@ -150,6 +153,7 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
             return_url=return_url,
             callback_url=service_url,
         )
+        request_user = getattr(request, 'user', None)
         invoice_payload = service.create_invoice(
             order_reference=order_reference,
             amount=amount_value,
@@ -161,8 +165,8 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
             merchant_domain=merchant_domain,
             return_url=return_url,
             service_url=service_url,
-            client_first_name=getattr(request.user, 'first_name', '') or '',
-            client_last_name=getattr(request.user, 'last_name', '') or '',
+            client_first_name=getattr(request_user, 'first_name', '') or '',
+            client_last_name=getattr(request_user, 'last_name', '') or '',
             client_email=contact_email,
             client_phone=contact_phone,
         )
@@ -172,13 +176,104 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
             payment.data = {'invoice': invoice_payload}
             payment.save(update_fields=['provider_payment_id', 'data'])
             return redirect(invoice_url)
-        logger = logging.getLogger('main')
-        logger.error('WayForPay invoice creation returned no invoiceUrl for ticket %s payload=%s', getattr(ticket, 'id', None), invoice_payload)
+
+        # If the API response doesn't include a redirect URL, still render a direct
+        # WayForPay payment form with the signed payload generated from the service.
+        if isinstance(invoice_payload, dict) and invoice_payload.get('merchantAccount') and invoice_payload.get('merchantSignature'):
+            payment.provider_payment_id = (invoice_payload or {}).get('invoiceId') or payment.provider_payment_id or ''
+            payment.data = {'invoice': invoice_payload}
+            payment.save(update_fields=['provider_payment_id', 'data'])
+            return render(request, 'wayforpay_form.html', {
+                'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay'),
+                'merchant_login': invoice_payload.get('merchantAccount') or merchant_login,
+                'merchant_domain': invoice_payload.get('merchantDomainName') or merchant_domain,
+                'merchant_signature': invoice_payload.get('merchantSignature') or invoice_payload.get('merchant_signature') or '',
+                'merchant_auth_type': invoice_payload.get('merchantAuthType') or 'HMAC',
+                'order_reference': invoice_payload.get('orderReference') or order_reference,
+                'order_date': invoice_payload.get('orderDate') or '',
+                'amount': invoice_payload.get('amount') or amount_value,
+                'currency': invoice_payload.get('currency') or (payment.currency or 'UAH').upper(),
+                'product_names': invoice_payload.get('productName') or product_names,
+                'product_counts': invoice_payload.get('productCount') or product_counts,
+                'product_prices': invoice_payload.get('productPrice') or product_prices,
+                'client_first_name': invoice_payload.get('clientFirstName') or getattr(request_user, 'first_name', '') or '',
+                'client_last_name': invoice_payload.get('clientLastName') or getattr(request_user, 'last_name', '') or '',
+                'client_email': invoice_payload.get('clientEmail') or contact_email,
+                'client_phone': invoice_payload.get('clientPhone') or contact_phone,
+                'service_url': invoice_payload.get('serviceUrl') or service_url,
+                'return_url': invoice_payload.get('returnUrl') or return_url,
+            })
+
+        # As a final fallback, build the signed payload locally and render the form.
+        direct_payload = None
+        if isinstance(invoice_payload, dict) and invoice_payload.get('merchantAccount'):
+            direct_payload = invoice_payload
+
+        if not direct_payload or not direct_payload.get('merchantSignature'):
+            from .wayforpay import get_wayforpay_service as _get_wayforpay_service_module
+
+            direct_service = _get_wayforpay_service_module(
+                merchant_login=merchant_login,
+                merchant_domain=merchant_domain,
+                return_url=return_url,
+                callback_url=service_url,
+            )
+            request_user = getattr(request, 'user', None)
+            direct_payload = direct_service.build_invoice_payload(
+                order_reference=order_reference,
+                amount=amount_value,
+                currency=(payment.currency or 'UAH').upper(),
+                product_names=product_names,
+                product_counts=product_counts,
+                product_prices=product_prices,
+                merchant_login=merchant_login,
+                merchant_secret=getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', None) or '',
+                merchant_domain=merchant_domain,
+                return_url=return_url,
+                service_url=service_url,
+                client_first_name=getattr(request_user, 'first_name', '') or '',
+                client_last_name=getattr(request_user, 'last_name', '') or '',
+                client_email=contact_email,
+                client_phone=contact_phone,
+            )
+        payment.provider_payment_id = (invoice_payload or {}).get('invoiceId') or payment.provider_payment_id or ''
+        payment.data = {'invoice': invoice_payload or direct_payload}
+        payment.save(update_fields=['provider_payment_id', 'data'])
+        return render(request, 'wayforpay_form.html', {
+            'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay'),
+            'merchant_login': direct_payload.get('merchantAccount') or merchant_login,
+            'merchant_domain': direct_payload.get('merchantDomainName') or merchant_domain,
+            'merchant_signature': direct_payload.get('merchantSignature') or '',
+            'merchant_auth_type': direct_payload.get('merchantAuthType') or 'HMAC',
+            'order_reference': direct_payload.get('orderReference') or order_reference,
+            'order_date': direct_payload.get('orderDate') or '',
+            'amount': direct_payload.get('amount') or amount_value,
+            'currency': direct_payload.get('currency') or (payment.currency or 'UAH').upper(),
+            'product_names': direct_payload.get('productName') or product_names,
+            'product_counts': direct_payload.get('productCount') or product_counts,
+            'product_prices': direct_payload.get('productPrice') or product_prices,
+            'client_first_name': direct_payload.get('clientFirstName') or getattr(request_user, 'first_name', '') or '',
+            'client_last_name': direct_payload.get('clientLastName') or getattr(request_user, 'last_name', '') or '',
+            'client_email': direct_payload.get('clientEmail') or contact_email,
+            'client_phone': direct_payload.get('clientPhone') or contact_phone,
+            'service_url': direct_payload.get('serviceUrl') or service_url,
+            'return_url': direct_payload.get('returnUrl') or return_url,
+        })
     except Exception as exc:
         logger = logging.getLogger('main')
         logger.exception('WayForPay invoice creation failed for ticket %s', getattr(ticket, 'id', None))
 
     return HttpResponse('WayForPay invoice creation failed', status=502)
+
+
+def _delete_failed_ticket(ticket):
+    try:
+        if ticket:
+            ticket.delete()
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _apply_wayforpay_result(ticket, payment, request, payload, success, transaction_id=''):
@@ -3037,10 +3132,11 @@ def payment_success(request):
         or ''
     ).strip()
     merchant_signature = request.POST.get('merchantSignature') or request.GET.get('merchantSignature')
-    payload = dict(request.POST if request.method == 'POST' else request.GET)
+    payload_query = request.POST if request.method == 'POST' else request.GET
+    payload = dict(payload_query.lists())
     if not processed and order_reference and merchant_signature:
         try:
-            if verify_wayforpay_signature(merchant_signature, payload):
+            if verify_wayforpay_signature(merchant_signature, payload_query):
                 if order_reference.startswith('ticket-'):
                     try:
                         ticket_id = int(order_reference.split('-', 1)[1])
@@ -3057,6 +3153,13 @@ def payment_success(request):
                     or ''
                 ).strip()
                 success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+                if ticket and not success:
+                    _delete_failed_ticket(ticket)
+                    try:
+                        request.session.pop('last_ticket_id', None)
+                    except Exception:
+                        pass
+                    return redirect('main:payment_cancel')
                 if ticket:
                     payment = _apply_wayforpay_result(
                         ticket,
@@ -4608,9 +4711,14 @@ def wayforpay_callback(request):
         logger.info('WayForPay callback received non-success status=%s order=%s', status_value, order_reference)
 
     if ticket:
-        _apply_wayforpay_result(ticket, payment, request, dict(request.POST), success, transaction_id=transaction_id)
+        if success:
+            _apply_wayforpay_result(ticket, payment, request, dict(request.POST), success, transaction_id=transaction_id)
+        else:
+            _delete_failed_ticket(ticket)
+        response_status = 'accept'
+    else:
+        response_status = 'accept' if success else 'reject'
 
-    response_status = 'accept' if success else 'reject'
     response_data = build_wayforpay_callback_response(order_reference, status=response_status)
     logger.info('WayForPay callback processed for order=%s status=%s', order_reference, response_status)
     return JsonResponse(response_data)
