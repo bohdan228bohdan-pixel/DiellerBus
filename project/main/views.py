@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
@@ -3418,6 +3418,7 @@ def checkout_root(request):
 
 
 @login_required
+@ensure_csrf_cookie
 def checkout(request, trip_id):
     """Checkout + WayForPay"""
 

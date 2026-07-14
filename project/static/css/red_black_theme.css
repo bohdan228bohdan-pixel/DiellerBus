@@ -17,6 +17,15 @@ body{
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
   margin:0;
+  min-width:0;
+}
+html{
+  overflow-x:hidden;
+  min-width:0;
+}
+body{
+  overflow-x:hidden;
+  min-width:0;
 }
 
 /* Subtle animated background: diagonal stripes */
@@ -31,11 +40,18 @@ body{
 
 .site-header{
   background: var(--accent-red) !important;
-  padding: 14px 0;
+  padding: 10px 0;
   position: sticky;
   top: 0;
   z-index: 40;
   border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+@media (max-width: 768px) {
+  .site-header{padding: 8px 0;}
+  .brand{font-size: 1.1rem;}
+  .navbar .btn, .site-header .navbar-brand { font-size: 0.95rem; }
+  .site-header .btn { padding: 8px 12px; }
+  .site-header .navbar-toggler { margin-right: 10px; }
 }
 /* Header typography and colors (pure white text, red CTAs) */
 .site-header .navbar, .site-header .container {
