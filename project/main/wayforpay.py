@@ -214,9 +214,18 @@ class WayForPayService:
         if expected == str(signature or '').strip():
             return True
 
+        status = self._get_field_value(data, 'transactionStatus') or self._get_field_value(data, 'status')
+        time_value = self._get_field_value(data, 'time')
+        if status and time_value:
+            callback_expected = self._build_signature([order_reference, status, time_value], secret)
+            if callback_expected == str(signature or '').strip():
+                return True
+
         if reason_code:
             fallback = self._build_signature([order_reference, reason_code], secret)
-            return fallback == str(signature or '').strip()
+            if fallback == str(signature or '').strip():
+                return True
+
         return False
 
     def build_callback_response(self, order_reference, status='accept', timestamp=None):
