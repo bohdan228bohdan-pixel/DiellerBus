@@ -12,11 +12,13 @@
       <input type="hidden" name="merchantAccount" value="{{ merchant_login }}">
       <input type="hidden" name="merchantDomainName" value="{{ merchant_domain }}">
       <input type="hidden" name="merchantSignature" value="{{ merchant_signature }}">
-      <input type="hidden" name="merchantAuthType" value="{{ merchant_auth_type|default:'HMAC' }}">
+      <input type="hidden" name="merchantAuthType" value="{{ merchant_auth_type|default:'SimpleSignature' }}">
       <input type="hidden" name="orderReference" value="{{ order_reference }}">
       <input type="hidden" name="orderDate" value="{{ order_date }}">
       <input type="hidden" name="amount" value="{{ amount }}">
       <input type="hidden" name="currency" value="{{ currency|default:'UAH' }}">
+      <input type="hidden" name="apiVersion" value="{{ api_version|default:'1' }}">
+      <input type="hidden" name="transactionType" value="{{ transaction_type|default:'CREATE_INVOICE' }}">
       
       <!-- Списки товарів (Квадратні дужки обов'язкові) -->
       {% for name in product_names %}

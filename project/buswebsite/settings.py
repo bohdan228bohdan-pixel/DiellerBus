@@ -16,10 +16,11 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load local environment overrides from 'local_settings.py' if present.
-# This file can set os.environ variables for development (keep it out of VCS).
+# Load local environment overrides from 'local_settings.py' only when explicitly enabled.
+# This prevents a tracked local_settings.py from accidentally applying development
+# defaults in production deployments.
 _local_settings_path = os.path.join(BASE_DIR, 'local_settings.py')
-if os.path.exists(_local_settings_path):
+if os.path.exists(_local_settings_path) and os.environ.get('DJANGO_USE_LOCAL_SETTINGS', 'False') == 'True':
     try:
         with open(_local_settings_path, 'r', encoding='utf-8') as _f:
             _code = compile(_f.read(), _local_settings_path, 'exec')
@@ -35,9 +36,9 @@ if os.path.exists(_local_settings_path):
 # In production set DJANGO_SECRET_KEY and DJANGO_DEBUG appropriately.
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-^qn)$tc2yr4dpoao*vlh7xilr96y%x6e!lf+)aeyv*$q33k!$m')
 
-# Note: DEBUG defaults to 'True' for local development. Set DJANGO_DEBUG='False'
-# in production to disable Django debug pages and enable stricter headers.
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+# Note: DEBUG defaults to 'False' in new deployments. Set DJANGO_DEBUG='True'
+# in local development or when loading local_settings via DJANGO_USE_LOCAL_SETTINGS.
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 # ALLOWED_HOSTS should be explicitly set in production (comma-separated).
 # Default to the project's production domains so the app works if env var is
@@ -57,8 +58,7 @@ if 'https://secure.wayforpay.com' not in CSRF_TRUSTED_ORIGINS:
 # When running with DEBUG enabled, allow common local development hosts so
 # the development server and local editors can access the site without
 # triggering DisallowedHost errors (for example, 127.0.0.1:8000).
-if DEBUG:
-    for _local in ('127.0.0.1', 'localhost'):
+for _local in ('127.0.0.1', 'localhost', 'testserver'):
         if _local not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.insert(0, _local)
 
@@ -264,6 +264,7 @@ WAYFORPAY_URL = os.environ.get(
 )
 WAYFORPAY_API_URL = os.environ.get("WAYFORPAY_API_URL", "https://api.wayforpay.com/api")
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 

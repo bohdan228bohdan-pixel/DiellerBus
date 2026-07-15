@@ -49,6 +49,7 @@ class SubcityMatchingTests(TestCase):
 		self.assertEqual(trip['price'], 1100.0)
 
 
+@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 class CheckoutPhoneValidationTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(username='buyer', email='buyer@example.com', password='pass1234')
@@ -84,6 +85,7 @@ class CheckoutPhoneValidationTests(TestCase):
 		self.assertContains(response, 'Будь ласка, вкажіть номер телефону')
 
 
+@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 class DirectCheckoutRedirectTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(username='directpayer', email='directpayer@example.com', password='pass1234')
@@ -123,6 +125,7 @@ class DirectCheckoutRedirectTests(TestCase):
 		self.assertEqual(payment.status, 'pending')
 
 
+@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 class TicketPdfAndPaymentFallbackTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(username='pdfuser', email='pdf@example.com', password='pass1234')
@@ -243,12 +246,14 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 
 		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
 		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
-		request = RequestFactory().get('/')
+		request = RequestFactory().get('/', HTTP_HOST='testserver')
 		with patch('main.views.get_wayforpay_service', return_value=DummyService()):
 			response = _render_wayforpay_form(request, ticket, payment, contact_email='pdf@example.com', contact_phone='+380501112233')
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, 'https://secure.wayforpay.com/pay')
 		self.assertContains(response, 'merchantAccount')
+		self.assertContains(response, 'apiVersion')
+		self.assertContains(response, 'transactionType')
 
 
 @override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_SECRET_KEY='test-secret')
@@ -314,6 +319,16 @@ class WayForPayCheckoutTests(TestCase):
 		expected = hmac.new('secret'.encode('utf-8'), message.encode('utf-8'), hashlib.md5).hexdigest()
 		self.assertEqual(signature, expected)
 
+	def test_wayforpay_verify_signature_accepts_callback_signature(self):
+		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
+		data = {
+			'orderReference': 'ticket-42',
+			'status': 'accept',
+			'time': '1700000000',
+		}
+		signature = hmac.new('secret'.encode('utf-8'), 'ticket-42;accept;1700000000'.encode('utf-8'), hashlib.md5).hexdigest()
+		self.assertTrue(service.verify_signature(signature, data))
+
 	def test_wayforpay_service_builds_invoice_payload_and_callback_response(self):
 		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
 		payload = service.build_invoice_payload(
@@ -329,7 +344,7 @@ class WayForPayCheckoutTests(TestCase):
 		self.assertEqual(payload['merchantAccount'], 'merchant')
 		self.assertEqual(payload['merchantAuthType'], 'SimpleSignature')
 		self.assertTrue(payload['merchantSignature'])
-		self.assertTrue(payload.get('apiVersion'))
+		self.assertEqual(payload.get('apiVersion'), '1')
 		self.assertEqual(payload.get('transactionType'), 'CREATE_INVOICE')
 		callback_response = service.build_callback_response('ticket-42', status='accept', timestamp=1700000000)
 		self.assertEqual(callback_response['orderReference'], 'ticket-42')

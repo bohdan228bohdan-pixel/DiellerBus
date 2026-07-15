@@ -86,6 +86,14 @@ def _get_wayforpay_service(request=None):
     )
 
 
+def _normalize_wayforpay_list_field(values):
+    if values is None:
+        return []
+    if isinstance(values, (list, tuple)):
+        return [str(v) for v in values]
+    return [str(values)]
+
+
 def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provider_payment_id=None, payload=None):
     from .models import Payment
     if not ticket:
@@ -189,20 +197,22 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
                 'merchant_login': invoice_payload.get('merchantAccount') or merchant_login,
                 'merchant_domain': invoice_payload.get('merchantDomainName') or merchant_domain,
                 'merchant_signature': invoice_payload.get('merchantSignature') or invoice_payload.get('merchant_signature') or '',
-                'merchant_auth_type': invoice_payload.get('merchantAuthType') or 'HMAC',
+                'merchant_auth_type': invoice_payload.get('merchantAuthType') or 'SimpleSignature',
                 'order_reference': invoice_payload.get('orderReference') or order_reference,
                 'order_date': invoice_payload.get('orderDate') or '',
                 'amount': invoice_payload.get('amount') or amount_value,
                 'currency': invoice_payload.get('currency') or (payment.currency or 'UAH').upper(),
-                'product_names': invoice_payload.get('productName') or product_names,
-                'product_counts': invoice_payload.get('productCount') or product_counts,
-                'product_prices': invoice_payload.get('productPrice') or product_prices,
+                'product_names': _normalize_wayforpay_list_field(invoice_payload.get('productName')) or product_names,
+                'product_counts': _normalize_wayforpay_list_field(invoice_payload.get('productCount')) or product_counts,
+                'product_prices': _normalize_wayforpay_list_field(invoice_payload.get('productPrice')) or product_prices,
                 'client_first_name': invoice_payload.get('clientFirstName') or getattr(request_user, 'first_name', '') or '',
                 'client_last_name': invoice_payload.get('clientLastName') or getattr(request_user, 'last_name', '') or '',
                 'client_email': invoice_payload.get('clientEmail') or contact_email,
                 'client_phone': invoice_payload.get('clientPhone') or contact_phone,
                 'service_url': invoice_payload.get('serviceUrl') or service_url,
                 'return_url': invoice_payload.get('returnUrl') or return_url,
+                'api_version': invoice_payload.get('apiVersion') or '1',
+                'transaction_type': invoice_payload.get('transactionType') or 'CREATE_INVOICE',
             })
 
         # As a final fallback, build the signed payload locally and render the form.
@@ -237,28 +247,34 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
                 client_email=contact_email,
                 client_phone=contact_phone,
             )
-        payment.provider_payment_id = (invoice_payload or {}).get('invoiceId') or payment.provider_payment_id or ''
-        payment.data = {'invoice': invoice_payload or direct_payload}
+
+        if not isinstance(direct_payload, dict):
+            raise ValueError('Unable to build WayForPay invoice payload')
+
+        payment.provider_payment_id = direct_payload.get('invoiceId') or payment.provider_payment_id or ''
+        payment.data = {'invoice': direct_payload}
         payment.save(update_fields=['provider_payment_id', 'data'])
         return render(request, 'wayforpay_form.html', {
             'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay'),
             'merchant_login': direct_payload.get('merchantAccount') or merchant_login,
             'merchant_domain': direct_payload.get('merchantDomainName') or merchant_domain,
             'merchant_signature': direct_payload.get('merchantSignature') or '',
-            'merchant_auth_type': direct_payload.get('merchantAuthType') or 'HMAC',
+            'merchant_auth_type': direct_payload.get('merchantAuthType') or 'SimpleSignature',
             'order_reference': direct_payload.get('orderReference') or order_reference,
             'order_date': direct_payload.get('orderDate') or '',
             'amount': direct_payload.get('amount') or amount_value,
             'currency': direct_payload.get('currency') or (payment.currency or 'UAH').upper(),
-            'product_names': direct_payload.get('productName') or product_names,
-            'product_counts': direct_payload.get('productCount') or product_counts,
-            'product_prices': direct_payload.get('productPrice') or product_prices,
+            'product_names': _normalize_wayforpay_list_field(direct_payload.get('productName')) or product_names,
+            'product_counts': _normalize_wayforpay_list_field(direct_payload.get('productCount')) or product_counts,
+            'product_prices': _normalize_wayforpay_list_field(direct_payload.get('productPrice')) or product_prices,
             'client_first_name': direct_payload.get('clientFirstName') or getattr(request_user, 'first_name', '') or '',
             'client_last_name': direct_payload.get('clientLastName') or getattr(request_user, 'last_name', '') or '',
             'client_email': direct_payload.get('clientEmail') or contact_email,
             'client_phone': direct_payload.get('clientPhone') or contact_phone,
             'service_url': direct_payload.get('serviceUrl') or service_url,
             'return_url': direct_payload.get('returnUrl') or return_url,
+            'api_version': direct_payload.get('apiVersion') or '1',
+            'transaction_type': direct_payload.get('transactionType') or 'CREATE_INVOICE',
         })
     except Exception as exc:
         logger = logging.getLogger('main')
