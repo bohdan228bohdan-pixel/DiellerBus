@@ -3,12 +3,12 @@ import hmac
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from django.test import TestCase
-from django.test import RequestFactory, override_settings
+from django.test import TestCase, RequestFactory, Client, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.core import mail
 from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile, Carrier
-from .views import api_trips, _generate_ticket_pdf_bytes, _render_wayforpay_form
+from .views import api_trips, _generate_ticket_pdf_bytes, _render_wayforpay_form, _send_ticket_email
 from .wayforpay import WayForPayService, create_wayforpay_invoice, _build_signature
 
 User = get_user_model()
@@ -189,6 +189,26 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
 		self.assertTrue(pdf_bytes)
 		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+	def test_send_ticket_email_uses_contact_email_when_user_email_missing(self):
+		user = User.objects.create_user(username='noemail', email='', password='pass1234')
+		ticket = Ticket.objects.create(
+			user=user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=date.today() + timedelta(days=3),
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=True,
+			contact_email='contact@example.com',
+		)
+		mail.outbox = []
+		result = _send_ticket_email(ticket, None)
+		self.assertTrue(result)
+		self.assertEqual(len(mail.outbox), 1)
+		self.assertEqual(mail.outbox[0].to, ['contact@example.com'])
 
 	def test_generate_ticket_pdf_uses_business_type_label(self):
 		carrier_user = User.objects.create_user(username='carrieruser', email='carrier@example.com', password='pass1234')
@@ -373,6 +393,46 @@ class WayForPayCheckoutTests(TestCase):
 		payment = ticket.payments.first()
 		self.assertEqual(payment.provider, 'wayforpay')
 		self.assertEqual(payment.status, 'pending')
+
+	def test_checkout_with_csrf_token_succeeds(self):
+		class DummyResponse:
+			status_code = 200
+			content = b'{"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}'
+			def json(self):
+				return {"invoiceUrl":"https://secure.wayforpay.com/pay/test","reasonCode":1100}
+			def raise_for_status(self):
+				return None
+
+		client = Client(enforce_csrf_checks=True)
+		client.force_login(self.user)
+		get_response = client.get(
+			reverse('main:checkout', args=[self.trip.id]),
+			{
+				'pax': '1',
+				'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+				'from': 'Львів',
+				'to': 'Київ',
+			},
+		)
+		self.assertEqual(get_response.status_code, 200)
+		csrf_token = get_response.cookies['csrftoken'].value
+
+		with patch('main.wayforpay.requests.post', return_value=DummyResponse()):
+			response = client.post(
+				reverse('main:checkout', args=[self.trip.id]),
+				{
+					'csrfmiddlewaretoken': csrf_token,
+					'passengers': '1',
+					'email': 'payer@example.com',
+					'phone': '+380501112233',
+					'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+					'passenger_first': ['Іван'],
+					'passenger_last': ['Іваненко'],
+					'accept_agreements': 'on',
+				},
+			)
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response['Location'], 'https://secure.wayforpay.com/pay/test')
 
 	def test_create_ticket_redirects_to_wayforpay_invoice(self):
 		class DummyResponse:
