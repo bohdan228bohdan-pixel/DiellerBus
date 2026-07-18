@@ -5,7 +5,7 @@ import os
 # WayForPay sandbox/test credentials (local development)
 os.environ.setdefault('WAYFORPAY_MERCHANT_LOGIN', '127_0_0_154')
 os.environ.setdefault('WAYFORPAY_MERCHANT_SECRET', '04a4c6c0dbb66765a313cc4c1d8b2ff8816a2f49')
-os.environ.setdefault('WAYFORPAY_URL', 'https://secure.wayforpay.com/pay')
+os.environ.setdefault('WAYFORPAY_URL', 'https://secure.wayforpay.com/page')
 
 # Example: set other local/test keys here if needed
 # os.environ.setdefault('STRIPE_SECRET_KEY', 'sk_test_...')

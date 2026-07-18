@@ -264,7 +264,7 @@ WAYFORPAY_RETURN_URL = os.environ.get("WAYFORPAY_RETURN_URL")
 WAYFORPAY_CALLBACK_URL = os.environ.get("WAYFORPAY_CALLBACK_URL")
 WAYFORPAY_URL = os.environ.get(
     "WAYFORPAY_URL",
-    "https://secure.wayforpay.com/pay"
+    "https://secure.wayforpay.com/page"
 )
 WAYFORPAY_API_URL = os.environ.get("WAYFORPAY_API_URL", "https://api.wayforpay.com/api")
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

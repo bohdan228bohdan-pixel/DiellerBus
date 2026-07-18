@@ -238,7 +238,7 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
             else:
                 payment.save()
             return render(request, 'wayforpay_form.html', {
-                'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay'),
+                'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/page'),
                 'merchant_login': invoice_payload.get('merchantAccount') or merchant_login,
                 'merchant_domain': invoice_payload.get('merchantDomainName') or merchant_domain,
                 'merchant_signature': invoice_payload.get('merchantSignature') or invoice_payload.get('merchant_signature') or '',
@@ -304,7 +304,7 @@ def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_p
         else:
             payment.save()
         return render(request, 'wayforpay_form.html', {
-            'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/pay'),
+            'wayforpay_url': getattr(settings, 'WAYFORPAY_URL', 'https://secure.wayforpay.com/page'),
             'merchant_login': direct_payload.get('merchantAccount') or merchant_login,
             'merchant_domain': direct_payload.get('merchantDomainName') or merchant_domain,
             'merchant_signature': direct_payload.get('merchantSignature') or '',

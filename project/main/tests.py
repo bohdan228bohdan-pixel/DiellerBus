@@ -250,7 +250,7 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		with patch('main.views.get_wayforpay_service', return_value=DummyService()):
 			response = _render_wayforpay_form(request, ticket, payment, contact_email='pdf@example.com', contact_phone='+380501112233')
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, 'https://secure.wayforpay.com/pay')
+		self.assertContains(response, 'https://secure.wayforpay.com/page')
 		self.assertContains(response, 'merchantAccount')
 		self.assertContains(response, 'apiVersion')
 		self.assertContains(response, 'transactionType')
