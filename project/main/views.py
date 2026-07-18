@@ -3198,12 +3198,17 @@ def payment_success(request):
         or request.GET.get('ticket')
         or ''
     ).strip()
-    merchant_signature = request.POST.get('merchantSignature') or request.GET.get('merchantSignature')
+    wayforpay_signature = (
+        request.POST.get('merchantSignature')
+        or request.POST.get('signature')
+        or request.GET.get('merchantSignature')
+        or request.GET.get('signature')
+    )
     payload_query = request.POST if request.method == 'POST' else request.GET
     payload = dict(payload_query.lists())
-    if not processed and order_reference and merchant_signature:
+    if not processed and order_reference and wayforpay_signature:
         try:
-            if verify_wayforpay_signature(merchant_signature, payload_query):
+            if verify_wayforpay_signature(wayforpay_signature, payload_query):
                 ticket_id = _parse_ticket_id_from_order_reference(order_reference)
                 if ticket_id is not None:
                     ticket = Ticket.objects.filter(pk=ticket_id).first()
@@ -4747,14 +4752,14 @@ def wayforpay_callback(request):
     """Handle WayForPay server callback (POST)."""
     import logging
     logger = logging.getLogger(__name__)
-    merchant_signature = request.POST.get('merchantSignature') or ''
+    wayforpay_signature = request.POST.get('merchantSignature') or request.POST.get('signature') or ''
     order_reference = request.POST.get('orderReference') or ''
-    if not merchant_signature or not order_reference:
-        logger.warning('WayForPay callback missing signature or orderReference')
+    if not wayforpay_signature or not order_reference:
+        logger.warning('WayForPay callback missing signature or orderReference order=%s', order_reference)
         return HttpResponse(status=400)
 
-    if not verify_wayforpay_signature(merchant_signature, request.POST):
-        logger.warning('WayForPay signature mismatch for order=%s', order_reference)
+    if not verify_wayforpay_signature(wayforpay_signature, request.POST):
+        logger.warning('WayForPay signature mismatch for order=%s signature=%s', order_reference, wayforpay_signature)
         return HttpResponse(status=400)
 
     ticket_id = _parse_ticket_id_from_order_reference(order_reference)

@@ -284,7 +284,7 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertEqual(result['invoiceUrl'], 'https://secure.wayforpay.com/pay/test')
 		self.assertEqual(mocked_post.call_count, 1)
 
-	def test_wayforpay_signature_uses_md5_secret_format(self):
+	def test_wayforpay_signature_uses_hmac_md5_secret_format(self):
 		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
 		signature = service.build_signature(
 			'merchant',
@@ -298,8 +298,26 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 			merchant_secret='secret',
 			order_date='1700000000',
 		)
-		message = ';'.join(['merchant', 'example.com', 'ticket-42', '1700000000', '100.00', 'UAH', 'Ticket', '1', '100.00', 'secret'])
-		expected = hashlib.md5(message.encode('utf-8')).hexdigest()
+		message = ';'.join(['merchant', 'example.com', 'ticket-42', '1700000000', '100.00', 'UAH', 'Ticket', '1', '100.00'])
+		expected = hmac.new(b'secret', message.encode('utf-8'), hashlib.md5).hexdigest()
+		self.assertEqual(signature, expected)
+
+	def test_wayforpay_signature_flattens_array_fields(self):
+		service = WayForPayService(merchant_login='merchant', merchant_secret='secret', merchant_domain='example.com')
+		signature = service.build_signature(
+			'merchant',
+			'example.com',
+			'ticket-42',
+			'100.00',
+			'UAH',
+			['Ticket A', 'Ticket B'],
+			['1', '2'],
+			['50.00', '50.00'],
+			merchant_secret='secret',
+			order_date='1700000000',
+		)
+		message = ';'.join(['merchant', 'example.com', 'ticket-42', '1700000000', '100.00', 'UAH', 'Ticket A', 'Ticket B', '1', '2', '50.00', '50.00'])
+		expected = hmac.new(b'secret', message.encode('utf-8'), hashlib.md5).hexdigest()
 		self.assertEqual(signature, expected)
 
 	def test_wayforpay_verify_signature_accepts_callback_signature(self):
@@ -309,7 +327,8 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 			'status': 'accept',
 			'time': '1700000000',
 		}
-		signature = hashlib.md5('ticket-42;accept;1700000000;secret'.encode('utf-8')).hexdigest()
+		message = ';'.join(['ticket-42', 'accept', '1700000000'])
+		signature = hmac.new(b'secret', message.encode('utf-8'), hashlib.md5).hexdigest()
 		self.assertTrue(service.verify_signature(signature, data))
 
 	def test_wayforpay_service_builds_invoice_payload_and_callback_response(self):
@@ -332,6 +351,9 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		callback_response = service.build_callback_response('ticket-42', status='accept', timestamp=1700000000)
 		self.assertEqual(callback_response['orderReference'], 'ticket-42')
 		self.assertEqual(callback_response['status'], 'accept')
+		message = ';'.join(['ticket-42', 'accept', str(1700000000)])
+		expected_signature = hmac.new(b'secret', message.encode('utf-8'), hashlib.md5).hexdigest()
+		self.assertEqual(callback_response['signature'], expected_signature)
 
 	def test_create_wayforpay_invoice_returns_error_details_on_api_failure(self):
 		class DummyResponse:

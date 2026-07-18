@@ -29,11 +29,24 @@ class WayForPayService:
         return str(value)
 
     @classmethod
+    def _flatten_signature_fields(cls, fields):
+        values = []
+        for field in fields:
+            if isinstance(field, (list, tuple)):
+                for item in field:
+                    values.append(cls._normalize_value(item))
+            else:
+                values.append(cls._normalize_value(field))
+        return values
+
+    @classmethod
     def _build_signature(cls, fields, secret):
-        message = ';'.join(cls._normalize_value(field) for field in fields)
+        message = ';'.join(cls._flatten_signature_fields(fields))
+        message_bytes = message.encode('utf-8')
         if secret:
-            message = ';'.join([message, str(secret)])
-        return hashlib.md5(message.encode('utf-8')).hexdigest()
+            key_bytes = str(secret).encode('utf-8')
+            return hmac.new(key_bytes, message_bytes, hashlib.md5).hexdigest()
+        return hashlib.md5(message_bytes).hexdigest()
 
     @classmethod
     def _build_signature_for_callback(cls, fields, secret):
@@ -194,13 +207,26 @@ class WayForPayService:
         if hasattr(data, 'getlist'):
             values = data.getlist(key)
             if values:
-                return ';'.join(str(v or '') for v in values)
+                if len(values) == 1:
+                    return values[0]
+                return [str(v or '') for v in values]
         if isinstance(data, dict):
-            return str(data.get(key, '') or '')
-        return str(getattr(data, key, '') or '')
+            value = data.get(key, '')
+        else:
+            value = getattr(data, key, '')
+        if isinstance(value, (list, tuple)):
+            return [str(v or '') for v in value]
+        return str(value or '')
+
+    def _extract_signature(self, signature, data):
+        if signature:
+            return str(signature).strip()
+        extracted = self._get_field_value(data, 'merchantSignature') or self._get_field_value(data, 'signature')
+        return str(extracted).strip() if extracted else ''
 
     def verify_signature(self, signature, data):
         """Verify a WayForPay signature coming from the gateway or callback."""
+        signature = self._extract_signature(signature, data)
         if not signature:
             return False
         secret = self.merchant_secret or get_wayforpay_settings()['merchant_secret']
