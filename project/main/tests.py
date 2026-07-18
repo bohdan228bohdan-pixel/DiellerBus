@@ -519,6 +519,63 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertTrue(ticket.paid)
 		self.assertEqual(payment.provider_payment_id, 'tx-123')
 
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_callback_accepts_product_array_field_names(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		payload = {
+			'merchantAccount': 'test-merchant',
+			'merchantDomainName': 'example.com',
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'amount': '100.00',
+			'currency': 'UAH',
+			'productName[]': ['Ticket'],
+			'productCount[]': ['1'],
+			'productPrice[]': ['100.00'],
+			'reasonCode': '1100',
+			'transactionId': 'tx-123',
+		}
+		payload['merchantSignature'] = _build_signature([
+			payload['merchantAccount'],
+			payload['merchantDomainName'],
+			payload['orderReference'],
+			payload['amount'],
+			payload['currency'],
+			payload['productName[]'],
+			payload['productCount[]'],
+			payload['productPrice[]'],
+		], 'test-secret')
+		response = self.client.post(reverse('main:wayforpay_callback'), payload)
+		self.assertEqual(response.status_code, 200)
+		payment.refresh_from_db()
+		ticket.refresh_from_db()
+		self.assertEqual(payment.status, 'success')
+		self.assertTrue(ticket.paid)
+		self.assertEqual(payment.provider_payment_id, 'tx-123')
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_accepts_product_array_field_names(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payload = {
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'status': 'accept',
+			'time': '1700000000',
+			'productName[]': ['Ticket'],
+			'productCount[]': ['1'],
+			'productPrice[]': ['100.00'],
+		}
+		payload['merchantSignature'] = _build_signature([
+			payload['orderReference'],
+			payload['status'],
+			payload['time'],
+		], 'test-secret')
+		response = self.client.get(reverse('main:payment_success'), payload)
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertTrue(ticket.paid)
+		self.assertTrue(ticket.payments.exists())
+		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+
 	@override_settings(DEBUG=True)
 	def test_payment_success_marks_ticket_paid_from_order_reference_without_signature_in_debug(self):
 		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)

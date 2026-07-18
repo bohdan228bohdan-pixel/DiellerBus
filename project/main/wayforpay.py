@@ -206,14 +206,18 @@ class WayForPayService:
     def _get_field_value(data, key):
         if hasattr(data, 'getlist'):
             values = data.getlist(key)
+            if not values and not key.endswith('[]'):
+                values = data.getlist(f'{key}[]')
             if values:
                 if len(values) == 1:
                     return values[0]
                 return [str(v or '') for v in values]
         if isinstance(data, dict):
-            value = data.get(key, '')
+            value = data.get(key, '') or data.get(f'{key}[]', '')
         else:
             value = getattr(data, key, '')
+            if not value and not key.endswith('[]'):
+                value = getattr(data, f'{key}[]', '')
         if isinstance(value, (list, tuple)):
             return [str(v or '') for v in value]
         return str(value or '')
