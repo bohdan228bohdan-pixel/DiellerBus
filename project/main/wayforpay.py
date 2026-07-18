@@ -32,7 +32,7 @@ class WayForPayService:
     def _build_signature(cls, fields, secret):
         message = ';'.join(cls._normalize_value(field) for field in fields)
         if secret:
-            return hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.md5).hexdigest()
+            message = ';'.join([message, str(secret)])
         return hashlib.md5(message.encode('utf-8')).hexdigest()
 
     @classmethod
@@ -134,6 +134,17 @@ class WayForPayService:
         )
         return payload
 
+    @staticmethod
+    def _mask_payload(payload):
+        if not isinstance(payload, dict):
+            return payload
+        masked = payload.copy()
+        if 'merchantSignature' in masked:
+            masked['merchantSignature'] = '***'
+        if 'merchantSecret' in masked:
+            masked['merchantSecret'] = '***'
+        return masked
+
     def create_invoice(self, *args, **kwargs):
         payload = self.build_invoice_payload(*args, **kwargs)
         api_url = self.api_url or get_wayforpay_settings()['api_url']
@@ -148,11 +159,15 @@ class WayForPayService:
                 data = {'raw': response_text}
 
             logger = logging.getLogger('main')
-            logger.debug('WayForPay request payload=%s', json.dumps(payload, ensure_ascii=False))
+            logger.debug('WayForPay request payload=%s', json.dumps(self._mask_payload(payload), ensure_ascii=False))
             response_text = getattr(response, 'text', None)
             if response_text is None and hasattr(response, 'content'):
                 response_text = response.content.decode('utf-8', errors='replace') if isinstance(response.content, (bytes, bytearray)) else str(response.content)
             logger.debug('WayForPay response status=%s body=%s', response.status_code, response_text)
+            try:
+                logger.info('WayForPay response json=%s', json.dumps(data, ensure_ascii=False))
+            except Exception:
+                logger.info('WayForPay response raw=%s', response_text)
 
             if response.status_code >= 400 or not data:
                 logger = logging.getLogger('main')
@@ -192,35 +207,54 @@ class WayForPayService:
         if not secret:
             return False
 
+        order_reference = self._get_field_value(data, 'orderReference')
+        if not order_reference:
+            return False
+
+        status = self._get_field_value(data, 'transactionStatus') or self._get_field_value(data, 'status')
+        time_value = self._get_field_value(data, 'time')
+        if status and time_value:
+            expected = self._build_signature([order_reference, status, time_value], secret)
+            if expected == str(signature or '').strip():
+                return True
+
         merchant_account = self._get_field_value(data, 'merchantAccount')
         merchant_domain = self._get_field_value(data, 'merchantDomainName')
-        order_reference = self._get_field_value(data, 'orderReference')
         amount = self._get_field_value(data, 'amount')
         currency = self._get_field_value(data, 'currency')
         product_name = self._get_field_value(data, 'productName')
         product_count = self._get_field_value(data, 'productCount')
         product_price = self._get_field_value(data, 'productPrice')
-        reason_code = self._get_field_value(data, 'reasonCode') or self._get_field_value(data, 'transactionStatus') or self._get_field_value(data, 'status')
-        expected = self._build_signature([
-            merchant_account,
-            merchant_domain,
-            order_reference,
-            amount,
-            currency,
-            product_name,
-            product_count,
-            product_price,
-        ], secret)
-        if expected == str(signature or '').strip():
-            return True
+        order_date = self._get_field_value(data, 'orderDate')
 
-        status = self._get_field_value(data, 'transactionStatus') or self._get_field_value(data, 'status')
-        time_value = self._get_field_value(data, 'time')
-        if status and time_value:
-            callback_expected = self._build_signature([order_reference, status, time_value], secret)
-            if callback_expected == str(signature or '').strip():
+        if all([merchant_account, merchant_domain, amount, currency, product_name, product_count, product_price]):
+            if order_date:
+                expected = self._build_signature([
+                    merchant_account,
+                    merchant_domain,
+                    order_reference,
+                    order_date,
+                    amount,
+                    currency,
+                    product_name,
+                    product_count,
+                    product_price,
+                ], secret)
+            else:
+                expected = self._build_signature([
+                    merchant_account,
+                    merchant_domain,
+                    order_reference,
+                    amount,
+                    currency,
+                    product_name,
+                    product_count,
+                    product_price,
+                ], secret)
+            if expected == str(signature or '').strip():
                 return True
 
+        reason_code = self._get_field_value(data, 'reasonCode') or self._get_field_value(data, 'transactionStatus') or self._get_field_value(data, 'status')
         if reason_code:
             fallback = self._build_signature([order_reference, reason_code], secret)
             if fallback == str(signature or '').strip():

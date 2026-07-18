@@ -16,11 +16,11 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load local environment overrides from 'local_settings.py' only when explicitly enabled.
-# This prevents a tracked local_settings.py from accidentally applying development
-# defaults in production deployments.
+# Load local environment overrides from 'local_settings.py' when the file exists.
+# This is intended for local development only. In production, do not keep
+# a local_settings.py file in the deployed environment.
 _local_settings_path = os.path.join(BASE_DIR, 'local_settings.py')
-if os.path.exists(_local_settings_path) and os.environ.get('DJANGO_USE_LOCAL_SETTINGS', 'False') == 'True':
+if os.path.exists(_local_settings_path):
     try:
         with open(_local_settings_path, 'r', encoding='utf-8') as _f:
             _code = compile(_f.read(), _local_settings_path, 'exec')
@@ -243,6 +243,10 @@ EMAIL_HOST_USER = _get_env('EMAIL_HOST_USER', None, cast=str, required_in_prod=F
 EMAIL_HOST_PASSWORD = _get_env('EMAIL_HOST_PASSWORD', None, cast=str, required_in_prod=False)
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or (f"Dieller Bus <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else None)
+if not DEFAULT_FROM_EMAIL and EMAIL_HOST:
+    host_domain = EMAIL_HOST.split(':')[0]
+    if host_domain:
+        DEFAULT_FROM_EMAIL = f"Dieller Bus <no-reply@{host_domain}>"
 # Only enforce DEFAULT_FROM_EMAIL in production when a real SMTP backend is configured.
 if not DEFAULT_FROM_EMAIL and not DEBUG and EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
     raise ImproperlyConfigured('DEFAULT_FROM_EMAIL environment variable is required in production when using SMTP')

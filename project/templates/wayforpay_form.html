@@ -39,10 +39,25 @@
       
       <input type="hidden" name="serviceUrl" value="{{ service_url }}">
       <input type="hidden" name="returnUrl" value="{{ return_url }}">
+      <input type="hidden" name="language" value="{{ language|default:'UA' }}">
       <button type="submit" class="btn btn-success">Оплатити</button>
     </form>
   </div>
 </div>
 
-<!-- Автоматичний сабміт тимчасово вимкнено для ручної перевірки -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('wayforpayForm');
+    if (form) {
+      setTimeout(function () {
+        try {
+          form.submit();
+        } catch (err) {
+          console.error('WayForPay auto-submit failed', err);
+        }
+      }, 150);
+    }
+  });
+</script>
+
 {% endblock %}
