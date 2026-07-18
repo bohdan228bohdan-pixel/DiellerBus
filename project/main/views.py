@@ -1900,6 +1900,15 @@ def api_trips(request):
         if to_arr:
             arrive_time = to_arr.strftime('%H:%M')
 
+        sold = 0
+        try:
+            if date_obj is not None or getattr(trip, 'date', None) is not None:
+                query_date = date_obj if date_obj is not None else trip.date
+                sold = Ticket.objects.filter(trip=trip, travel_date=query_date, paid=True).aggregate(total=Sum('passengers'))['total'] or 0
+        except Exception:
+            sold = 0
+        free_seats = max(0, int(getattr(trip, 'seats', 0) or 0) - int(sold or 0))
+
         results.append({
             'id': trip.id,
             'route': trip.route.name,
@@ -1918,7 +1927,7 @@ def api_trips(request):
             'fare_id': (fare_obj.id if fare_obj else None),
             'discount_percent': discount,
             'price_after_discount': price_after,
-            'free': trip.seats,
+            'free': free_seats,
             'carrier': (trip.carrier_user.username if getattr(trip, 'carrier_user', None) else (trip.carrier or trip.title or (trip.route.name if trip.route else ''))),
             'stops': stops_list,
         })
@@ -3258,7 +3267,7 @@ def payment_success(request):
         except Exception:
             ticket = None
 
-    if not processed and ticket and settings.DEBUG:
+    if not processed and ticket:
         status_param = (
             request.POST.get('status')
             or request.GET.get('status')
@@ -3269,7 +3278,13 @@ def payment_success(request):
             or ''
         ).lower()
         allow_fallback = status_param in ('success', 'processing', 'accept', 'approved')
-        if allow_fallback:
+        no_signature = not wayforpay_signature
+        session_match = False
+        try:
+            session_match = request.session.get('last_ticket_id') == ticket.id
+        except Exception:
+            session_match = False
+        if allow_fallback and (settings.DEBUG or (no_signature and session_match)):
             try:
                 provider_tx = request.GET.get('transaction_id') or request.GET.get('payment_id') or request.GET.get('provider_id') or ''
                 payload = {'fallback_marked': True, 'query': dict(request.GET)}
@@ -3858,6 +3873,15 @@ def checkout(request, trip_id):
             profile_phone = ''
 
         if profile_phone:
+            try:
+                sold = Ticket.objects.filter(trip=trip, travel_date=travel_date, paid=True).aggregate(total=Sum('passengers'))['total'] or 0
+                seats_left = (trip.seats or 0) - int(sold or 0)
+                if seats_left < pax:
+                    messages.error(request, 'Недостатньо вільних місць на цей рейс')
+                    return redirect('main:kvitokindex')
+            except Exception:
+                pass
+
             contact_email = (request.GET.get('email') or request.user.email or '').strip()
             contact_phone = request.GET.get('phone') or profile_phone
             posted_from = display_from
@@ -3972,7 +3996,7 @@ def checkout(request, trip_id):
 
     # Seats availability check (prevent oversell)
     try:
-        sold = Ticket.objects.filter(trip=trip, travel_date=travel_date).aggregate(total=Sum('passengers'))['total'] or 0
+        sold = Ticket.objects.filter(trip=trip, travel_date=travel_date, paid=True).aggregate(total=Sum('passengers'))['total'] or 0
         seats_left = (trip.seats or 0) - int(sold or 0)
         if seats_left < pax:
             messages.error(request, 'Недостатньо вільних місць на цей рейс')

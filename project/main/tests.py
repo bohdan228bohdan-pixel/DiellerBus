@@ -576,6 +576,65 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertTrue(ticket.payments.exists())
 		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
 
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_allows_unsigned_return_when_last_ticket_matches_session(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		session = self.client.session
+		session['last_ticket_id'] = ticket.id
+		session.save()
+		response = self.client.get(reverse('main:payment_success'), {
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'status': 'accept',
+			'transaction_id': 'tx-session-1',
+		})
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertTrue(ticket.paid)
+		self.assertTrue(ticket.payments.exists())
+		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+
+class TripAvailabilityTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username='tripuser', email='tripuser@example.com', password='pass1234')
+		self.city1 = City.objects.create(name='Львів', country='UA')
+		self.city2 = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ', active=True)
+		self.trip = Trip.objects.create(
+			route=self.route,
+			title='Тестовий рейс',
+			seats=5,
+			base_price=100.0,
+			start_city=self.city1,
+			end_city=self.city2,
+			active=True,
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city1, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=self.trip, city=self.city2, order=2, arrival_time='12:00')
+
+	def test_api_trips_accounts_for_paid_tickets_when_calculating_free_seats(self):
+		Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=(date.today() + timedelta(days=1)),
+			passengers=2,
+			total_price='200.00',
+			currency='UAH',
+			paid=True,
+		)
+		rf = RequestFactory()
+		req = rf.get('/api/trips/', {
+			'from': 'Львів',
+			'to': 'Київ',
+			'date': (date.today() + timedelta(days=1)).strftime('%Y-%m-%d'),
+		})
+		res = api_trips(req)
+		import json as _json
+		data = _json.loads(res.content.decode('utf-8'))
+		self.assertEqual(len(data['trips']), 1)
+		self.assertEqual(data['trips'][0]['free'], 3)
+
 	@override_settings(DEBUG=True)
 	def test_payment_success_marks_ticket_paid_from_order_reference_without_signature_in_debug(self):
 		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
