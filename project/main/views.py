@@ -401,6 +401,10 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
     return payment
 
 
+def _is_wayforpay_success(status_value):
+    return str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+
+
 def _support_user_allowed(user, require_worker=False):
     """Return True if the given user should be allowed to access support/admin endpoints.
 
@@ -3230,7 +3234,7 @@ def payment_success(request):
                     or request.GET.get('status')
                     or ''
                 ).strip()
-                success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+                success = _is_wayforpay_success(status_value)
                 if ticket and not success:
                     _delete_failed_ticket(ticket)
                     try:
@@ -3277,17 +3281,40 @@ def payment_success(request):
             or request.GET.get('transactionStatus')
             or ''
         ).lower()
-        allow_fallback = status_param in ('success', 'processing', 'accept', 'approved')
-        no_signature = not wayforpay_signature
+        allow_fallback = _is_wayforpay_success(status_param)
         session_match = False
         try:
             session_match = request.session.get('last_ticket_id') == ticket.id
         except Exception:
             session_match = False
-        if allow_fallback and (settings.DEBUG or (no_signature and session_match)):
+
+        same_user_pending_wayforpay = False
+        try:
+            from .models import Payment
+            same_user_pending_wayforpay = (
+                request.user.is_authenticated
+                and ticket.user_id == request.user.id
+                and Payment.objects.filter(ticket=ticket, provider='wayforpay', status='pending').exists()
+            )
+        except Exception:
+            same_user_pending_wayforpay = False
+
+        if allow_fallback and (settings.DEBUG or session_match or same_user_pending_wayforpay):
+            # Fallback on successful return to the same browser session, or when the
+            # ticket belongs to the current user and has a pending WayForPay payment.
             try:
-                provider_tx = request.GET.get('transaction_id') or request.GET.get('payment_id') or request.GET.get('provider_id') or ''
-                payload = {'fallback_marked': True, 'query': dict(request.GET)}
+                provider_tx = (
+                    request.POST.get('transaction_id')
+                    or request.GET.get('transaction_id')
+                    or request.GET.get('payment_id')
+                    or request.GET.get('provider_id')
+                    or ''
+                )
+                payload = {
+                    'fallback_marked': True,
+                    'query': dict(request.GET if request.method == 'GET' else request.POST),
+                    'merchantSignature': wayforpay_signature,
+                }
                 payment = _apply_wayforpay_result(ticket, None, request, payload, True, transaction_id=provider_tx)
                 try:
                     request.session.pop('last_ticket_id', None)
@@ -4796,9 +4823,9 @@ def wayforpay_callback(request):
         except Ticket.DoesNotExist:
             ticket = None
 
-    status_value = (request.POST.get('reasonCode') or request.POST.get('transactionStatus') or '').strip()
+    status_value = (request.POST.get('reasonCode') or request.POST.get('transactionStatus') or request.POST.get('status') or '').strip()
     transaction_id = request.POST.get('invoiceId') or request.POST.get('transactionId') or request.POST.get('paymentId') or ''
-    success = str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
+    success = _is_wayforpay_success(status_value)
     if not success:
         logger.info('WayForPay callback received non-success status=%s order=%s', status_value, order_reference)
 

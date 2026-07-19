@@ -554,6 +554,31 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertEqual(payment.provider_payment_id, 'tx-123')
 
 	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_callback_accepts_status_signature(self):
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		payload = {
+			'merchantAccount': 'test-merchant',
+			'merchantDomainName': 'example.com',
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'status': 'accept',
+			'time': '1700000000',
+			'transactionId': 'tx-456',
+		}
+		payload['merchantSignature'] = _build_signature([
+			payload['orderReference'],
+			payload['status'],
+			payload['time'],
+		], 'test-secret')
+		response = self.client.post(reverse('main:wayforpay_callback'), payload)
+		self.assertEqual(response.status_code, 200)
+		payment.refresh_from_db()
+		ticket.refresh_from_db()
+		self.assertEqual(payment.status, 'success')
+		self.assertTrue(ticket.paid)
+		self.assertEqual(payment.provider_payment_id, 'tx-456')
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 	def test_payment_success_accepts_product_array_field_names(self):
 		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
 		payload = {
@@ -579,6 +604,7 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 	def test_payment_success_allows_unsigned_return_when_last_ticket_matches_session(self):
 		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		payment = Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
 		session = self.client.session
 		session['last_ticket_id'] = ticket.id
 		session.save()
@@ -592,6 +618,41 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertTrue(ticket.paid)
 		self.assertTrue(ticket.payments.exists())
 		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+		self.assertEqual(ticket.payments.latest('created_at').provider_payment_id, 'tx-session-1')
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_allows_unsigned_return_with_reasoncode_1100(self):
+		self.client.force_login(self.user)
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		response = self.client.get(reverse('main:payment_success'), {
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'reasonCode': '1100',
+			'transaction_id': 'tx-session-1100',
+		})
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertTrue(ticket.paid)
+		self.assertTrue(ticket.payments.exists())
+		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+		self.assertEqual(ticket.payments.latest('created_at').provider_payment_id, 'tx-session-1100')
+
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_marks_pending_wayforpay_ticket_paid_for_same_user(self):
+		self.client.force_login(self.user)
+		ticket = Ticket.objects.create(user=self.user, route='Тест', total_price='100.00', currency='UAH', paid=False)
+		Payment.objects.create(ticket=ticket, user=self.user, provider='wayforpay', amount='100.00', currency='UAH', status='pending')
+		response = self.client.get(reverse('main:payment_success'), {
+			'orderReference': f'ticket-{ticket.id}-1234567890',
+			'status': 'accept',
+			'transaction_id': 'tx-session-2',
+		})
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertTrue(ticket.paid)
+		self.assertTrue(ticket.payments.exists())
+		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
+		self.assertEqual(ticket.payments.latest('created_at').provider_payment_id, 'tx-session-2')
 
 class TripAvailabilityTests(TestCase):
 	def setUp(self):
