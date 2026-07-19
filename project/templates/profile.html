@@ -1,177 +1,197 @@
 {% extends 'base.html' %}
 {% load static %}
 
-
-{% block title %}Профіль — Dieller Bus{% endblock %}
+{% block title %}DiellerBus — Мої квитки{% endblock %}
 
 {% block head_extra %}
-  <link rel="stylesheet" href="{% static 'css/support.css' %}">
-<style>
-/* Profile page styles adapted to theme */
-.profile-container{box-sizing:border-box;max-width:920px;width:calc(100% - 48px);margin:60px auto;padding:28px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.45));border:1px solid rgba(255,255,255,0.03);align-self:stretch;text-align:left}
-.profile-header{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:16px}
-.avatar{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--accent-red);font-weight:800;color:#fff;font-size:2.4rem;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
-.info-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
-.profile-label{color:var(--muted);font-weight:600}
-.profile-value{font-weight:700}
-.change-pass-btn,.profile-btn-secondary{display:block;padding:12px;border-radius:10px;margin-top:12px;text-align:center;font-weight:800}
-.change-pass-btn{background:transparent;color:#fff;border:1px solid var(--accent-red);box-shadow:0 6px 18px rgba(225,11,0,0.08)}
-.profile-btn-secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06)}
-.logout-btn{display:block;padding:12px;border-radius:10px;background:linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));color:#fff;border:none;margin-top:10px;box-shadow:0 10px 30px rgba(225,11,0,0.12)}
+  <style>
+    .profile-shell { background: #090909; min-height: calc(100vh - 100px); padding: 28px 16px 40px; }
+    .profile-panel { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; max-width: 1260px; margin: 0 auto; }
+    .profile-side { background: #111111; border: 1px solid rgba(255,255,255,0.08); border-radius: 28px; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+    .side-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .side-header .brand-title { color: #ffffff; font-size: 1.15rem; font-weight: 900; letter-spacing: -0.02em; }
+    .side-header .brand-badge { width: 46px; height: 46px; border-radius: 16px; background: #e11d48; display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 1.3rem; }
+    .profile-avatar { width: 108px; height: 108px; border-radius: 24px; background: #1f1f1f; border: 2px solid #e11d48; display: grid; place-items: center; margin: 0 auto; overflow: hidden; }
+    .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-user { text-align: center; color: #f8f8f8; }
+    .profile-user .name { font-size: 1.45rem; font-weight: 800; margin-bottom: 4px; }
+    .profile-user .email { color: rgba(255,255,255,0.7); font-size: 0.95rem; }
+    .profile-menu { display: grid; gap: 10px; }
+    .profile-menu a { display: block; padding: 14px 16px; border-radius: 18px; color: #ffffff; text-decoration: none; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); transition: transform .15s ease, background .15s ease; }
+    .profile-menu a:hover, .profile-menu a.active { background: rgba(225,29,72,0.17); transform: translateY(-1px); }
+    .profile-menu a .item-title { display: block; font-weight: 700; }
+    .profile-menu a .item-sub { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+    .profile-info-card { background: #0f0f0f; border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; padding: 18px; display: grid; gap: 12px; }
+    .profile-info-card .info-item { display: flex; justify-content: space-between; gap: 18px; color: rgba(255,255,255,0.78); font-size: 0.95rem; }
+    .profile-info-card .info-item .info-title { color: rgba(255,255,255,0.65); }
+    .profile-info-card .info-item .info-value { color: #fff; font-weight: 700; }
+    .profile-side-footer { display: grid; gap: 12px; }
+    .profile-side-footer .btn { width: 100%; border-radius: 999px; font-weight: 700; }
 
-/* Ticket card layout */
-.ticket-list{display:flex;flex-direction:column;gap:12px;margin-top:8px;width:100%}
-.ticket-card{background:#0f0f0f;border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.ticket-left{flex:1 1 220px;min-width:0}
-.ticket-title{font-weight:800;word-break:break-word}
-.ticket-meta{color:var(--muted);font-size:14px;margin-top:4px}
-.ticket-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;text-align:right}
-.ticket-right{flex-wrap:wrap}
-.ticket-right a{flex:0 0 auto}
-.ticket-title{overflow-wrap:break-word;word-break:break-word}
-.ticket-paid{background:linear-gradient(90deg,#10b981,#059669);color:#fff;padding:6px 10px;border-radius:8px;font-weight:700}
+    .profile-main { display: flex; flex-direction: column; gap: 20px; }
+    .profile-main-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+    .profile-main-header h1 { margin: 0; color: #ffffff; font-size: 2.2rem; line-height: 1.05; }
+    .profile-main-header p { margin: 0; color: rgba(255,255,255,0.72); font-size: 1rem; max-width: 640px; }
+    .profile-pill { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(225,29,72,0.18); color: #fff; border: 1px solid rgba(225,29,72,0.25); font-weight: 700; }
+    .profile-card-main { background: #ffffff; border-radius: 28px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 30px 60px rgba(0,0,0,0.12); overflow: hidden; }
+    .profile-card-main-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px 0; }
+    .section-title { color: #111111; font-size: 1.05rem; font-weight: 800; }
+    .profile-note { padding: 0 28px 18px; color: #4b5563; font-size: 0.95rem; }
+    .tickets-table { width: 100%; border-collapse: collapse; min-width: 0; }
+    .tickets-table th, .tickets-table td { padding: 18px 20px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: #111827; }
+    .tickets-table thead th { background: #fafafa; color: #111827; font-size: 0.95rem; font-weight: 700; text-align: left; }
+    .tickets-table tbody tr:hover { background: #f8f8f8; }
+    .tickets-table td { color: #111827; }
+    .route-title { display: block; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    .route-sub { color: #6b7280; font-size: 0.92rem; }
+    .profile-panel, .profile-side, .profile-main, .profile-card-main, .tickets-table { min-width: 0; box-sizing: border-box; }
+    .ticket-status { display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; }
+    .ticket-status.paid { background: #dcfce7; color: #047857; }
+    .ticket-status.unpaid { background: #fee2e2; color: #b91c1c; }
+    .tickets-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .tickets-actions .btn { border-radius: 999px; padding: 10px 16px; font-size: 0.9rem; }
+    .empty-state { padding: 40px 28px; display: grid; gap: 10px; align-items: center; justify-items: center; text-align: center; color: #374151; }
+    .empty-state h3 { margin: 0; font-size: 1.35rem; color: #111827; }
+    .empty-state p { margin: 0; color: #6b7280; }
 
-.profile-form-row{display:flex;gap:8px;align-items:center}
-.profile-form-row > div{flex:1}
-
-@media(max-width:600px){
-  .profile-container{margin:20px 12px;padding:14px}
-  .ticket-card{flex-direction:column;align-items:flex-start}
-  .ticket-right{width:100%;display:flex;justify-content:flex-start;gap:8px;margin-top:8px}
-  .profile-form-row{flex-direction:column;align-items:stretch}
-  .profile-form-row > div{width:100%}
-  .change-pass-btn,.profile-btn-secondary,.logout-btn{width:100%;box-sizing:border-box}
-}
-</style>
-<style>
-/* Small overrides to avoid global .btn styles colliding inside profile */
-.profile-container .btn{display:inline-block;padding:8px 12px;border-radius:8px;white-space:nowrap}
-.profile-container .btn.btn-sm{font-size:0.95rem;padding:6px 10px}
-.ticket-title{font-size:1.05rem}
-</style>
+    @media (max-width: 1080px) {
+      .profile-panel { grid-template-columns: 1fr; }
+      .profile-side { order: 2; }
+      .profile-main { order: 1; }
+      .tickets-table { min-width: 100%; }
+    }
+    @media (max-width: 768px) {
+      .profile-shell { padding: 18px 12px 32px; }
+      .profile-panel { gap: 16px; }
+      .profile-side { padding: 20px; }
+      .profile-card-main { border-radius: 22px; }
+      .profile-card-main-header, .profile-note { padding-left: 18px; padding-right: 18px; }
+      .profile-main-header h1 { font-size: 1.9rem; }
+      .profile-main-header p { max-width: 100%; }
+      .tickets-table th, .tickets-table td { padding: 14px 16px; }
+    }
+    @media (max-width: 520px) {
+      .profile-shell { padding-left: 10px; padding-right: 10px; }
+      .profile-menu a { padding: 12px 14px; }
+      .profile-main-header { flex-direction: column; align-items: flex-start; }
+      .profile-side { padding: 18px; }
+      .profile-card-main-header, .profile-note { padding-left: 14px; padding-right: 14px; }
+      .tickets-table th, .tickets-table td { padding: 12px 10px; }
+      .profile-user .name { font-size: 1.2rem; }
+      .profile-user .email { font-size: 0.85rem; }
+    }
+  </style>
 {% endblock %}
 
 {% block content %}
-  <div class="profile-container" data-aos="fade-up">
-    <div class="profile-header">
-      <div class="avatar">{% if user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';">{% else %}{{ user.username|slice:":1"|upper }}{% endif %}</div>
-      <h2 style="color:#fff;margin:0">Профіль користувача</h2>
-    </div>
+<div class="profile-shell">
+  <div class="profile-panel">
+    <aside class="profile-side">
+      <div class="side-header">
+        <div class="brand-title">DiellerBus</div>
+        <div class="brand-badge">DB</div>
+      </div>
 
-    <div class="profile-info">
-      <div class="info-row"><span class="profile-label">Логін:</span><span class="profile-value">{{ user.username }}</span></div>
-      <div class="info-row"><span class="profile-label">Email:</span><span class="profile-value">{{ user.email|default:"Не вказано" }}</span></div>
-      <div class="info-row"><span class="profile-label">Дата реєстрації:</span><span class="profile-value">{{ user.date_joined|date:'d.m.Y H:i' }}</span></div>
-    </div>
+      <div class="profile-avatar">
+        {% if user.profile.avatar %}
+          <img src="{{ user.profile.avatar.url }}" alt="avatar" onerror="this.onerror=null;this.src='{% static 'img/логоБодяD.png' %}';">
+        {% else %}
+          <div class="brand-badge">{{ user.username|slice:':1'|upper }}</div>
+        {% endif %}
+      </div>
 
-    {% if user.is_staff and not user.profile.is_carrier %}
-      <div class="panel-dark" style="margin-top:14px;padding:12px;border-radius:10px;">
-        <div style="font-weight:800;margin-bottom:8px">Швидкі посилання (адміністратор)</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a href="{% url 'main:support_home' %}" class="btn btn-sm">Створити/Подивитись звернення</a>
-          {% if not user.profile.is_carrier %}
-            <a href="{% url 'main:support_worker_queue' %}" class="btn btn-sm">Черга підтримки</a>
-          {% endif %}
-          <a href="{% url 'main:support_admin' %}?status=closed" class="btn btn-sm">Архів звернень</a>
-          <a href="{% url 'main:support_admin_cancel_trip' %}" class="btn btn-sm" style="background:#c0392b;color:#fff">Скасувати рейс</a>
-          <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">Адмінка</a>
+      <div class="profile-user">
+        <div class="name">{{ user.username }}</div>
+        <div class="email">{{ user.email|default:'Email не вказано' }}</div>
+      </div>
+
+      <div class="profile-menu">
+        <a href="#" class="active"><span class="item-title">Мої квитки</span><small class="item-sub">Тут ваші останні покупки</small></a>
+        <a href="{% url 'main:kvitokindex' %}"><span class="item-title">Покупка квитків</span><small class="item-sub">Перейти до пошуку та бронювання</small></a>
+        <a href="{% url 'main:contacts' %}"><span class="item-title">Контакти</span><small class="item-sub">Зв’язатись з підтримкою</small></a>
+      </div>
+
+      <div class="profile-info-card">
+        <div class="info-item"><span class="info-title">Дата реєстрації</span><span class="info-value">{{ user.date_joined|date:'d.m.Y H:i' }}</span></div>
+        <div class="info-item"><span class="info-title">Квитків</span><span class="info-value">{{ tickets|length }}</span></div>
+        <div class="info-item"><span class="info-title">Баланс</span><span class="info-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
+      </div>
+
+      <div class="profile-side-footer">
+        <a href="{% url 'main:checkout_root' %}" class="btn btn-danger">Купити квиток</a>
+        <a href="{% url 'main:password_change' %}" class="btn btn-outline-secondary">Змінити пароль</a>
+        <form method="post" action="{% url 'main:logout' %}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">Вийти</button></form>
+      </div>
+    </aside>
+
+    <section class="profile-main">
+      <div class="profile-main-header">
+        <div>
+          <h1>Мої квитки</h1>
+          <p>Завантажуйте квитки, дивіться статус оплати та переглядайте всю історію купівель.</p>
         </div>
+        <span class="profile-pill">{{ tickets|length }} квитків</span>
       </div>
-    {% endif %}
 
-    {% if user.profile.is_carrier %}
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <a href="{% url 'main:carrier_dashboard' %}" class="btn btn-sm" style="background:#0b84ff;color:#fff">📋 Продані квитки</a>
-        <a href="{% url 'main:carrier_manage_trips' %}" class="btn btn-sm" style="background:#0b84ff;color:#fff">🛣️ Керувати рейсами</a>
-        <a href="{% url 'main:carrier_manage_trips' %}" class="btn btn-sm" style="background:#6b6b6b;color:#fff">🗓️ Редагувати дати рейсу</a>
-      </div>
-    {% endif %}
-
-    <div class="profile-balance" style="margin-top:12px">
-      <div class="info-row"><span class="profile-label">Баланс:</span><span class="profile-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
-    </div>
-
-    {% if user.username|lower == 'dieller' or user.is_staff and not user.profile.is_carrier %}
-      <div style="margin-top:10px">
-        <a href="{% url 'main:dieller_reports' %}" class="btn btn-sm" style="background:#2d7a2d;color:#fff">📈 Звіти</a>
-      </div>
-    {% endif %}
-
-    <div class="profile-tickets" style="margin-top:12px">
-      <div class="info-row" style="flex-direction:column;align-items:flex-start;padding:0">
-        <span class="profile-label" style="margin-bottom:8px">Куплені квитки:</span>
-
-        <div class="ticket-list">
-          {% if tickets %}
-            {% for ticket in tickets %}
-              <div class="ticket-card">
-                <div class="ticket-left">
-                  <div class="ticket-title">Квиток №{{ ticket.id }} — {{ ticket.from_city }} → {{ ticket.to_city }}</div>
-                  <div class="ticket-meta">{{ ticket.travel_date|date:"d.m.Y" }} · {{ ticket.passengers }} пас.</div>
-                </div>
-                <div class="ticket-right">
-                  {% if ticket.paid %}
-                    <div class="ticket-paid">ОПЛАЧЕНО</div>
-                  {% endif %}
-                  <a href="{% url 'main:download_ticket' ticket.id %}?sig={{ ticket.sig }}&inline=1" target="_blank" class="btn btn-sm">Переглянути</a>
-                  <a href="{% url 'main:download_ticket' ticket.id %}?sig={{ ticket.sig }}" class="btn btn-sm">Завантажити</a>
-                </div>
-              </div>
-            {% endfor %}
-          {% else %}
-            <div style="color:var(--muted)">Квитків не знайдено.</div>
-          {% endif %}
+      <div class="profile-card-main">
+        <div class="profile-card-main-header">
+          <div class="section-title">Список квитків</div>
+          <div class="profile-pill">Останні покупки</div>
         </div>
-      </div>
-    </div>
+        <div class="profile-note">Поки що показується лише таблиця квитків. У майбутньому під цією панеллю з’являться додаткові блоки й розділи.</div>
 
-    <div class="profile-support" style="margin-top:18px">
-      <div class="info-row" style="flex-direction:column;align-items:flex-start;padding:0">
-        <span class="profile-label" style="margin-bottom:8px">Звернення в техпідтримку:</span>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;width:100%">
-          {% if support_tickets %}
-            {% for st in support_tickets %}
-              <div style="background:#0f0f0f;border:1px solid rgba(255,255,255,0.03);padding:12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px">
-                <div>
-                  <div style="font-weight:800">Звернення #{{ st.id }} — {% if st.subject %}{{ st.subject }}{% elif st.preset %}{{ st.preset.title }}{% endif %}</div>
-                  <div style="color:var(--muted);font-size:14px;margin-top:4px">{{ st.created_at|date:'d.m.Y H:i' }} · {{ st.get_status_display }}</div>
-                </div>
-                <div style="text-align:right">
-                  <a href="{% url 'main:support_ticket_detail' st.id %}" class="btn btn-sm">Відкрити</a>
-                </div>
-              </div>
-            {% endfor %}
-          {% else %}
-            <div style="color:var(--muted)">Немає звернень.</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:12px">
-      <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="profile-form-row">
-          <div>
-            {{ form.avatar }}
+        {% if tickets %}
+          <div style="overflow-x:auto;">
+            <table class="tickets-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Маршрут</th>
+                  <th>Дата</th>
+                  <th>Пас.</th>
+                  <th>Статус</th>
+                  <th>Дія</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ticket in tickets %}
+                  <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>
+                      <span class="route-title">{{ ticket.from_city }} → {{ ticket.to_city }}</span>
+                      <span class="route-sub">{{ ticket.route|default:'Маршрут не вказано' }}</span>
+                    </td>
+                    <td>{{ ticket.travel_date|date:'d.m.Y' }}</td>
+                    <td>{{ ticket.passengers }}</td>
+                    <td>
+                      {% if ticket.paid %}
+                        <span class="ticket-status paid">ОПЛАЧЕНО</span>
+                      {% else %}
+                        <span class="ticket-status unpaid">НЕ ОПЛАЧЕНО</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="tickets-actions">
+                        <a href="{% url 'main:download_ticket' ticket.id %}?sig={{ ticket.sig }}&inline=1" target="_blank" class="btn btn-sm btn-outline-dark">Переглянути</a>
+                        <a href="{% url 'main:download_ticket' ticket.id %}?sig={{ ticket.sig }}" class="btn btn-sm btn-danger">Завантажити</a>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
-          <div>
-            {{ form.phone }}
+        {% else %}
+          <div class="empty-state">
+            <h3>Квитків поки що немає</h3>
+            <p>Оплатіть квиток, і він зʼявиться у цьому списку з можливістю перегляду та завантаження.</p>
+            <a href="{% url 'main:kvitokindex' %}" class="btn btn-danger">Купити перший квиток</a>
           </div>
-          <div>
-            <button type="submit" class="btn btn-sm">Оновити профіль</button>
-          </div>
-        </div>
-      </form>
-    </div>
-
-    <a href="{% url 'main:password_change' %}" class="change-pass-btn">🔐 Змінити пароль</a>
-
-    <form method="post" action="{% url 'main:logout' %}">
-      {% csrf_token %}
-      <button type="submit" class="logout-btn">🚪 Вийти з акаунту</button>
-    </form>
+        {% endif %}
+      </div>
+    </section>
   </div>
+</div>
 {% endblock %}
 
 
