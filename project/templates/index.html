@@ -47,7 +47,7 @@
     .route-body{padding:14px}
     .route-name{font-weight:900;margin:0;color:#fff;text-align:center}
     .route-desc{color:var(--muted);font-size:14px;margin:10px 0 0;text-align:center}
-    .site-header{background:var(--accent-red);padding:10px 0;position:sticky;top:0;z-index:40;box-shadow:0 2px 16px rgba(0,0,0,0.12)}
+    .site-header{background:var(--accent-red);padding:10px 0;position:static;width:100%;box-shadow:0 2px 16px rgba(0,0,0,0.12);z-index:999}
     .site-header .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 16px}
     .nav-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;width:100%}
     .header-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
@@ -133,6 +133,22 @@
     .accordion-button{background:#0b0b0b;color:#fff;border:none}
     .accordion-button:not(.collapsed){background:#111;color:#fff}
     .accordion-body{background:transparent;color:#ddd}
+    .faq-services .accordion-button,
+    .faq-services .accordion-body,
+    .faq-services .accordion-item {
+      background:#fff !important;
+      color:#000 !important;
+    }
+    .faq-services .accordion-button {
+      border:1px solid #eaeaea;
+    }
+    .faq-services .accordion-button:not(.collapsed) {
+      background:#f8f9fa !important;
+      color:#000 !important;
+    }
+    .faq-services .accordion-body {
+      border-top:1px solid #eaeaea;
+    }
     .socials-list .social-tile{transition:all .15s ease}
     .socials-list .social-link:hover .social-tile{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.4)}
 
@@ -266,57 +282,67 @@
         <div>
           <div class="muted-small">Найпоширеніші запитання:</div>
           <div class="accordion" id="faqAccordion" style="margin-top:12px">
-            {% for p in presets %}
               <div class="accordion-item">
-                <h2 class="accordion-header" id="heading{{ forloop.counter }}">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
-                    {{ p.title }}
+                <h2 class="accordion-header" id="heading1">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                    Як можна забронювати квиток на міжнародний рейс?
                   </button>
                 </h2>
-                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body">{{ p.description }}</div>
+                <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="heading1" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Ви можете забронювати квиток через наш веб-сайт, обравши дату, час та напрямок подорожі. Також ви можете звернутися до нашого сервісного центру за вказаними контактами на нашому сайті для отримання додаткової інформації.</div>
                 </div>
               </div>
-            {% empty %}
-              <div class="muted-small">Питань ще немає.</div>
-            {% endfor %}
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading2">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                    Як оплатити квиток?
+                  </button>
+                </h2>
+                <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="heading2" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Оплатити квиток можна через сайт, використовуючи банківську карту. Ми приймаємо оплату кредитними та дебетними картками. Після завершення оплати ви отримаєте електронний квиток на вказану електронну пошту.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading3">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                    Що робити, якщо я спізнився на автобус?
+                  </button>
+                </h2>
+                <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="heading3" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Якщо ви не прибули на місце відправлення вчасно, квиток анулюється без права повернення коштів. Будь ласка, плануйте свій час так, щоб прибути на посадку не пізніше ніж за 15 хвилин до відправлення.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading4">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
+                    Як можна отримати інформацію про скасування або зміну рейсу?
+                  </button>
+                </h2>
+                <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="heading4" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Ми зв’яжемося з вами через зазначений номер телефону або електронну пошту, щоб повідомити про будь-які зміни або скасування рейсу. Переконайтеся, що ви надали правильні контактні дані під час бронювання.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading5">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
+                    Чи можу я повернути квиток?
+                  </button>
+                </h2>
+                <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="heading5" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">
+                    Так, пасажир має право скасувати поїздку та оформити повернення коштів за придбаний квиток відповідно до наступних умов:
+                    <ul>
+                      <li>При скасуванні поїздки більш ніж за 48 годин до часу відправлення автобуса повертається 100% вартості квитка.</li>
+                      <li>При скасуванні поїздки від 48 до 36 годин до часу відправлення автобуса повертається 50% вартості квитка.</li>
+                      <li>При скасуванні поїздки менш ніж за 36 годин до часу відправлення автобуса кошти за квиток не повертаються.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
           </div>
         </div>
 
-        <aside>
-          <div class="panel-dark" style="padding:18px;border-radius:12px">
-            <h5 style="margin-top:0;color:#fff">Задайте питання</h5>
-            {% if user.is_authenticated %}
-              <form method="post" action="{% url 'main:ask_question' %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="mb-2">
-                  <label class="muted-small">Тип запиту</label>
-                  <select name="preset" class="form-control">
-                    {% for p in presets %}
-                      <option value="{{ p.id }}">{{ p.title }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <input name="subject" class="form-control" placeholder="Тема (коротко)">
-                </div>
-                <div class="mb-2">
-                  <textarea name="initial_message" rows="4" class="form-control" placeholder="Опишіть своє питання" required></textarea>
-                </div>
-                <div class="mb-2">
-                  <button class="btn btn-cta" type="submit">Надіслати</button>
-                </div>
-              </form>
-            {% else %}
-              <p class="muted-small">Щоб задати питання та отримати відповідь у профілі, будь ласка, <a href="{% url 'main:registerindex' %}">увійдіть або зареєструйтесь</a>.</p>
-            {% endif %}
-          </div>
-
-          <div class="about-card" style="margin-top:18px;padding:16px;border-radius:10px;background:linear-gradient(180deg,#0b0b0b,#0f0f0f);color:#fff">
-            <h5 style="margin-top:0">Про DiellerBus</h5>
-            <p class="muted-small">DiellerBus — онлайн‑платформа для пошуку, бронювання та купівлі автобусних квитків. Ми робимо планування поїздки простим, швидким і безпечним. <a href="{% url 'main:nashbusindex' %}">Переглянути каталог автобусів</a>.</p>
-          </div>
-        </aside>
+        
       </div>
 
       <section class="services" style="margin-top:32px;background:transparent;padding:18px 0;color:#fff">
@@ -327,7 +353,11 @@
             <p><strong>Компанія DiellerBus пропонує додаткові послуги з організації перевезень та оренди автобусів у м. Луцьк та за його межами.</strong> Ми надаємо сучасні комфортабельні автобуси разом із професійними водіями, які забезпечать безпеку та комфорт під час поїздок.</p>
             <p style="margin-top:10px"><strong>Послуга оренди автобуса підходить для:</strong></p>
             <ul style="list-style:disc;margin-left:22px;text-align:left;max-width:720px;margin-left:auto;margin-right:auto">
-              
+              <li>Туристичні екскурсії</li>
+              <li>Корпоративні поїздки</li>
+              <li>Мандри на фестивалі</li>
+              <li>Дитячі подорожі</li>
+              <li>Трансфери з аеропорту</li>
             </ul>
 
             <p style="margin-top:12px;color:var(--muted)">Детальніше в <a href="{% url 'main:nashbusindex' %}">каталозі автобусів</a> або зверніться в <a href="{% url 'main:contacts' %}">контакти</a>.</p>
@@ -356,7 +386,7 @@
     </section>
 
     <!-- ГАРЯЧІ ПОЇЗДКИ (banner with ticket cards) -->
-    <section class="routes hot-banner" style="background-image:url('{% static 'img/mercedes.jpg' %}');" data-aos="fade-up">
+    <section class="routes hot-banner" style="background-image:url({% static 'img/mercedes.jpg' %});" data-aos="fade-up">
       <div class="hot-overlay" aria-hidden="true"></div>
       <div class="container">
         <h2 class="routes-title">Гарячі поїздки!</h2>
@@ -420,7 +450,7 @@
         <div class="col-md-4 mb-3 text-md-end">
           <h5>Контакти</h5>
           <div class="muted-small">📞 <a href="tel:+380000000000">+38 (095) 705-82-06</a></div>
-          <div class="muted-small mt-2">📧 <a href="mailto:info@example.com">dieller7073@gmail.com</a></div>
+          <div class="muted-small mt-2">📧 <a href="mailto:dieller7073@gmail.com">dieller7073@gmail.com</a></div>
           <div class="contact-more mt-3 text-md-end">
             <strong>Додаткові відомості</strong>
             <p class="muted-small mb-0">Адреса: с. Забороль, вул. Лісова 52</p>
