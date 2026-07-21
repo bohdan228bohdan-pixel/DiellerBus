@@ -24,8 +24,9 @@ class Profile(models.Model):
         return f"{self.user.username}'s Profile"
 
 @receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
+def create_user_profile(sender, instance, created, raw=False, **kwargs):
+    # Skip profile creation during loaddata (raw=True) to avoid duplicate conflicts
+    if created and not raw:
         Profile.objects.create(user=instance)
 
 @receiver(post_save, sender=User)
