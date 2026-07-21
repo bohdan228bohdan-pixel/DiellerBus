@@ -11,4 +11,5 @@ whitenoise==6.12.0
 reportlab
 requests
 dj-database-url
+psycopg2-binary
 
