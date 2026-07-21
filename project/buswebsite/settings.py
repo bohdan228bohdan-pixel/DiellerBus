@@ -40,6 +40,11 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-^qn)$tc2yr4dpo
 # in local development or when loading local_settings via DJANGO_USE_LOCAL_SETTINGS.
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
+PAYMENT_CANCEL_TITLE = os.environ.get('PAYMENT_CANCEL_TITLE', 'Оплата не вдалася')
+PAYMENT_CANCEL_MESSAGE = os.environ.get('PAYMENT_CANCEL_MESSAGE', 'На жаль, оплата не була підтверджена. Ваш квиток не збережено.')
+PAYMENT_CANCEL_BUTTON_LABEL = os.environ.get('PAYMENT_CANCEL_BUTTON_LABEL', 'Повернутися на головну')
+PAYMENT_CANCEL_BUTTON_URL = os.environ.get('PAYMENT_CANCEL_BUTTON_URL', '/')
+
 # ALLOWED_HOSTS should be explicitly set in production (comma-separated).
 # Default to the project's production domains so the app works if env var is
 # not set during an initial deploy.

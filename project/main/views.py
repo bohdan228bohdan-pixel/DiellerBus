@@ -405,6 +405,28 @@ def _is_wayforpay_success(status_value):
     return str(status_value).lower() in ('1100', 'approved', 'accept', 'success', 'successfullypaid')
 
 
+def _is_wayforpay_failure(status_value):
+    if status_value is None:
+        return False
+    value = str(status_value).strip().lower()
+    if not value:
+        return False
+    return value in (
+        '2', '3', '4', '5', '6', '1101', '1102', '1103', '1104', '1110', '1111', '1112', '1113',
+        'fail', 'failed', 'failure', 'cancel', 'cancelled', 'canceled', 'declined', 'decline',
+        'error', 'rejected', 'reversed', 'expired', 'processing_error'
+    ) or value.startswith('fail') or value.endswith('failed')
+
+
+def _get_payment_cancel_context():
+    return {
+        'payment_cancel_title': getattr(settings, 'PAYMENT_CANCEL_TITLE', None) or 'Оплата не вдалася',
+        'payment_cancel_message': getattr(settings, 'PAYMENT_CANCEL_MESSAGE', None) or 'На жаль, оплата не була підтверджена. Ваш квиток не збережено.',
+        'payment_cancel_button_label': getattr(settings, 'PAYMENT_CANCEL_BUTTON_LABEL', None) or 'Повернутися на головну',
+        'payment_cancel_button_url': getattr(settings, 'PAYMENT_CANCEL_BUTTON_URL', None) or reverse('main:home'),
+    }
+
+
 def _support_user_allowed(user, require_worker=False):
     """Return True if the given user should be allowed to access support/admin endpoints.
 
@@ -3219,29 +3241,50 @@ def payment_success(request):
     )
     payload_query = request.POST if request.method == 'POST' else request.GET
     payload = dict(payload_query.lists())
+    status_value = (
+        request.POST.get('reasonCode')
+        or request.GET.get('reasonCode')
+        or request.POST.get('transactionStatus')
+        or request.GET.get('transactionStatus')
+        or request.POST.get('status')
+        or request.GET.get('status')
+        or ''
+    ).strip()
+    success = _is_wayforpay_success(status_value)
+    failure = _is_wayforpay_failure(status_value)
+
+    if failure and (order_reference or status_value):
+        ticket_id = _parse_ticket_id_from_order_reference(order_reference)
+        if ticket_id is not None:
+            ticket = Ticket.objects.filter(pk=ticket_id).first()
+            if ticket:
+                _delete_failed_ticket(ticket)
+        try:
+            request.session.pop('last_ticket_id', None)
+        except Exception:
+            pass
+        return render(request, 'payment_cancel.html', _get_payment_cancel_context())
+
     if not processed and order_reference and wayforpay_signature:
         try:
             if verify_wayforpay_signature(wayforpay_signature, payload_query):
                 ticket_id = _parse_ticket_id_from_order_reference(order_reference)
                 if ticket_id is not None:
                     ticket = Ticket.objects.filter(pk=ticket_id).first()
-                status_value = (
-                    request.POST.get('reasonCode')
-                    or request.GET.get('reasonCode')
-                    or request.POST.get('transactionStatus')
-                    or request.GET.get('transactionStatus')
-                    or request.POST.get('status')
-                    or request.GET.get('status')
-                    or ''
-                ).strip()
-                success = _is_wayforpay_success(status_value)
+                if ticket and failure:
+                    _delete_failed_ticket(ticket)
+                    try:
+                        request.session.pop('last_ticket_id', None)
+                    except Exception:
+                        pass
+                    return render(request, 'payment_cancel.html', _get_payment_cancel_context())
                 if ticket and not success:
                     _delete_failed_ticket(ticket)
                     try:
                         request.session.pop('last_ticket_id', None)
                     except Exception:
                         pass
-                    return redirect('main:payment_cancel')
+                    return render(request, 'payment_cancel.html', _get_payment_cancel_context())
                 if ticket:
                     payment = _apply_wayforpay_result(
                         ticket,
@@ -3357,12 +3400,14 @@ def payment_success(request):
     except Exception:
         pass
 
+    if not processed and not success and status_value:
+        return render(request, 'payment_cancel.html', _get_payment_cancel_context())
+
     return render(request, "payment_success.html", {"ticket": ticket, "processed": processed})
 
 
-@login_required
 def payment_cancel(request):
-    return render(request, "payment_cancel.html")
+    return render(request, "payment_cancel.html", _get_payment_cancel_context())
 
 
 def kvitokindex(request):

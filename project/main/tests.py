@@ -654,6 +654,18 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertEqual(ticket.payments.latest('created_at').status, 'success')
 		self.assertEqual(ticket.payments.latest('created_at').provider_payment_id, 'tx-session-2')
 
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_payment_success_renders_failure_page_for_declined_status(self):
+		response = self.client.get(reverse('main:payment_success'), {
+			'orderReference': 'ticket-999',
+			'reasonCode': '2',
+			'transaction_id': 'tx-failed-1',
+		}, follow=True)
+		self.assertEqual(response.status_code, 200)
+		self.assertTemplateUsed(response, 'payment_cancel.html')
+		self.assertContains(response, 'Оплата не вдалася')
+		self.assertNotContains(response, 'Дякуємо — оплата успішна')
+
 class TripAvailabilityTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(username='tripuser', email='tripuser@example.com', password='pass1234')
@@ -730,8 +742,9 @@ class TripAvailabilityTests(TestCase):
 			payload['reasonCode'],
 		], 'test-secret')
 		response = self.client.post(reverse('main:payment_success'), payload)
-		self.assertEqual(response.status_code, 302)
-		self.assertEqual(response.url, reverse('main:payment_cancel'))
+		self.assertEqual(response.status_code, 200)
+		self.assertTemplateUsed(response, 'payment_cancel.html')
+		self.assertContains(response, 'Оплата не вдалася')
 		self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
 
 	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')

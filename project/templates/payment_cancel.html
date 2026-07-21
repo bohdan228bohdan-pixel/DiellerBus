@@ -4,9 +4,9 @@
 
 {% block content %}
   <div class="payment-cancel-page container">
-    <h1>Оплата не вдалася</h1>
-    <p>На жаль, оплата не була підтверджена. Ваш квиток не збережено.</p>
+    <h1>{{ payment_cancel_title|default:'Оплата не вдалася' }}</h1>
+    <p>{{ payment_cancel_message|default:'На жаль, оплата не була підтверджена. Ваш квиток не збережено.' }}</p>
     <p>Спробуйте ще раз або зверніться до служби підтримки, якщо потрібна допомога.</p>
-    <a class="btn btn-primary" href="{% url 'main:home' %}">Повернутися на головну</a>
+    <a class="btn btn-primary" href="{{ payment_cancel_button_url|default:'/' }}">{{ payment_cancel_button_label|default:'Повернутися на головну' }}</a>
   </div>
 {% endblock %}
