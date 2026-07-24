@@ -1995,6 +1995,8 @@ def api_cities(request):
 @login_required
 def profile(request):
     profile = getattr(request.user, 'profile', None)
+    is_carrier = bool(profile and getattr(profile, 'is_carrier', False))
+    is_dieller = (getattr(request.user, 'username', '') or '').lower() == 'dieller'
     if request.method == 'POST':
         form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
@@ -2037,7 +2039,13 @@ def profile(request):
     except Exception:
         pass
 
-    return render(request, 'profile.html', {'form': form, 'tickets': tickets, 'support_tickets': support_tickets})
+    return render(request, 'profile.html', {
+        'form': form,
+        'tickets': tickets,
+        'support_tickets': support_tickets,
+        'is_carrier': is_carrier,
+        'is_dieller': is_dieller,
+    })
 
 
 @login_required

@@ -21,6 +21,14 @@
     .profile-menu a:hover, .profile-menu a.active { background: rgba(225,29,72,0.17); transform: translateY(-1px); }
     .profile-menu a .item-title { display: block; font-weight: 700; }
     .profile-menu a .item-sub { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+    .profile-side-section { display: grid; gap: 10px; }
+    .profile-side-section-title { color: rgba(255,255,255,0.55); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .profile-side-links { display: grid; gap: 10px; }
+    .profile-side-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-radius: 16px; color: #fff; text-decoration: none; background: rgba(225,29,72,0.12); border: 1px solid rgba(225,29,72,0.25); transition: transform .15s ease, background .15s ease; }
+    .profile-side-link:hover { color: #fff; background: rgba(225,29,72,0.22); transform: translateY(-1px); }
+    .profile-side-link .link-title { display: block; font-weight: 750; }
+    .profile-side-link .link-sub { display: block; margin-top: 2px; color: rgba(255,255,255,0.68); font-size: 0.82rem; }
+    .profile-side-link .link-arrow { color: #fb7185; font-size: 1.1rem; }
     .profile-info-card { background: #0f0f0f; border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; padding: 18px; display: grid; gap: 12px; }
     .profile-info-card .info-item { display: flex; justify-content: space-between; gap: 18px; color: rgba(255,255,255,0.78); font-size: 0.95rem; }
     .profile-info-card .info-item .info-title { color: rgba(255,255,255,0.65); }
@@ -110,6 +118,38 @@
         <a href="{% url 'main:kvitokindex' %}"><span class="item-title">Покупка квитків</span><small class="item-sub">Перейти до пошуку та бронювання</small></a>
         <a href="{% url 'main:contacts' %}"><span class="item-title">Контакти</span><small class="item-sub">Зв’язатись з підтримкою</small></a>
       </div>
+
+      {% if is_carrier %}
+        <div class="profile-side-section">
+          <div class="profile-side-section-title">Кабінет перевізника</div>
+          <div class="profile-side-links">
+            <a class="profile-side-link" href="{% url 'main:carrier_dashboard' %}">
+              <span><span class="link-title">Продані квитки</span><small class="link-sub">Продажі по місяцях і рейсах</small></span>
+              <span class="link-arrow" aria-hidden="true">→</span>
+            </a>
+            <a class="profile-side-link" href="{% url 'main:carrier_manage_trips' %}">
+              <span><span class="link-title">Керування рейсами</span><small class="link-sub">Зміни та доступність дат</small></span>
+              <span class="link-arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if is_dieller %}
+        <div class="profile-side-section">
+          <div class="profile-side-section-title">Адміністрування</div>
+          <div class="profile-side-links">
+            <a class="profile-side-link" href="{% url 'main:dieller_reports' %}">
+              <span><span class="link-title">Звіти Dieller</span><small class="link-sub">Продажі, комісії та перевізники</small></span>
+              <span class="link-arrow" aria-hidden="true">→</span>
+            </a>
+            <a class="profile-side-link" href="{% url 'main:route_reports' %}">
+              <span><span class="link-title">Звіти за маршрутами</span><small class="link-sub">Перегляд та експорт даних</small></span>
+              <span class="link-arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      {% endif %}
 
       <div class="profile-info-card">
         <div class="info-item"><span class="info-title">Дата реєстрації</span><span class="info-value">{{ user.date_joined|date:'d.m.Y H:i' }}</span></div>
