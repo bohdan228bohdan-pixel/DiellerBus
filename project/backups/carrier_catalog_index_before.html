@@ -1,0 +1,503 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<style>
+/* ===== RESET ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ===== GLOBAL ===== */
+body {
+  background: #0d0d0d;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ===== HERO SLIDER ===== */
+.hero-banner {
+  position: relative;
+  height: 95vh;
+  overflow: hidden;
+}
+
+.hero-slider {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.slide {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 1s ease-in-out, transform 6s linear;
+  transform: scale(1.1);
+
+  /* 🔥 ВАЖЛИВО — робимо світліше */
+  filter: brightness(1.15) contrast(1.05);
+}
+
+.slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ===== OVERLAY (ЗМЕНШЕНИЙ) ===== */
+.overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+
+  /* 🔥 було 0.7 / 0.95 — стало значно легше */
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.65)
+  );
+
+  z-index: 1;
+}
+
+/* ===== CONTENT ===== */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 20px;
+}
+
+.hero-content h1 {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.accent {
+  color: #ff2a2a;
+}
+
+.hero-content p {
+  color: #ddd; /* трохи світліший текст */
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+/* ===== PHONES ===== */
+.phones {
+  display: flex;
+  justify-content: center;
+  gap: 25px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.phones div {
+  padding: 10px 15px;
+  border: 1px solid #333;
+  border-radius: 20px;
+  transition: 0.3s;
+  background: rgba(0,0,0,0.3); /* щоб читабельно було */
+}
+
+.phones div:hover {
+  border-color: #ff2a2a;
+}
+
+/* ===== SCROLL BUTTON ===== */
+.scroll-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 12px 30px;
+  background: #ff2a2a;
+  border-radius: 30px;
+  transition: 0.3s;
+}
+
+.scroll-btn:hover {
+  background: #cc0000;
+}
+
+/* ===== STEPS ===== */
+.steps {
+  padding: 70px 20px;
+  text-align: center;
+  background: #111;
+}
+
+.steps h2 {
+  margin-bottom: 50px;
+  font-size: 32px;
+}
+
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 25px;
+}
+
+.step {
+  padding: 30px;
+  border: 1px solid #222;
+  border-radius: 12px;
+  transition: 0.3s;
+  opacity: 0;
+  transform: translateY(40px);
+}
+
+.step.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.step:hover {
+  border-color: #ff2a2a;
+  transform: translateY(-5px);
+}
+
+.step-icon {
+  font-size: 40px;
+  margin-bottom: 15px;
+}
+
+/* ===== CATALOG ===== */
+.catalog {
+  padding: 70px 40px;
+}
+
+.catalog h2 {
+  text-align: center;
+  margin-bottom: 50px;
+  font-size: 32px;
+}
+
+.bus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+}
+
+.bus-card {
+  background: #151515;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: 0.3s;
+  opacity: 0;
+  transform: translateY(40px);
+}
+
+.bus-card.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bus-card:hover {
+  transform: translateY(-7px);
+  box-shadow: 0 0 25px rgba(255,0,0,0.4);
+}
+
+.bus-card img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.bus-info {
+  padding: 20px;
+}
+
+.bus-info h3 {
+  color: #ff2a2a;
+}
+
+.bus-info p {
+  color: #aaa;
+}
+
+.price {
+  font-weight: bold;
+  color: #fff;
+}
+
+/* ===== BUTTON ===== */
+.btn {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: #ff2a2a;
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.btn:hover {
+  background: #cc0000;
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width: 1000px){
+  .bus-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .step-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+  /* ===== CALL MODAL ===== */
+  .call-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.3s;
+    z-index: 9999;
+  }
+  .call-modal .call-box {
+    background: #111;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    width: 320px;
+    border: 1px solid #222;
+  }
+  .call-modal .close-modal{position:absolute;top:8px;right:12px;font-size:22px;cursor:pointer}
+  .call-modal .phone-number{font-size:20px;margin:12px 0;color:#ff2a2a}
+  .call-modal .call-btn{display:inline-block;padding:10px 18px;background:#ff2a2a;color:#fff;border-radius:20px;text-decoration:none}
+
+@media(max-width: 600px){
+  .bus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-content h1 {
+    font-size: 40px;
+  }
+}
+</style>
+
+<!-- ===== HERO ===== -->
+<section class="hero-banner">
+
+  <div class="hero-slider">
+    <div class="slide active" style="background-image:url({% static 'img/Без названия1.jpg' %});"></div>
+    <div class="slide" style="background-image:url({% static 'img/***2.jpg' %});"></div>
+    <div class="slide" style="background-image:url({% static 'img/***3.jpg' %});"></div>
+  </div>
+
+  <div class="overlay"></div>
+
+  <div class="hero-content">
+    <h1><span class="accent">Dieller</span> Bus</h1>
+
+    <p>
+      Дзвоніть!<br>
+      Пишіть!
+      Заходьте
+    </p>
+
+    <div class="phones">
+      <div>📞 050 176-30-30</div>
+      <div>📱 095 705-82-06</div>
+      <div>☎ *** ***-**-**</div>
+    </div>
+
+    <a href="#catalog" class="scroll-btn">
+      Каталог автобусів ↓
+    </a>
+  </div>
+
+</section>
+
+<!-- ===== STEPS ===== -->
+<section class="steps">
+  <h2>Як з нами працювати</h2>
+
+  <div class="step-grid">
+
+    <div class="step">
+      <div class="step-icon">🚌</div>
+      <h3>Вибираєте автобус</h3>
+      <p>Оберіть транспорт</p>
+    </div>
+
+    <div class="step">
+      <div class="step-icon">📞</div>
+      <h3>Телефонуєте</h3>
+      <p>Уточнюємо деталі</p>
+    </div>
+
+    <div class="step">
+      <div class="step-icon">📅</div>
+      <h3>Бронюєте</h3>
+      <p>Фіксуємо дату</p>
+    </div>
+
+    <div class="step">
+      <div class="step-icon">🚐</div>
+      <h3>Їдете</h3>
+      <p>Отримуєте послугу</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===== CATALOG ===== -->
+<section id="catalog" class="catalog">
+  <h2>Каталог автобусів</h2>
+
+  <div class="bus-grid">
+
+    {% for bus in buses %}
+    <div class="bus-card">
+
+      {% if bus.image %}
+        <img src="{{ bus.image.url }}" alt="{{ bus.title }}" onerror="this.onerror=null;this.src='{% static 'img/neoplanwhite.jpg' %}';">
+      {% else %}
+        <img src="{% static 'img/neoplanwhite.jpg' %}" alt="Нема фото">
+      {% endif %}
+
+      <div class="bus-info">
+        <h3>{{ bus.title }}</h3>
+        <p>{{ bus.seats }} місць</p>
+
+        <p class="price">
+          {% if bus.price_per_hour %}
+            від {{ bus.price_per_hour }} грн/год
+          {% else %}
+            ціна договірна
+          {% endif %}
+        </p>
+
+        <a href="{{ bus.get_absolute_url }}" class="btn">
+          Деталі
+        </a>
+
+        <!-- Замовити кнопку: відкриває модал з телефоном -->
+        <button type="button" class="btn order-btn open-call" data-phone="{{ bus.contact_phone }}" style="margin-left:8px">📞 Замовити</button>
+      </div>
+
+    </div>
+    {% endfor %}
+
+  </div>
+</section>
+
+<script>
+// ===== SLIDER =====
+let slides = document.querySelectorAll('.slide');
+let index = 0;
+
+function nextSlide() {
+  slides[index].classList.remove('active');
+  index = (index + 1) % slides.length;
+  slides[index].classList.add('active');
+}
+
+setInterval(nextSlide, 4000);
+
+
+// ===== SMOOTH SCROLL =====
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', function(e){
+    e.preventDefault();
+    document.querySelector(this.getAttribute('href'))
+      .scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+
+// ===== SCROLL ANIMATION =====
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      entry.target.classList.add('show');
+    }
+  });
+}, { threshold: 0.2 });
+
+document.querySelectorAll('.bus-card, .step').forEach(el => {
+  observer.observe(el);
+});
+
+
+// ===== HOVER EFFECT (легкий tilt) =====
+document.querySelectorAll('.bus-card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    let rect = card.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+
+    let centerX = rect.width / 2;
+    let centerY = rect.height / 2;
+
+    let rotateX = (y - centerY) / 20;
+    let rotateY = (centerX - x) / 20;
+
+    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  });
+
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'rotateX(0) rotateY(0)';
+  });
+});
+</script>
+
+<!-- CALL MODAL (catalog) -->
+<div id="catalogCallModal" class="call-modal" style="display:none; align-items:center; justify-content:center;">
+  <div class="call-box">
+    <span class="close-modal">&times;</span>
+    <h2>Зателефонувати</h2>
+    <p>Номер телефону:</p>
+    <div id="catalogPhoneNumber" class="phone-number" style="color:#ff2a2a;margin:14px 0;font-size:20px"></div>
+    <a id="catalogCallBtn" href="#" class="call-btn">📞 Подзвонити</a>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const modal = document.getElementById('catalogCallModal');
+    const phoneText = document.getElementById('catalogPhoneNumber');
+    const callBtn = document.getElementById('catalogCallBtn');
+
+    document.querySelectorAll('.open-call').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const phone = btn.dataset.phone || 'Нема номера';
+        phoneText.innerText = phone;
+        callBtn.href = 'tel:' + phone;
+        modal.style.display = 'flex';
+        setTimeout(()=> modal.style.opacity = '1', 20);
+      });
+    });
+
+    // close handlers
+    const close = modal.querySelector('.close-modal');
+    if (close) close.addEventListener('click', () => { modal.style.opacity = '0'; setTimeout(()=> modal.style.display = 'none', 220); });
+    modal.addEventListener('click', (e) => { if (e.target === modal) { modal.style.opacity = '0'; setTimeout(()=> modal.style.display = 'none', 220); } });
+  })();
+</script>
+
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ bus.title }} — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<style>
+  .bus-detail{max-width:1080px;margin:0 auto;padding:44px 20px 70px;color:#20242c}
+  .bus-detail-back{display:inline-block;margin-bottom:20px;color:#a91f1f;text-decoration:none;font-weight:700}
+  .bus-detail-card{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);overflow:hidden;background:#fff;border:1px solid #e8eaf0;border-radius:22px;box-shadow:0 14px 38px rgba(20,29,44,.08)}
+  .bus-detail-image{width:100%;height:100%;min-height:360px;max-height:540px;object-fit:cover;background:#f3f4f6}
+  .bus-detail-info{padding:clamp(22px,4vw,40px)}
+  .bus-detail-info h1{font-size:clamp(1.7rem,3vw,2.4rem);font-weight:800;margin:0 0 12px}
+  .bus-detail-price{color:#bd2525;font-size:1.25rem;font-weight:800;margin:0 0 18px}
+  .bus-detail-description{color:#5d6675;line-height:1.7}
+  .bus-detail-facts{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+  .bus-detail-fact{padding:9px 12px;background:#f7f3f3;border-radius:10px;font-weight:700}
+  .bus-detail-contact{color:#5d6675;margin-top:18px}
+  .bus-detail-contact a{color:#a91f1f;font-weight:700}
+  .bus-booking{max-width:760px;margin:28px auto 0;padding:24px;background:#fff;border:1px solid #e8eaf0;border-radius:18px;box-shadow:0 10px 28px rgba(20,29,44,.05)}
+  .bus-booking h2{font-size:1.35rem;font-weight:800;margin:0 0 16px}
+  .bus-booking form p{margin-bottom:14px}
+  .bus-booking label{display:block;font-weight:700;margin-bottom:6px}
+  .bus-booking input,.bus-booking textarea{width:100%;padding:10px 12px;border:1px solid #dfe2e8;border-radius:10px}
+  .bus-booking input[type=checkbox]{width:auto}
+  .bus-submit{border:0;border-radius:11px;padding:12px 18px;background:#c62828;color:white;font-weight:800}
+  .bus-submit:hover{background:#a91f1f}
+  .booking-unavailable{padding:14px;background:#fff4f4;color:#922020;border-radius:12px;font-weight:700}
+  @media(max-width:760px){.bus-detail{padding:30px 15px 50px}.bus-detail-card{grid-template-columns:1fr}.bus-detail-image{min-height:230px;max-height:360px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="bus-detail">
+  {% if bus.carrier %}
+    <a class="bus-detail-back" href="{% url 'main:carrier_detail' bus.carrier.id %}">← До профілю {{ bus.carrier.company_name }}</a>
+  {% else %}
+    <a class="bus-detail-back" href="{% url 'main:nashbusindex' %}">← До каталогу</a>
+  {% endif %}
+
+  <section class="bus-detail-card">
+    {% if bus.image %}
+      <img class="bus-detail-image" src="{{ bus.image.url }}" alt="{{ bus.title }}">
+    {% else %}
+      <img class="bus-detail-image" src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">
+    {% endif %}
+    <div class="bus-detail-info">
+      {% if bus.carrier %}
+        <p class="text-uppercase fw-bold text-danger mb-2">{{ bus.carrier.company_name }}</p>
+      {% endif %}
+      <h1>{{ bus.title }}</h1>
+      <p class="bus-detail-price">{% if bus.price_per_hour %}від {{ bus.price_per_hour }} грн/год{% else %}ціна договірна{% endif %}</p>
+      <div class="bus-detail-facts">
+        <span class="bus-detail-fact">🪑 {{ bus.seats }} місць</span>
+        {% if bus.price_note %}<span class="bus-detail-fact">{{ bus.price_note }}</span>{% endif %}
+      </div>
+      {% if bus.description %}
+        <p class="bus-detail-description">{{ bus.description|linebreaksbr }}</p>
+      {% endif %}
+      <div class="bus-detail-contact">
+        <strong>Контакт:</strong> {{ bus.contact_name|default:bus.carrier.company_name|default:"Dieller Bus" }}<br>
+        {% with phone=bus.contact_phone|default:bus.carrier.phone %}
+          {% if phone %}<a href="tel:{{ phone }}">{{ phone }}</a>{% endif %}
+        {% endwith %}
+      </div>
+    </div>
+  </section>
+
+  {% if booking_enabled %}
+    <section class="bus-booking">
+      <h2>Замовити автобус</h2>
+      <form method="post" action="{% url 'main:bus_booking' bus.slug %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="bus-submit" type="submit">Надіслати запит</button>
+      </form>
+    </section>
+  {% else %}
+    <div class="booking-unavailable mt-4">Замовлення автобусів цього перевізника тимчасово недоступні.</div>
+  {% endif %}
+</main>
+{% endblock %}

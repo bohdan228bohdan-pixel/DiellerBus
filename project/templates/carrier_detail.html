@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ carrier.company_name }} — Dieller Bus{% endblock %}
+{% block body_class %}carrier-page-shell{% endblock %}
+
+{% block head_extra %}
+<style>
+  body.carrier-page-shell,body.carrier-page-shell .site-main{background:#fff!important;color:#252a33!important}
+  .carrier-page{--carrier-red:#c62828;--carrier-dark:#252a33;--carrier-muted:#727b89;max-width:1180px;margin:0 auto;padding:34px 20px 76px;color:var(--carrier-dark)}
+  .carrier-breadcrumb{display:flex;align-items:center;gap:8px;margin:0 0 22px;color:var(--carrier-muted);font-size:.92rem}
+  .carrier-breadcrumb a{color:var(--carrier-red);text-decoration:none;font-weight:700}
+  .carrier-hero{position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:26px;overflow:hidden;padding:clamp(24px,5vw,48px);border-radius:26px;background:linear-gradient(115deg,#fff 5%,#fff7f7 58%,#fce5e5);box-shadow:0 18px 48px rgba(111,25,25,.1)}
+  .carrier-hero:after{content:"";position:absolute;width:270px;height:270px;right:80px;top:-180px;border:44px solid rgba(198,40,40,.06);border-radius:50%;pointer-events:none}
+  .carrier-identity{position:relative;z-index:1;display:flex;align-items:center;gap:22px}
+  .carrier-logo{width:92px;height:92px;flex:0 0 92px;object-fit:cover;border-radius:23px;background:#fff;box-shadow:0 8px 24px rgba(40,40,50,.12)}
+  .carrier-brand-icon{display:grid;place-items:center;font-size:2.5rem;color:var(--carrier-red)}
+  .carrier-eyebrow{display:block;margin-bottom:7px;color:var(--carrier-red);font-size:.78rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+  .carrier-hero h1{margin:0 0 10px;font-size:clamp(1.9rem,4vw,3rem);font-weight:900;letter-spacing:-.04em}
+  .carrier-description{max-width:680px;margin:0;color:#626b79;line-height:1.75}
+  .carrier-hero-action{position:relative;z-index:1;min-width:180px;padding:14px 20px;border-radius:14px;background:var(--carrier-red);color:white;text-align:center;text-decoration:none;font-weight:800;box-shadow:0 10px 24px rgba(198,40,40,.22);transition:transform .2s,background .2s}
+  .carrier-hero-action:hover{transform:translateY(-2px);background:#a91f1f;color:#fff}
+  .carrier-phone{display:block;margin-top:8px;color:#fff;font-size:.92rem;font-weight:600}
+  .carrier-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}
+  .carrier-stat{display:flex;align-items:center;gap:12px;padding:17px 19px;background:#fff;border:1px solid #eceef2;border-radius:16px;box-shadow:0 6px 20px rgba(30,40,55,.04)}
+  .carrier-stat-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:13px;background:#fff0f0;color:var(--carrier-red);font-size:1.2rem}
+  .carrier-stat strong{display:block;font-size:1.1rem;font-weight:900}
+  .carrier-stat span{display:block;color:var(--carrier-muted);font-size:.82rem}
+  .carrier-section{margin-top:42px}
+  .carrier-section-heading{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:18px}
+  .carrier-section-heading h2{margin:0;font-size:clamp(1.5rem,3vw,2rem);font-weight:900;letter-spacing:-.03em}
+  .carrier-section-heading p{margin:0;color:var(--carrier-muted)}
+  .route-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+  .route-link{display:flex;align-items:center;gap:12px;min-height:84px;padding:16px;background:#fff;border:1px solid #eceef2;border-radius:16px;color:var(--carrier-dark);text-decoration:none;box-shadow:0 6px 20px rgba(30,40,55,.04);transition:transform .18s,border-color .18s,box-shadow .18s}
+  .route-link:hover{transform:translateY(-3px);border-color:#e5a5a5;box-shadow:0 12px 25px rgba(111,25,25,.09);color:var(--carrier-dark)}
+  .route-arrow{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:50%;background:#fff0f0;color:var(--carrier-red);font-size:1.2rem}
+  .route-link strong{display:block;font-size:.94rem;font-weight:800}
+  .route-link small{display:block;margin-top:4px;color:var(--carrier-red);font-weight:700}
+  .fleet-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+  .fleet-card{overflow:hidden;background:#fff;border:1px solid #e8eaf0;border-radius:20px;box-shadow:0 12px 30px rgba(24,33,48,.07);transition:transform .2s,box-shadow .2s}
+  .fleet-card:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(24,33,48,.12)}
+  .fleet-photo{display:block;width:100%;height:220px;object-fit:cover;background:#f0f1f4}
+  .fleet-thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px 5px 0}
+  .fleet-thumbs img{width:100%;height:76px;object-fit:cover;border-radius:8px;background:#f0f1f4}
+  .fleet-body{padding:18px 20px 20px}
+  .fleet-title-row{display:flex;justify-content:space-between;align-items:start;gap:10px}
+  .fleet-body h3{margin:0;font-size:1.2rem;font-weight:900}
+  .fleet-seats{padding:6px 9px;border-radius:999px;background:#f7f3f3;color:#8f2020;font-size:.78rem;font-weight:800;white-space:nowrap}
+  .fleet-price{margin:11px 0;color:var(--carrier-red);font-weight:800}
+  .fleet-description{min-height:44px;color:var(--carrier-muted);font-size:.9rem;line-height:1.55}
+  .carrier-button{display:inline-flex;justify-content:center;align-items:center;min-height:44px;padding:11px 16px;border-radius:12px;background:var(--carrier-red);color:#fff;text-decoration:none;font-weight:800;transition:background .2s}
+  .carrier-button:hover{background:#a91f1f;color:#fff}
+  .carrier-unavailable,.carrier-no-data{padding:18px;border:1px dashed #dfe2e8;border-radius:15px;background:#fff;color:var(--carrier-muted)}
+  @media(max-width:900px){.route-grid,.fleet-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.carrier-hero{grid-template-columns:1fr}.carrier-hero-action{justify-self:start}}
+  @media(max-width:600px){.carrier-page{padding:26px 15px 52px}.carrier-identity{align-items:flex-start;gap:15px}.carrier-logo{width:66px;height:66px;flex-basis:66px;border-radius:17px}.carrier-hero{padding:23px 18px}.carrier-hero-action{width:100%}.carrier-stats{grid-template-columns:1fr;gap:9px}.carrier-stat{padding:12px 14px}.carrier-section{margin-top:34px}.carrier-section-heading{align-items:start;flex-direction:column}.route-grid,.fleet-grid{grid-template-columns:1fr}.fleet-photo{height:230px}.fleet-thumbs img{height:86px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="carrier-page">
+  <nav class="carrier-breadcrumb" aria-label="Навігаційний ланцюжок">
+    <a href="{% url 'main:nashbusindex' %}">Каталог</a><span aria-hidden="true">/</span><span>{{ carrier.company_name }}</span>
+  </nav>
+
+  <header class="carrier-hero">
+    <div class="carrier-identity">
+      {% if carrier.avatar %}
+        <img class="carrier-logo" src="{{ carrier.avatar.url }}" alt="Логотип {{ carrier.company_name }}">
+      {% else %}
+        <div class="carrier-logo carrier-brand-icon" aria-hidden="true">🚌</div>
+      {% endif %}
+      <div>
+        <span class="carrier-eyebrow">Перевізник Dieller Bus</span>
+        <h1>{{ carrier.company_name }}</h1>
+        {% if carrier.catalog_description %}
+          <p class="carrier-description">{{ carrier.catalog_description|linebreaksbr }}</p>
+        {% else %}
+          <p class="carrier-description">Комфортні поїздки та сучасний автопарк для ваших подорожей.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% if carrier.phone and carrier.bus_booking_enabled %}
+      <a class="carrier-hero-action" href="tel:{{ carrier.phone }}">Зателефонувати<span class="carrier-phone">{{ carrier.phone }}</span></a>
+    {% elif carrier.phone %}
+      <div class="carrier-hero-action">Контакт перевізника<span class="carrier-phone">{{ carrier.phone }}</span></div>
+    {% endif %}
+  </header>
+
+  <section class="carrier-stats" aria-label="Інформація про перевізника">
+    <div class="carrier-stat"><span class="carrier-stat-icon" aria-hidden="true">🚌</span><div><strong>{{ buses|length }}</strong><span>автобусів в автопарку</span></div></div>
+    <div class="carrier-stat"><span class="carrier-stat-icon" aria-hidden="true">↗</span><div><strong>{{ routes|length }}</strong><span>активних рейсів у базі</span></div></div>
+    <div class="carrier-stat"><span class="carrier-stat-icon" aria-hidden="true">✓</span><div><strong>Dieller Bus</strong><span>надійна подорож починається тут</span></div></div>
+  </section>
+
+  {% if routes %}
+    <section class="carrier-section">
+      <div class="carrier-section-heading">
+        <h2>Маршрути перевізника</h2>
+        <p>Кожен рейс збережений у базі перевізника</p>
+      </div>
+      <div class="route-grid">
+        {% for route in routes %}
+          <a class="route-link" href="{{ route.url }}" aria-label="Знайти квитки: {{ route.from_city }} — {{ route.to_city }}">
+            <span class="route-arrow" aria-hidden="true">→</span>
+            <span><strong>{{ route.name }}</strong><small>{{ route.trip_label }}</small></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="carrier-section">
+    <div class="carrier-section-heading">
+      <h2>Автопарк перевізника</h2>
+      <p>Фотографії, характеристики та замовлення</p>
+    </div>
+    {% if buses %}
+      <div class="fleet-grid">
+        {% for bus in buses %}
+          <article class="fleet-card">
+            {% if bus.image %}
+              <img class="fleet-photo" src="{{ bus.image.url }}" alt="{{ bus.title }}">
+            {% elif bus.photos.all %}
+              {% with first_photo=bus.photos.all|first %}
+                {% if first_photo %}<img class="fleet-photo" src="{{ first_photo.image.url }}" alt="{{ bus.title }}">{% else %}<img class="fleet-photo" src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">{% endif %}
+              {% endwith %}
+            {% else %}
+              <img class="fleet-photo" src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">
+            {% endif %}
+            {% if bus.photos.all %}
+              <div class="fleet-thumbs">
+                {% for photo in bus.photos.all|slice:":3" %}
+                  <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:bus.title }}">
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="fleet-body">
+              <div class="fleet-title-row"><h3>{{ bus.title }}</h3><span class="fleet-seats">{{ bus.seats }} місць</span></div>
+              <p class="fleet-price">{% if bus.price_per_hour %}від {{ bus.price_per_hour }} грн/год{% else %}Вартість за домовленістю{% endif %}</p>
+              <p class="fleet-description">{{ bus.description|default:"Детальніше про комплектацію та умови замовлення — на сторінці автобуса."|truncatewords:20 }}</p>
+              {% if carrier.bus_booking_enabled %}
+                <a class="carrier-button" href="{{ bus.get_absolute_url }}">Детальніше та замовити</a>
+              {% else %}
+                <div class="carrier-unavailable">Замовлення тимчасово недоступні</div>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="carrier-no-data">Автобуси цього перевізника ще не додані. Загляньте сюди пізніше.</div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

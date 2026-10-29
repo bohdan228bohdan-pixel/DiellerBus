@@ -306,17 +306,26 @@ class ProfileAdmin(admin.ModelAdmin):
         )
     user_details.short_description = 'Дані користувача'
 
-from .models import Bus, BusBooking, Ticket, Carrier, TripFare, FareFolder
+from .models import Bus, BusPhoto, BusBooking, Ticket, Carrier, TripFare, FareFolder
 from .models import SupportPresetQuestion, SupportTicket, SupportMessage
 from .models import SupportWorker
 from .models import Passenger, Payment
 from .models import SiteConfig, StaticPage
 
+class BusPhotoInline(admin.TabularInline):
+    model = BusPhoto
+    extra = 1
+    max_num = 6
+    validate_max = True
+    fields = ('image', 'caption', 'order')
+
+
 @admin.register(Bus)
 class BusAdmin(admin.ModelAdmin):
-    list_display = ("title", "seats", "price_per_hour", "is_published")
+    list_display = ("title", "carrier", "seats", "price_per_hour", "is_published")
     prepopulated_fields = {"slug": ("title",)}
     ordering = ('title',)
+    inlines = [BusPhotoInline]
 
 
 @admin.register(BusBooking)
@@ -424,12 +433,52 @@ class SupportWorkerAdmin(admin.ModelAdmin):
             pass
 
 
+class BusInline(admin.TabularInline):
+    model = Bus
+    extra = 0
+    fields = (
+        'title',
+        'image',
+        'seats',
+        'price_per_hour',
+        'price_note',
+        'description',
+        'is_published',
+    )
+
+
 @admin.register(Carrier)
 class CarrierAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'company_name', 'business_type', 'business_number', 'phone', 'email', 'user', 'created_at')
+    list_display = (
+        '__str__',
+        'company_name',
+        'is_catalog_visible',
+        'bus_booking_enabled',
+        'business_type',
+        'business_number',
+        'phone',
+        'email',
+        'user',
+        'created_at',
+    )
     search_fields = ('^company_name', '^username', '^email', '^user__username', '^business_number', '^phone')
     readonly_fields = ('user', 'created_at')
-    fields = ('company_name', 'business_type', 'business_number', 'phone', 'username', 'email', 'avatar', 'user', 'created_at', 'related_links')
+    fields = (
+        'company_name',
+        'business_type',
+        'business_number',
+        'phone',
+        'username',
+        'email',
+        'avatar',
+        'catalog_description',
+        'is_catalog_visible',
+        'bus_booking_enabled',
+        'user',
+        'created_at',
+        'related_links',
+    )
+    inlines = [BusInline]
     ordering = ('company_name',)
     readonly_fields = readonly_fields + ('related_links',)
 

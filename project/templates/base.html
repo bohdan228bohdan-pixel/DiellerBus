@@ -16,8 +16,25 @@
   <link rel="stylesheet" href="{% static 'css/red_black_theme.css' %}">
 
   {% block head_extra %}{% endblock %}
+  <link rel="stylesheet" href="{% static 'css/site_chrome.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="social-topbar">
+    <div class="container social-topbar-inner">
+      <span class="social-topbar-label">Слідкуйте за Dieller Bus</span>
+      <div class="social-topbar-links" aria-label="Соціальні мережі Dieller Bus">
+        <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" aria-label="TikTok Dieller Bus">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.6 7.4a7 7 0 0 1-4.3-1.5v8.2a6.1 6.1 0 1 1-5.3-6.1v3.2a3 3 0 1 0 2.2 2.9V2.5h3.1a4.9 4.9 0 0 0 4.3 4.1v.8Z"/></svg>
+        </a>
+        <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram Dieller Bus">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="12" cy="12" r="4.1"/><circle class="social-icon-dot" cx="17.8" cy="6.5" r="1"/></svg>
+        </a>
+        <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook Dieller Bus">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.7 21v-8h2.7l.4-3.1h-3.1v-2c0-.9.3-1.5 1.6-1.5H17V3.6a21 21 0 0 0-2.5-.1c-2.5 0-4.2 1.5-4.2 4.3v2.1H7.5V13h2.8v8h3.4Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
   <header class="site-header">
     <nav class="navbar navbar-expand-lg navbar-dark" aria-label="Main navigation">
       <div class="container">
@@ -34,6 +51,7 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:nashbusindex' %}">Каталог</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:support_home' %}">Підтримка</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
             {% if user.is_authenticated %}
               <li class="nav-item d-lg-none"><a class="nav-link" href="{% url 'main:profile' %}">Профіль</a></li>
@@ -109,7 +127,7 @@
 
       <div class="footer-bottom mt-3 d-flex justify-content-between">
         <div>© Dieller Bus — Всі права захищені</div>
-        <div class="muted-small">Made with ❤️</div>
+        <div class="muted-small">Подорожуйте з Dieller Bus <span aria-hidden="true">♥</span></div>
       </div>
     </div>
   </footer>

@@ -71,6 +71,7 @@ urlpatterns = [
     path("payment-cancel/", views.payment_cancel, name="payment_cancel"),
     path("buses/", views.BusListView.as_view(), name="bus_list"),
     path("buses/<slug:slug>/book/", views.bus_booking, name="bus_booking"),
+    path("carriers/<int:carrier_id>/", views.carrier_detail, name="carrier_detail"),
     path('bus/<slug:slug>/', views.bus_detail, name='bus_detail'),
     path("contacts/", views.contacts, name="contacts"),
     path("ask-question/", views.ask_question, name="ask_question"),

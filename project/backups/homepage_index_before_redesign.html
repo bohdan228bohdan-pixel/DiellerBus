@@ -1,0 +1,476 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dieller Bus - Пасажирські перевезення Луцьк-Пулави. Комфортні автобуси, доступні ціни, безпечні подорожі.">
+  <title>Dieller Bus</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- External libraries (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
+  <!-- Project styles -->
+  <link rel="stylesheet" href="{% static 'css/red_black_theme.css' %}">
+  <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+  <script defer src="{% static 'js/animations.js' %}"></script>
+
+  <style>
+    /* Home routes section */
+    .routes{padding:40px 0}
+    .routes-title{
+      text-align:center;
+      font-weight:900;
+      letter-spacing:1px;
+      color:var(--accent-red-soft);
+      margin:0 0 10px;
+    }
+    .routes-sub{
+      text-align:center;
+      color:var(--muted);
+      margin:0 0 18px;
+    }
+    .route-card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.30));
+      border:1px solid rgba(255,255,255,0.04);
+      border-radius:16px;
+      overflow:hidden;
+      height:100%;
+    }
+    .route-card img{width:100%;height:220px;object-fit:cover;display:block}
+    .route-body{padding:14px}
+    .route-name{font-weight:900;margin:0;color:#fff;text-align:center}
+    .route-desc{color:var(--muted);font-size:14px;margin:10px 0 0;text-align:center}
+    .site-header{background:var(--accent-red);padding:10px 0;position:static;width:100%;box-shadow:0 2px 16px rgba(0,0,0,0.12);z-index:999}
+    .site-header .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 16px}
+    .nav-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;width:100%}
+    .header-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
+    .header-links li{list-style:none}
+    .header-links .nav-link{white-space:nowrap;padding:6px 0;font-size:0.95rem;color:#fff;opacity:.92}
+    .header-links .nav-link:hover{opacity:1}
+    .site-header .btn,.site-header .btn-outline-light,.site-header .btn-cta{padding:8px 12px;font-size:0.92rem}
+    .brand{font-size:1.2rem;font-weight:700;letter-spacing:.5px}
+    .brand span{font-weight:900}
+    @media(max-width:900px){
+      .site-header .container{justify-content:center;align-items:center;padding:10px 12px}
+      .header-links{justify-content:center;width:100%}
+      .nav-actions{justify-content:center}
+      .header-links li{flex:1 1 100%;text-align:center}
+      .header-links .nav-link{width:100%}
+      .site-header .btn-cta,.site-header .btn-outline-light{width:100%}
+    }
+    /* Homepage compact search (redirects to kvitokindex with params) */
+    .home-search{margin-top:20px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.18));border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.04)}
+    .home-search .home-grid{display:grid;grid-template-columns:1fr 44px 1fr 180px 140px 120px;gap:10px;align-items:center}
+    @media(max-width:992px){.home-search .home-grid{grid-template-columns:1fr 44px 1fr;align-items:stretch}}
+    @media(max-width:576px){.home-search .home-grid{grid-template-columns:1fr}}
+    .home-search input,.home-search select{width:100%;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:#0f0f0f;color:#fff;padding:10px 12px}
+    .home-search .home-find{height:46px;border-radius:10px;border:none;font-weight:900;background:linear-gradient(90deg,var(--accent-red),var(--accent-red-soft));color:#fff;padding:0 14px;cursor:pointer}
+
+    /* Hero highlights and badges */
+    .eyebrow{font-weight:700;color:var(--accent-red);letter-spacing:1px}
+    .title{font-size:2.4rem;margin:6px 0 6px;font-weight:900}
+    .lead{color:var(--muted);font-size:1.02rem;line-height:1.5}
+    .lead .em{background:linear-gradient(90deg,rgba(255,100,100,0.12),rgba(255,50,50,0.06));padding:2px 6px;border-radius:6px;color:#fff;font-weight:800}
+
+    .hero-highlights{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .hl-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,#111,#0a0a0a);border:1px solid rgba(255,255,255,0.04);font-weight:800;color:#fff}
+    .hl-pill .dot{width:10px;height:10px;border-radius:50%}
+    .hl-fast .dot{background:linear-gradient(90deg,#ffd166,#ff9f43)}
+    .hl-comfort .dot{background:linear-gradient(90deg,#6ee7b7,#10b981)}
+    .hl-safe .dot{background:linear-gradient(90deg,#93c5fd,#3b82f6)}
+
+    /* Features emphasis */
+    .feature{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.06));padding:16px;border-radius:12px;text-align:center}
+    .feature .icon{font-size:22px;margin-bottom:8px;width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;margin:0 auto 12px;color:#fff}
+    .feature-1 .icon{background:linear-gradient(90deg,#ff9a9e,#ff6b6b)}
+    .feature-2 .icon{background:linear-gradient(90deg,#ffd166,#ff9f43)}
+    .feature-3 .icon{background:linear-gradient(90deg,#93c5fd,#3b82f6)}
+    .feature h4{font-weight:900;margin-bottom:6px;color:#ff6b6b}
+
+    @media(max-width:720px){
+      .title{font-size:1.8rem}
+      .hero-highlights{flex-direction:column;align-items:flex-start}
+    }
+    /* Hot trips scroll */
+    .hot-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+    .hot-row{display:flex;gap:12px}
+    .hot-card{min-width:260px;flex:0 0 auto;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.04);text-decoration:none;color:inherit}
+    .hot-img img{width:100%;height:140px;object-fit:cover;display:block}
+    .hot-body{padding:12px}
+    .hot-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .hot-title{font-weight:800;color:#fff}
+    .hot-badge{background:#ff6b6b;color:#fff;padding:4px 8px;border-radius:8px;font-weight:800;font-size:0.85rem}
+    .hot-sub{color:var(--muted);font-size:0.95rem;margin-top:6px}
+    .hot-meta{font-weight:700;color:#f87171;margin-top:8px}
+
+    @media(max-width:576px){
+      .hero-inner{display:flex;flex-direction:column;align-items:center}
+      .hero-left{width:100%;text-align:center}
+      .home-search .home-grid{grid-template-columns:1fr;gap:8px}
+      .hero-highlights{justify-content:center}
+      .hot-row{padding:8px 4px}
+      .hot-card{min-width:220px}
+    }
+    /* FAQ / Services styles */
+    .faq-services{padding:40px 0}
+    .faq-grid{display:grid;grid-template-columns:1fr 360px;gap:24px}
+    @media(max-width:992px){.faq-grid{grid-template-columns:1fr}}
+    .panel-dark{background:#0b0b0b;padding:16px;border-radius:10px;color:#fff}
+    .about-card{background:transparent;color:#fff}
+    .services-grid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+    .service-card{min-width:160px;flex:1 1 160px;border-radius:8px;background:#0b0b0b;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;background-size:cover;background-position:center;min-height:140px}
+    .service-card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.45));transition:background .15s}
+    .service-card .service-label{position:relative;z-index:2;padding:8px 12px;border:2px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);border-radius:6px}
+    .service-card:hover::before{background:linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.30))}
+    .service-card img.service-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+    .accordion-button{background:#0b0b0b;color:#fff;border:none}
+    .accordion-button:not(.collapsed){background:#111;color:#fff}
+    .accordion-body{background:transparent;color:#ddd}
+    .faq-services .accordion-button,
+    .faq-services .accordion-body,
+    .faq-services .accordion-item {
+      background:#fff !important;
+      color:#000 !important;
+    }
+    .faq-services .accordion-button {
+      border:1px solid #eaeaea;
+    }
+    .faq-services .accordion-button:not(.collapsed) {
+      background:#f8f9fa !important;
+      color:#000 !important;
+    }
+    .faq-services .accordion-body {
+      border-top:1px solid #eaeaea;
+    }
+    .socials-list .social-tile{transition:all .15s ease}
+    .socials-list .social-link:hover .social-tile{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.4)}
+
+      /* Hero banner (large headline like in provided screenshot) */
+      .hero{position:relative;background-size:cover;background-position:center;padding:48px 0}
+      .hero .overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65));}
+      .hero-banner{position:relative;z-index:2;text-align:center;color:#fff;margin-bottom:14px}
+      .hero-main-title{font-size:3rem;font-weight:900;letter-spacing:1px;margin:0;color:#fff}
+      .hero-banner .routes-sub{color:var(--muted);font-weight:800;margin-top:8px}
+
+      /* Red-black styling for hot trips (bigger price, stronger contrast) */
+      .routes.hot-banner{position:relative;padding:56px 0;border-radius:6px;color:#fff;background-size:cover;background-position:center;margin-bottom:18px}
+      .routes.hot-banner .hot-overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.65));z-index:0;border-radius:6px}
+      .routes.hot-banner .container{position:relative;z-index:2}
+      .hot-card{min-width:260px;flex:0 0 auto;background:linear-gradient(180deg,#0b0b0b,#0a0a0a);border-radius:12px;overflow:hidden;border:1px solid rgba(225,11,0,0.12);text-decoration:none;color:inherit;box-shadow:0 12px 36px rgba(0,0,0,0.55)}
+      .hot-card .hot-img{display:none}
+      .hot-body{padding:20px;display:flex;flex-direction:column;gap:6px;min-height:160px;justify-content:center}
+      .hot-label{font-weight:800;color:var(--muted);font-size:.85rem}
+      .hot-destination{font-weight:900;color:#fff;font-size:1.2rem}
+      .hot-price{font-weight:900;color:var(--accent-red);font-size:2rem}
+      .hot-sub{color:var(--muted);font-size:0.95rem}
+      .hot-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+      .hot-badge{background:var(--accent-red);color:#fff;padding:6px 10px;border-radius:10px;font-weight:900}
+
+  </style>
+</head>
+<body>
+  <header class="site-header">
+      <div class="container d-flex align-items-center justify-content-between">
+        <a class="brand" href="#">Dieller<span>Bus</span></a>
+
+        <nav class="nav-actions d-flex align-items-center gap-3">
+          <ul class="header-links list-unstyled d-flex gap-3 mb-0">
+            <li><a href="{% url 'main:home' %}" class="nav-link">Головна</a></li>
+            <li><a href="{% url 'main:kvitokindex' %}" class="nav-link">Квитки</a></li>
+            <li><a href="{% url 'main:nashbusindex' %}" class="nav-link">Каталог</a></li>
+          </ul>
+
+          {% if user.is_authenticated %}
+            <a href="{% url 'main:profile' %}" class="btn btn-outline-light profile">👤 {{ user.username }}</a>
+          {% else %}
+            <a href="{% url 'main:registerindex' %}" class="btn btn-danger btn-cta">Зареєструватись</a>
+          {% endif %}
+        </nav>
+      </div>
+  </header>
+
+  <main class="site-main">
+    <section class="hero" id="hero">
+      <div class="overlay"></div>
+      <div class="hero-banner container" data-aos="fade-up">
+        <h1 class="hero-main-title">Широка маршрутна мережа</h1>
+        <p class="routes-sub">ПОПУЛЯРНІ АВТОБУСНІ МАРШРУТИ</p>
+      </div>
+      <div class="container hero-inner">
+        <div class="hero-left" data-aos="fade-right">
+          <p class="eyebrow">ПОДОРОЖУЙ РОЗУМНО</p>
+          <h1 class="title">Dieller Bus </h1>
+          <p class="lead"><span class="em">Гнучкі маршрути</span>, <span class="em">дружня атмосфера</span> і <span class="em">місця, що бронюються за хвилини</span>. Знайди попутників, зручний рейс або просто купи квиток і вирушай назустріч пригодам — <strong>швидко</strong>, <strong>безпечно</strong> та з комфортом.</p>
+
+          <div class="hero-ctas">
+            <a href="{% url 'main:kvitokindex' %}" class="btn btn-primary btn-book">Забронювати квиток</a>
+            <a href="{% url 'main:nashbusindex' %}" class="btn btn-outline-light btn-details">Наші автобуси</a>
+            <a href="{% url 'main:contacts' %}" class="btn btn-primary btn-book">Контакти</a>
+          </div>
+          
+          <div class="hero-highlights" aria-hidden="false">
+            <div class="hl-pill hl-fast"><span class="dot" aria-hidden="true"></span> Миттєве бронювання</div>
+            <div class="hl-pill hl-comfort"><span class="dot" aria-hidden="true"></span> Комфортні автобуси</div>
+            <div class="hl-pill hl-safe"><span class="dot" aria-hidden="true"></span> Гарантована безпека</div>
+          </div>
+          
+          <!-- Compact homepage search (redirects to ticket page) -->
+          <form class="home-search" action="{% url 'main:kvitokindex' %}" method="get" role="search" aria-label="Пошук рейсу">
+            <div class="home-grid" role="group" aria-label="Параметри пошуку">
+              <input name="from" type="text" placeholder="Відправлення (місто)" aria-label="Звідки">
+              <button type="button" class="swap-btn" onclick="const a=this.previousElementSibling.value,b=this.nextElementSibling.value;this.previousElementSibling.value=b;this.nextElementSibling.value=a;">⇄</button>
+              <input name="to" type="text" placeholder="Куди (місто)" aria-label="Куди">
+              <input name="date" type="date" aria-label="Дата">
+              
+              <button class="home-find" type="submit" aria-label="Знайти">Знайти</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="hero-right" data-aos="zoom-in">
+          <div class="card-card">
+            <img src="{% static 'img/логоБодяD.png' %}" alt="Логотип" class="brand-img">
+            <div class="card-info">
+              <h3>Dieller</h3>
+              <p>Комфорт. Безпека. Швидкість.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      <!-- socials moved to site footer -->
+
+    <section class="features container" data-aos="fade-up">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="feature feature-1">
+            <div class="icon">🚍</div>
+            <h4>Сучасні автобуси</h4>
+            <p>Зручні сидіння, кондиціонування, Wi‑Fi на борту.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="feature feature-2">
+            <div class="icon">⏱️</div>
+            <h4>Точний розклад</h4>
+            <p>Плануйте поїздку впевнено — ми дбаємо про час.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="feature feature-3">
+            <div class="icon">🔒</div>
+            <h4>Безпека</h4>
+            <p>Досвідчені водії та регулярні техогляди.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-services container" data-aos="fade-up">
+      <h2 class="routes-title">ПОШИРЕНІ ПИТАННЯ</h2>
+      <p class="routes-sub">Поширені питання про бронювання, оплату і повернення. Якщо не знайшли відповідь — задайте питання, і ми відповімо в вашому профілі.</p>
+
+      <div class="faq-grid" style="margin-top:18px">
+        <div>
+          <div class="muted-small">Найпоширеніші запитання:</div>
+          <div class="accordion" id="faqAccordion" style="margin-top:12px">
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading1">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                    Як можна забронювати квиток на міжнародний рейс?
+                  </button>
+                </h2>
+                <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="heading1" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Ви можете забронювати квиток через наш веб-сайт, обравши дату, час та напрямок подорожі. Також ви можете звернутися до нашого сервісного центру за вказаними контактами на нашому сайті для отримання додаткової інформації.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading2">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                    Як оплатити квиток?
+                  </button>
+                </h2>
+                <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="heading2" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Оплатити квиток можна через сайт, використовуючи банківську карту. Ми приймаємо оплату кредитними та дебетними картками. Після завершення оплати ви отримаєте електронний квиток на вказану електронну пошту.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading3">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                    Що робити, якщо я спізнився на автобус?
+                  </button>
+                </h2>
+                <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="heading3" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Якщо ви не прибули на місце відправлення вчасно, квиток анулюється без права повернення коштів. Будь ласка, плануйте свій час так, щоб прибути на посадку не пізніше ніж за 15 хвилин до відправлення.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading4">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
+                    Як можна отримати інформацію про скасування або зміну рейсу?
+                  </button>
+                </h2>
+                <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="heading4" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">Ми зв’яжемося з вами через зазначений номер телефону або електронну пошту, щоб повідомити про будь-які зміни або скасування рейсу. Переконайтеся, що ви надали правильні контактні дані під час бронювання.</div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="heading5">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
+                    Чи можу я повернути квиток?
+                  </button>
+                </h2>
+                <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="heading5" data-bs-parent="#faqAccordion">
+                  <div class="accordion-body">
+                    Так, пасажир має право скасувати поїздку та оформити повернення коштів за придбаний квиток відповідно до наступних умов:
+                    <ul>
+                      <li>При скасуванні поїздки більш ніж за 48 годин до часу відправлення автобуса повертається 100% вартості квитка.</li>
+                      <li>При скасуванні поїздки від 48 до 36 годин до часу відправлення автобуса повертається 50% вартості квитка.</li>
+                      <li>При скасуванні поїздки менш ніж за 36 годин до часу відправлення автобуса кошти за квиток не повертаються.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </div>
+
+        
+      </div>
+
+      <section class="services" style="margin-top:32px;background:transparent;padding:18px 0;color:#fff">
+        <h3 style="text-align:center;color:var(--accent-red);font-weight:900;margin-bottom:16px">ДОДАТКОВІ ПОСЛУГИ</h3>
+
+        <div class="container" style="max-width:980px">
+          <div style="color:#ddd;text-align:center;max-width:880px;margin:0 auto 18px;line-height:1.6">
+            <p><strong>Компанія DiellerBus пропонує додаткові послуги з організації перевезень та оренди автобусів у м. Луцьк та за його межами.</strong> Ми надаємо сучасні комфортабельні автобуси разом із професійними водіями, які забезпечать безпеку та комфорт під час поїздок.</p>
+            <p style="margin-top:10px"><strong>Послуга оренди автобуса підходить для:</strong></p>
+            <ul style="list-style:disc;margin-left:22px;text-align:left;max-width:720px;margin-left:auto;margin-right:auto">
+              <li>Туристичні екскурсії</li>
+              <li>Корпоративні поїздки</li>
+              <li>Мандри на фестивалі</li>
+              <li>Дитячі подорожі</li>
+              <li>Трансфери з аеропорту</li>
+            </ul>
+
+            <p style="margin-top:12px;color:var(--muted)">Детальніше в <a href="{% url 'main:nashbusindex' %}">каталозі автобусів</a> або зверніться в <a href="{% url 'main:contacts' %}">контакти</a>.</p>
+          </div>
+
+          <div class="services-grid d-flex flex-wrap justify-content-center gap-3" style="margin-top:18px">
+            <!-- Tiles: replace inline background-image with {% static 'img/your-photo.jpg' %} when adding photos -->
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Туристичні екскурсії</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Корпоративні поїздки</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Мандри на фестивалі</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Дитячі подорожі</div>
+            </div>
+            <div class="service-card" style="background:#0b0b0b;border-radius:8px;min-width:160px;min-height:140px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800">
+              <div class="service-label">Трансфери з аеропорту</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ГАРЯЧІ ПОЇЗДКИ (banner with ticket cards) -->
+    <section class="routes hot-banner" style="background-image:url({% static 'img/mercedes.jpg' %});" data-aos="fade-up">
+      <div class="hot-overlay" aria-hidden="true"></div>
+      <div class="container">
+        <h2 class="routes-title">Гарячі поїздки!</h2>
+        <p class="routes-sub">Популярні напрямки — перегортайте вліво/вправо, щоб побачити деталі.</p>
+
+        <div class="hot-scroll" style="margin-top:18px;">
+          {% if hot_trips %}
+            <div class="hot-row">
+              {% for trip in hot_trips %}
+                <a class="hot-card" href="{% url 'main:kvitokindex' %}?from={{ trip.start_city.name }}&to={{ trip.end_city.name }}{% if trip.date %}&date={{ trip.date|date:'Y-m-d' }}{% endif %}">
+                  <div class="hot-body">
+                    <div class="hot-top">
+                      <div>
+                        <div class="hot-label">{{ trip.start_city }} →</div>
+                        <div class="hot-destination">{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</div>
+                      </div>
+                      {% if trip.sold and trip.sold > 3 %}
+                        <span class="hot-badge">ТОП</span>
+                      {% endif %}
+                    </div>
+
+                    <div class="hot-price">{{ trip.base_price|floatformat:0 }} {{ trip.currency }}</div>
+                    <div class="hot-sub">{% if trip.date %}{{ trip.date|date:'d.m.Y' }}{% endif %}</div>
+                  </div>
+                </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div style="color:var(--muted)">Поки немає гарячих поїздок.</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="cta container" data-aos="fade-up">
+      <div class="cta-block">
+        <h2>Готові вирушити в подорож?</h2>
+        <p>Забронюйте місце зараз — швидко та зручно.</p>
+        <a href="{% url 'main:kvitokindex' %}" class="btn btn-cta-large">Забронювати квиток</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <h5>Про нас</h5>
+          <p class="muted-small">DiellerBus — платформа для пошуку, бронювання та купівлі автобусних квитків. Ми об'єднуємо пропозиції перевізників у зручному інтерфейсі.</p>
+        </div>
+        <div class="col-md-4 mb-3">
+          <h5>Швидкі посилання</h5>
+          <ul class="footer-links list-unstyled">
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:home' %}">Головна</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:kvitokindex' %}">Квитки</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:agreements' %}">Публічна оферта</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:privacy' %}">Політика конфіденційності</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'main:contacts' %}">Контакти</a></li>
+          </ul>
+        </div>
+        <div class="col-md-4 mb-3 text-md-end">
+          <h5>Контакти</h5>
+          <div class="muted-small">📞 <a href="tel:+380000000000">+38 (095) 705-82-06</a></div>
+          <div class="muted-small mt-2">📧 <a href="mailto:dieller7073@gmail.com">dieller7073@gmail.com</a></div>
+          <div class="contact-more mt-3 text-md-end">
+            <strong>Додаткові відомості</strong>
+            <p class="muted-small mb-0">Адреса: с. Забороль, вул. Лісова 52</p>
+            <p class="muted-small mb-0">Реквізити та договори — за запитом через email.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom mt-3 d-flex justify-content-between align-items-center">
+        <div>© Dieller Bus — Всі права захищені</div>
+        <div class="muted-small">Made with ❤️</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      AOS.init({ once: true, duration: 800 });
+    });
+  </script>
+</body>
+</html>

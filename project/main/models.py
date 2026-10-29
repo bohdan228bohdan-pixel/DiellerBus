@@ -405,6 +405,14 @@ class TripDayAvailability(models.Model):
 class Bus(models.Model):
     title = models.CharField("Назва/марка", max_length=200)
     slug = models.SlugField("Слаг", max_length=220, unique=True, blank=True)
+    carrier = models.ForeignKey(
+        "Carrier",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="buses",
+        verbose_name="Перевізник",
+    )
     def _bus_image_upload_to(instance, filename):
         # generate a safe, mostly-unique filename for uploaded bus images
         base, dot, ext = filename.rpartition('.')
@@ -416,7 +424,7 @@ class Bus(models.Model):
     image = models.ImageField("Фото автобуса", upload_to=_bus_image_upload_to, blank=True, null=True)
     seats = models.PositiveIntegerField("Кількість місць", default=50)
     contact_name = models.CharField("Контактна особа", max_length=120, blank=True)
-    contact_phone = models.CharField("Телефон для замовлення", max_length=32, help_text="Формат: +380XXXXXXXXX або локальний")
+    contact_phone = models.CharField("Телефон для замовлення", max_length=32, blank=True, default="", help_text="Формат: +380XXXXXXXXX або локальний; якщо порожньо, використовується телефон перевізника")
     price_per_hour = models.DecimalField("Ціна за годину (UAH)", max_digits=9, decimal_places=2, null=True, blank=True)
     price_note = models.CharField("Примітка про ціну", max_length=255, default="Ціна за км уточнюється у водія")
     description = models.TextField("Опис", blank=True)
@@ -437,7 +445,7 @@ class Bus(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.title)[:180]
+            base = slugify(self.title)[:180] or "bus"
             slug = base
             n = 1
             while Bus.objects.filter(slug=slug).exists():
@@ -445,6 +453,26 @@ class Bus(models.Model):
                 n += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+
+class BusPhoto(models.Model):
+    bus = models.ForeignKey(
+        Bus,
+        on_delete=models.CASCADE,
+        related_name="photos",
+        verbose_name="Автобус",
+    )
+    image = models.ImageField("Фото", upload_to="buses/gallery/")
+    caption = models.CharField("Підпис", max_length=160, blank=True)
+    order = models.PositiveIntegerField("Порядок", default=0)
+
+    class Meta:
+        ordering = ("order", "id")
+        verbose_name = "Фото автобуса"
+        verbose_name_plural = "Фотографії автобусів"
+
+    def __str__(self):
+        return self.caption or f"Фото: {self.bus.title}"
 
 
 class BusBooking(models.Model):
@@ -637,6 +665,9 @@ class Carrier(models.Model):
     business_number = models.CharField(max_length=64, blank=True, verbose_name='Номер / ІПН')
     phone = models.CharField(max_length=32, blank=True)
     avatar = models.ImageField(upload_to='carriers/', blank=True, null=True)
+    catalog_description = models.TextField('Опис для каталогу', blank=True)
+    is_catalog_visible = models.BooleanField('Показувати в каталозі', default=True)
+    bus_booking_enabled = models.BooleanField('Дозволити замовлення автобусів', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -754,4 +785,3 @@ class StaticPage(models.Model):
                     profile.save(update_fields=['avatar'])
         except Exception:
             pass
-

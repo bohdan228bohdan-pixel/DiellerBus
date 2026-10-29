@@ -1,13 +1,14 @@
 import hashlib
 import hmac
 from datetime import date, timedelta
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 from django.test import TestCase, RequestFactory, Client, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.core import mail
-from .models import City, Route, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile, Carrier
+from .models import City, Route, RouteStop, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile, Carrier, Bus, BusPhoto, BusBooking
 from .views import api_trips, _generate_ticket_pdf_bytes, _render_wayforpay_form, _send_ticket_email
 from .wayforpay import WayForPayService, create_wayforpay_invoice, _build_signature
 
@@ -801,3 +802,355 @@ class TripAvailabilityTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
 		self.assertFalse(Payment.objects.filter(pk=payment.id).exists())
+
+
+class HomePagePopularRoutesTests(TestCase):
+	def test_homepage_bus_promo_uses_published_bus_photo_from_database(self):
+		bus = Bus.objects.create(
+			title='Автобус для промоблоку',
+			image='buses/home-promo.jpg',
+			is_published=True,
+		)
+
+		response = self.client.get(reverse('main:home'))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.context['home_bus'], bus)
+		self.assertContains(response, 'Замовте автобус для своєї поїздки')
+		self.assertContains(response, '/media/buses/home-promo.jpg')
+		self.assertContains(response, reverse('main:nashbusindex'))
+
+	def test_bus_booking_form_does_not_show_removed_intro_copy(self):
+		bus = Bus.objects.create(title='Автобус для замовлення')
+
+		response = self.client.get(reverse('main:bus_detail', args=[bus.slug]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertNotContains(
+			response,
+			'Залиште контакти та деталі поїздки — ми допоможемо узгодити замовлення.',
+		)
+		self.assertContains(response, 'Надіслати запит')
+
+	def test_shared_social_bar_and_dark_footer_render_on_site_pages(self):
+		for url in (reverse('main:home'), reverse('main:contacts')):
+			with self.subTest(url=url):
+				response = self.client.get(url)
+
+				self.assertEqual(response.status_code, 200)
+				self.assertContains(response, 'social-topbar')
+				self.assertContains(response, 'TikTok Dieller Bus')
+				self.assertContains(response, 'Instagram Dieller Bus')
+				self.assertContains(response, 'Facebook Dieller Bus')
+				self.assertContains(response, 'css/site_chrome.css')
+				self.assertContains(response, 'site-footer')
+
+	def test_homepage_lists_routes_from_active_trips(self):
+		start = City.objects.create(name='Луцьк', country='UA')
+		end = City.objects.create(name='Варшава', country='PL')
+		route = Route.objects.create(name='Луцьк — Варшава', active=True)
+		travel_date = date.today() + timedelta(days=5)
+		Trip.objects.create(
+			route=route,
+			title='Рейс на Варшаву',
+			date=travel_date,
+			start_city=start,
+			end_city=end,
+			base_price='1200.00',
+			currency='UAH',
+			active=True,
+		)
+
+		response = self.client.get(reverse('main:home'))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertTemplateUsed(response, 'home.html')
+		self.assertContains(response, 'Квитки на популярні напрямки')
+		self.assertContains(response, 'Луцьк')
+		self.assertContains(response, 'Варшава')
+		self.assertContains(response, '1200 UAH')
+		self.assertContains(response, f'date={travel_date.isoformat()}')
+		self.assertContains(response, 'name="from"')
+		self.assertContains(response, 'name="to"')
+		self.assertContains(response, 'name="date"')
+		self.assertContains(response, 'name="pax"')
+
+	def test_homepage_hides_inactive_routes(self):
+		start = City.objects.create(name='Львів', country='UA')
+		end = City.objects.create(name='Прага', country='CZ')
+		route = Route.objects.create(name='Львів — Прага', active=False)
+		Trip.objects.create(
+			route=route,
+			start_city=start,
+			end_city=end,
+			date=date.today() + timedelta(days=5),
+			active=True,
+		)
+
+		response = self.client.get(reverse('main:home'))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertNotContains(response, 'Львів')
+		self.assertNotContains(response, 'Прага')
+
+	def test_homepage_resolves_endpoints_from_trip_stops(self):
+		start = City.objects.create(name='Рівне', country='UA')
+		end = City.objects.create(name='Краків', country='PL')
+		route = Route.objects.create(name='Рівне — Краків', active=True)
+		trip = Trip.objects.create(
+			route=route,
+			date=date.today() - timedelta(days=30),
+			active=True,
+		)
+		TripStop.objects.create(trip=trip, city=start, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=trip, city=end, order=2, arrival_time='15:00')
+
+		response = self.client.get(reverse('main:home'))
+
+		self.assertContains(response, 'Рівне')
+		self.assertContains(response, 'Краків')
+		self.assertNotContains(response, f'date={(date.today() - timedelta(days=30)).isoformat()}')
+
+
+class CarrierCatalogTests(TestCase):
+	def test_new_carriers_are_visible_in_catalog_by_default(self):
+		carrier = Carrier.objects.create(company_name='Новий перевізник')
+
+		self.assertTrue(carrier.is_catalog_visible)
+
+	def setUp(self):
+		self.carrier_user = User.objects.create_user(
+			username='catalog-carrier',
+			email='catalog@example.com',
+			password='pass1234',
+		)
+		self.carrier = Carrier.objects.create(
+			user=self.carrier_user,
+			company_name='Перевізник для каталогу',
+			phone='+380501234567',
+			catalog_description='Комфортні поїздки Україною.',
+			is_catalog_visible=True,
+		)
+		self.bus = Bus.objects.create(
+			title='Туристичний автобус',
+			carrier=self.carrier,
+			contact_phone='',
+		)
+
+	def test_catalog_lists_visible_carriers_and_their_buses(self):
+		response = self.client.get(reverse('main:nashbusindex'))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Перевізник для каталогу')
+		self.assertContains(response, 'Туристичний автобус')
+		self.assertContains(
+			response,
+			reverse('main:carrier_detail', args=[self.carrier.pk]),
+		)
+
+	def test_visible_carrier_without_published_buses_still_appears(self):
+		self.bus.delete()
+
+		response = self.client.get(reverse('main:nashbusindex'))
+		profile_response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+
+		self.assertContains(response, self.carrier.company_name)
+		self.assertContains(response, '0 автобус(и) в каталозі')
+		self.assertEqual(profile_response.status_code, 200)
+		self.assertContains(
+			profile_response,
+			'Автобуси цього перевізника ще не додані.',
+		)
+
+	def test_carrier_profile_lists_its_bus_and_active_routes(self):
+		start = City.objects.create(name='Луцьк', country='UA')
+		end = City.objects.create(name='Київ', country='UA')
+		route = Route.objects.create(name='Луцьк — Київ', active=True)
+		Trip.objects.create(
+			route=route,
+			carrier_user=self.carrier_user,
+			date=date.today() - timedelta(days=120),
+			start_city=start,
+			end_city=end,
+			active=True,
+		)
+
+		response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+		bus_response = self.client.get(
+			reverse('main:bus_detail', args=[self.bus.slug])
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Туристичний автобус')
+		self.assertContains(response, 'Луцьк — Київ')
+		self.assertContains(response, reverse('main:kvitokindex'))
+		route_url = response.context['routes'][0]['url']
+		self.assertEqual(urlparse(route_url).path, reverse('main:kvitokindex'))
+		self.assertEqual(
+			parse_qs(urlparse(route_url).query),
+			{'from': ['Луцьк'], 'to': ['Київ']},
+		)
+		self.assertContains(response, 'Детальніше та замовити')
+		self.assertContains(bus_response, reverse('main:kvitokindex'))
+
+	def test_carrier_route_links_use_route_stops_instead_of_trip_detours(self):
+		trip_start = City.objects.create(name='Проміжне місто', country='UA')
+		trip_end = City.objects.create(name='Кінцева з рейсу', country='UA')
+		route_start = City.objects.create(name='Маршрут Луцьк', country='UA')
+		route_end = City.objects.create(name='Маршрут Львів', country='UA')
+		route = Route.objects.create(name='Луцьк — Львів', active=True)
+		RouteStop.objects.create(route=route, city=route_start, order=1)
+		RouteStop.objects.create(route=route, city=route_end, order=2)
+		Trip.objects.create(
+			route=route,
+			carrier_user=self.carrier_user,
+			start_city=trip_start,
+			end_city=trip_end,
+			active=True,
+		)
+
+		response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+
+		self.assertEqual(response.status_code, 200)
+		route_link = response.context['routes'][0]
+		self.assertEqual(route_link['from_city'], 'Маршрут Луцьк')
+		self.assertEqual(route_link['to_city'], 'Маршрут Львів')
+		self.assertEqual(
+			parse_qs(urlparse(route_link['url']).query),
+			{'from': ['Маршрут Луцьк'], 'to': ['Маршрут Львів']},
+		)
+
+	def test_carrier_profile_keeps_each_trip_for_repeated_routes(self):
+		start = City.objects.create(name='Луцьк', country='UA')
+		end = City.objects.create(name='Львів', country='UA')
+		route = Route.objects.create(name='Луцьк — Львів', active=True)
+		Trip.objects.create(
+			route=route,
+			carrier_user=self.carrier_user,
+			title='Луцьк — Львів 05:40',
+			start_city=start,
+			end_city=end,
+			active=True,
+		)
+		Trip.objects.create(
+			route=route,
+			carrier_user=self.carrier_user,
+			title='Луцьк — Львів 06:50',
+			start_city=start,
+			end_city=end,
+			active=True,
+		)
+
+		response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+
+		self.assertEqual(len(response.context['routes']), 2)
+		self.assertContains(response, 'Луцьк — Львів 05:40')
+		self.assertContains(response, 'Луцьк — Львів 06:50')
+
+	def test_bus_gallery_photos_render_on_bus_and_carrier_pages(self):
+		BusPhoto.objects.create(
+			bus=self.bus,
+			image='buses/gallery/front.jpg',
+			caption='Вигляд спереду',
+		)
+		BusPhoto.objects.create(
+			bus=self.bus,
+			image='buses/gallery/interior.jpg',
+			caption='Салон автобуса',
+			order=1,
+		)
+
+		bus_response = self.client.get(
+			reverse('main:bus_detail', args=[self.bus.slug])
+		)
+		carrier_response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+
+		self.assertContains(bus_response, 'Вигляд спереду')
+		self.assertContains(bus_response, 'Салон автобуса')
+		self.assertContains(bus_response, '/media/buses/gallery/front.jpg')
+		self.assertContains(carrier_response, '/media/buses/gallery/interior.jpg')
+
+	def test_legacy_bus_without_carrier_renders_detail_page(self):
+		legacy_bus = Bus.objects.create(title='Автобус без перевізника')
+
+		response = self.client.get(
+			reverse('main:bus_detail', args=[legacy_bus.slug])
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Автобус без перевізника')
+
+	def test_hidden_carrier_is_not_listed_or_accessible(self):
+		self.carrier.is_catalog_visible = False
+		self.carrier.save(update_fields=['is_catalog_visible'])
+
+		catalog_response = self.client.get(reverse('main:nashbusindex'))
+		detail_response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+		bus_response = self.client.get(
+			reverse('main:bus_detail', args=[self.bus.slug])
+		)
+		booking_response = self.client.post(
+			reverse('main:bus_booking', args=[self.bus.slug]),
+			{
+				'customer_name': 'Тест',
+				'customer_phone': '+380501112233',
+				'hours': '1',
+			},
+		)
+
+		self.assertNotContains(catalog_response, self.carrier.company_name)
+		self.assertEqual(detail_response.status_code, 404)
+		self.assertEqual(bus_response.status_code, 404)
+		self.assertEqual(booking_response.status_code, 404)
+		self.assertEqual(BusBooking.objects.count(), 0)
+
+	def test_disabling_carrier_orders_hides_form_and_rejects_direct_booking(self):
+		self.carrier.bus_booking_enabled = False
+		self.carrier.save(update_fields=['bus_booking_enabled'])
+
+		detail_response = self.client.get(
+			reverse('main:bus_detail', args=[self.bus.slug])
+		)
+		carrier_response = self.client.get(
+			reverse('main:carrier_detail', args=[self.carrier.pk])
+		)
+		booking_response = self.client.post(
+			reverse('main:bus_booking', args=[self.bus.slug]),
+			{'customer_name': 'Тест', 'customer_phone': '+380501112233'},
+		)
+
+		self.assertEqual(detail_response.status_code, 200)
+		self.assertNotContains(detail_response, '<form', html=False)
+		self.assertContains(detail_response, 'тимчасово недоступні')
+		self.assertContains(carrier_response, 'Замовлення тимчасово недоступні')
+		self.assertRedirects(
+			booking_response,
+			reverse('main:bus_detail', args=[self.bus.slug]),
+		)
+		self.assertEqual(BusBooking.objects.count(), 0)
+
+	def test_enabled_carrier_booking_creates_booking(self):
+		response = self.client.post(
+			reverse('main:bus_booking', args=[self.bus.slug]),
+			{
+				'customer_name': 'Тест',
+				'customer_phone': '+380501112233',
+				'hours': '1',
+			},
+		)
+
+		self.assertRedirects(response, reverse('main:bus_detail', args=[self.bus.slug]))
+		self.assertEqual(BusBooking.objects.count(), 1)
+		self.assertEqual(BusBooking.objects.get().bus, self.bus)

@@ -1,6 +1,7 @@
 import random
 from urllib.parse import urlencode, urljoin, urlparse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.views.decorators.http import require_POST
@@ -17,7 +18,18 @@ import re
 import unicodedata
 import difflib
 from django.conf import settings
-from .models import Ticket, Payment, Carrier, Bus, SupportTicket, SupportMessage, SupportPresetQuestion
+from .models import (
+    Ticket,
+    Payment,
+    Carrier,
+    Bus,
+    Trip,
+    TripStop,
+    RouteStop,
+    SupportTicket,
+    SupportMessage,
+    SupportPresetQuestion,
+)
 from .wayforpay import get_wayforpay_service, verify_wayforpay_signature, build_wayforpay_callback_response
 from django.views.generic import ListView, DetailView, FormView
 from django.urls import reverse_lazy, reverse
@@ -561,17 +573,50 @@ from .models import StaticPage, SiteConfig
 # ========================
 
 def home(request):
-    # show "hot trips" on homepage: trips ordered by number of sold tickets
+    today = datetime.date.today()
+    # Build featured directions from active trips so database changes appear automatically.
     try:
-        today = datetime.date.today()
-        hot_trips = (
-            Trip.objects.filter(active=True)
-            .annotate(sold=Count('tickets'))
+        trips = (
+            Trip.objects.filter(
+                active=True,
+                route__active=True,
+            )
+            .annotate(
+                sold=Count('tickets'),
+                has_stops=Exists(TripStop.objects.filter(trip_id=OuterRef('pk'))),
+            )
+            .filter(
+                Q(start_city__isnull=False, end_city__isnull=False)
+                | Q(has_stops=True)
+            )
             .select_related('start_city', 'end_city', 'route')
-            .order_by('-sold', 'date')[:8]
+            .prefetch_related('trip_stops__city')
+            .order_by('-sold', 'base_price', 'date')[:40]
         )
+        popular_routes = []
+        seen_routes = set()
+        city_names = set()
+        for trip in trips:
+            stops = list(trip.trip_stops.all())
+            start_city = trip.start_city or (stops[0].city if stops else None)
+            end_city = trip.end_city or (stops[-1].city if stops else None)
+            if not start_city or not end_city:
+                continue
+            trip.home_start_city = start_city
+            trip.home_end_city = end_city
+            city_names.update((start_city.name, end_city.name))
+            route_key = (start_city.pk, end_city.pk)
+            if route_key in seen_routes:
+                continue
+            seen_routes.add(route_key)
+            popular_routes.append(trip)
+        popular_routes = popular_routes[:6]
+        home_cities = sorted(city_names)
     except Exception:
-        hot_trips = []
+        logging.exception('Failed to load popular routes for the homepage')
+        popular_routes = []
+        home_cities = []
+
     try:
         presets = SupportPresetQuestion.objects.all().order_by('order')
     except Exception:
@@ -583,7 +628,17 @@ def home(request):
     except Exception:
         support_form = None
 
-    return render(request, 'index.html', {'hot_trips': hot_trips, 'presets': presets, 'support_form': support_form})
+    home_bus = Bus.objects.filter(pk=1, is_published=True).first()
+
+    return render(request, 'home.html', {
+        'popular_routes': popular_routes,
+        'home_cities': home_cities,
+        'today_iso': today.isoformat(),
+        'today_date': today,
+        'presets': presets,
+        'support_form': support_form,
+        'home_bus': home_bus,
+    })
 
 
 def about(request):
@@ -602,12 +657,27 @@ def mercedes2(request):
     return render(request, 'mercedes2.html')
 
 
+def _bus_catalog_context():
+    carriers = Carrier.objects.filter(
+        is_catalog_visible=True,
+    ).order_by('company_name').prefetch_related(
+        Prefetch(
+            'buses',
+            queryset=Bus.objects.filter(is_published=True).order_by('title'),
+        )
+    )
+    legacy_buses = Bus.objects.filter(
+        is_published=True,
+        carrier__isnull=True,
+    ).order_by('title')
+    return {
+        'carriers': carriers,
+        'legacy_buses': legacy_buses,
+    }
+
+
 def nashbusindex(request):
-    try:
-        buses = Bus.objects.all().order_by('title')
-    except Exception:
-        buses = []
-    return render(request, 'nashbusindex.html', {'buses': buses})
+    return render(request, 'nashbusindex.html', _bus_catalog_context())
 
 
 def neolplanwhite(request):
@@ -5563,12 +5633,69 @@ def ticket_refund(request, ticket_id):
         return redirect('main:profile')
     return JsonResponse({'ok': True, 'refund_amount': float(refund_amount), 'refund_percent': refund_percent})
 
+def _carrier_route_links(carrier):
+    if not carrier.user_id:
+        return []
+
+    trips = Trip.objects.filter(
+        carrier_user=carrier.user,
+        active=True,
+        route__active=True,
+    ).select_related(
+        'route',
+        'start_city',
+        'end_city',
+    ).prefetch_related(
+        Prefetch(
+            'trip_stops',
+            queryset=TripStop.objects.select_related('city').order_by('order'),
+        ),
+        Prefetch(
+            'route__stops',
+            queryset=RouteStop.objects.select_related('city').order_by('order'),
+        ),
+    ).order_by('route__name', 'date', 'pk')
+
+    route_links = []
+    for trip in trips:
+        route_stops = list(trip.route.stops.all())
+        if len(route_stops) >= 2:
+            start_city = route_stops[0].city
+            end_city = route_stops[-1].city
+        elif trip.start_city_id and trip.end_city_id:
+            start_city = trip.start_city
+            end_city = trip.end_city
+        else:
+            trip_stops = list(trip.trip_stops.all())
+            if len(trip_stops) < 2:
+                continue
+            start_city = trip_stops[0].city
+            end_city = trip_stops[-1].city
+
+        route_links.append({
+            'name': trip.route.name,
+            'trip_label': trip.title.strip() or 'Переглянути доступні рейси',
+            'from_city': start_city.name,
+            'to_city': end_city.name,
+            'url': f"{reverse('main:kvitokindex')}?{urlencode({
+                'from': start_city.name,
+                'to': end_city.name,
+            })}",
+        })
+    return route_links
+
+
 class BusListView(ListView):
     model = Bus
     template_name = "nashbusindex.html"
 
     def get_queryset(self):
-        return Bus.objects.filter(is_published=True)
+        return Bus.objects.filter(is_published=True, carrier__isnull=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_bus_catalog_context())
+        return context
 
 
 class BusDetailView(DetailView):
@@ -5576,28 +5703,97 @@ class BusDetailView(DetailView):
     template_name = "bus_detail.html"
     context_object_name = "bus"
 
+    def get_queryset(self):
+        return Bus.objects.filter(is_published=True).filter(
+            Q(carrier__isnull=True) | Q(carrier__is_catalog_visible=True)
+        ).select_related('carrier').prefetch_related('photos')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = BusBookingForm()
+        context["booking_enabled"] = (
+            not self.object.carrier_id or self.object.carrier.bus_booking_enabled
+        )
+        context["bus_phone"] = (
+            self.object.contact_phone
+            or (self.object.carrier.phone if self.object.carrier_id else '')
+        )
+        context["carrier_name"] = (
+            self.object.carrier.company_name if self.object.carrier_id else ''
+        )
+        context["routes"] = (
+            _carrier_route_links(self.object.carrier)
+            if self.object.carrier_id else []
+        )
         return context
 
 
+def carrier_detail(request, carrier_id):
+    carrier = get_object_or_404(
+        Carrier.objects.filter(is_catalog_visible=True).select_related('user'),
+        pk=carrier_id,
+    )
+    buses = Bus.objects.filter(
+        carrier=carrier,
+        is_published=True,
+    ).order_by('title')
+    buses = buses.prefetch_related('photos')
+    return render(request, 'carrier_detail.html', {
+        'carrier': carrier,
+        'buses': buses,
+        'routes': _carrier_route_links(carrier),
+    })
+
+
+@require_POST
 def bus_booking(request, slug):
-    bus = get_object_or_404(Bus, slug=slug)
+    bus = get_object_or_404(
+        Bus.objects.select_related('carrier').prefetch_related('photos').filter(
+            Q(carrier__isnull=True) | Q(carrier__is_catalog_visible=True)
+        ),
+        slug=slug,
+        is_published=True,
+    )
+    if bus.carrier_id and not bus.carrier.bus_booking_enabled:
+        messages.error(request, 'Замовлення автобусів цього перевізника тимчасово недоступні.')
+        return redirect("main:bus_detail", slug=slug)
 
-    if request.method == "POST":
-        form = BusBookingForm(request.POST)
-        if form.is_valid():
-            booking = form.save(commit=False)
-            booking.bus = bus
-            booking.save()
-            return redirect("main:bus_detail", slug=slug)
-
+    form = BusBookingForm(request.POST)
+    if form.is_valid():
+        booking = form.save(commit=False)
+        booking.bus = bus
+        booking.save()
+        messages.success(request, 'Запит на замовлення надіслано.')
+    else:
+        messages.error(
+            request,
+            'Не вдалося надіслати запит: ' + '; '.join(
+                error for errors in form.errors.values() for error in errors
+            ),
+        )
     return redirect("main:bus_detail", slug=slug)
 
+
 def bus_detail(request, slug):
-    bus = get_object_or_404(Bus, slug=slug)
-    return render(request, 'bus_detail.html', {'bus': bus})
+    bus = get_object_or_404(
+        Bus.objects.select_related('carrier').prefetch_related('photos').filter(
+            Q(carrier__isnull=True) | Q(carrier__is_catalog_visible=True)
+        ),
+        slug=slug,
+        is_published=True,
+    )
+    booking_enabled = not bus.carrier_id or bus.carrier.bus_booking_enabled
+    return render(request, 'bus_detail.html', {
+        'bus': bus,
+        'form': BusBookingForm(),
+        'booking_enabled': booking_enabled,
+        'bus_phone': bus.contact_phone or (bus.carrier.phone if bus.carrier_id else ''),
+        'carrier_name': bus.carrier.company_name if bus.carrier_id else '',
+        'routes': (
+            _carrier_route_links(bus.carrier)
+            if bus.carrier_id else []
+        ),
+    })
 
 
 def contacts(request):

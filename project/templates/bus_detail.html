@@ -1,293 +1,145 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
+{% block title %}{{ bus.title }} — Dieller Bus{% endblock %}
+{% block body_class %}bus-page-shell{% endblock %}
 
+{% block head_extra %}
 <style>
-/* ===== GLOBAL ===== */
-.container {
-    max-width: 1100px;
-    margin: auto;
-    padding: 40px;
-}
-
-.bus-wrapper {
-    display: flex;
-    gap: 40px;
-    align-items: flex-start;
-}
-
-/* ===== IMAGE ===== */
-.bus-image img {
-    width: 500px;
-    border-radius: 12px;
-}
-
-/* ===== INFO ===== */
-.bus-info {
-    background: #111;
-    padding: 30px;
-    border-radius: 15px;
-    position: relative;
-    z-index: 5;
-}
-
-.bus-info h1 {
-    font-size: 32px;
-    margin-bottom: 10px;
-}
-
-/* ===== PRICE ===== */
-.price {
-    color: #ff2a2a;
-    font-size: 26px;
-    font-weight: bold;
-    margin-bottom: 15px;
-}
-
-/* ===== TEXT ===== */
-.info-item {
-    margin-bottom: 10px;
-    font-size: 18px;
-    color: #ccc;
-}
-
-.contact {
-    margin-top: 20px;
-}
-
-/* ===== BUTTON (FIXED) ===== */
-.btn-book {
-    display: inline-block;
-    margin-top: 25px;
-    padding: 15px 35px;
-
-    background: linear-gradient(135deg, #ff2a2a, #cc0000);
-    color: #fff;
-
-    border: none;
-    border-radius: 30px;
-
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-
-    cursor: pointer;
-
-    position: relative;
-    z-index: 999; /* 🔥 ГОЛОВНЕ */
-
-    box-shadow:
-        0 0 15px rgba(255,0,0,0.6),
-        0 0 30px rgba(255,0,0,0.3);
-
-    transition: all 0.3s ease;
-}
-
-/* HOVER */
-.btn-book:hover {
-    background: linear-gradient(135deg, #ff4444, #990000);
-    transform: translateY(-3px);
-
-    box-shadow:
-        0 0 25px rgba(255,0,0,1),
-        0 0 50px rgba(255,0,0,0.6);
-}
-
-/* ACTIVE */
-.btn-book:active {
-    transform: scale(0.95);
-}
-
-/* ===== MODAL ===== */
-.call-modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6); /* 🔥 світліше */
-    
-    backdrop-filter: blur(6px);
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    opacity: 0;
-    pointer-events: none;
-    transition: 0.3s;
-
-    z-index: 9999;
-}
-
-.call-modal.active {
-    opacity: 1;
-    pointer-events: all;
-}
-
-/* BOX */
-.call-box {
-    background: #111;
-    padding: 40px;
-    border-radius: 15px;
-    text-align: center;
-    width: 320px;
-
-    border: 1px solid #222;
-
-    box-shadow:
-        0 0 30px rgba(255,0,0,0.3);
-
-    position: relative;
-}
-
-/* CLOSE */
-.close-modal {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    font-size: 24px;
-    cursor: pointer;
-}
-
-/* PHONE */
-.phone-number {
-    font-size: 22px;
-    margin: 20px 0;
-    color: #ff2a2a;
-}
-
-/* CALL BUTTON */
-.call-btn {
-    display: inline-block;
-    padding: 12px 25px;
-
-    background: #ff2a2a;
-    color: #fff;
-
-    border-radius: 25px;
-
-    transition: 0.3s;
-}
-
-.call-btn:hover {
-    background: #cc0000;
-}
-
-/* ===== MOBILE ===== */
-@media(max-width: 900px){
-    .bus-wrapper {
-        flex-direction: column;
-    }
-
-    .bus-image img {
-        width: 100%;
-    }
-}
+  body.bus-page-shell,body.bus-page-shell .site-main{background:#fff!important;color:#252a33!important}
+  .bus-page{--bus-red:#c62828;--bus-dark:#252a33;--bus-muted:#727b89;max-width:1220px;margin:0 auto;padding:34px 22px 76px;color:var(--bus-dark)}
+  .bus-breadcrumb{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;color:var(--bus-muted);font-size:.92rem}
+  .bus-breadcrumb a{color:var(--bus-red);text-decoration:none;font-weight:700}
+  .bus-layout{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(340px,.96fr);gap:clamp(28px,5vw,58px);align-items:start}
+  .bus-gallery{display:grid;gap:10px}
+  .bus-gallery-main,.bus-gallery-photo{display:block;width:100%;object-fit:cover;background:#f0f1f4}
+  .bus-gallery-main{height:clamp(300px,38vw,460px);border-radius:20px}
+  .bus-gallery-more{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .bus-gallery-photo{height:190px;border-radius:15px}
+  .bus-gallery-caption{margin-top:5px;color:var(--bus-muted);font-size:.82rem}
+  .bus-info{padding:10px 0}
+  .bus-carrier-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;padding:7px 11px;border-radius:999px;background:#fff0f0;color:#a91f1f;font-size:.8rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+  .bus-info h1{margin:0 0 12px;font-size:clamp(1.9rem,3.8vw,3rem);font-weight:900;line-height:1.13;letter-spacing:-.04em}
+  .bus-tagline{margin:0 0 20px;color:var(--bus-muted);font-size:1.03rem;line-height:1.65}
+  .bus-cta-row{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:20px 0 24px}
+  .bus-cta{display:inline-flex;justify-content:center;align-items:center;min-height:50px;padding:13px 22px;border-radius:13px;background:linear-gradient(135deg,#d73535,#ad1e1e);color:#fff;text-decoration:none;font-weight:900;box-shadow:0 10px 24px rgba(175,31,31,.2);transition:transform .18s,box-shadow .18s}
+  .bus-cta:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(175,31,31,.28);color:#fff}
+  .bus-price-note{color:var(--bus-muted);font-size:.88rem}
+  .bus-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0 25px}
+  .bus-fact{display:flex;align-items:center;gap:11px;min-height:65px;padding:12px;background:#fff;border:1px solid #eceef2;border-radius:14px}
+  .bus-fact-icon{display:grid;place-items:center;width:39px;height:39px;flex:0 0 39px;border-radius:12px;background:#fff0f0;color:var(--bus-red);font-size:1.1rem}
+  .bus-fact span{display:block;color:var(--bus-muted);font-size:.76rem}
+  .bus-fact strong{display:block;margin-top:3px;font-size:.92rem;font-weight:800}
+  .bus-section-title{margin:26px 0 12px;font-size:1.16rem;font-weight:900}
+  .bus-description{color:#5f6876;line-height:1.75}
+  .bus-benefits{display:grid;gap:11px;margin:0;padding:0;list-style:none;color:#535d6b}
+  .bus-benefits li{display:flex;gap:10px;align-items:start}
+  .bus-benefits li:before{content:"✓";display:grid;place-items:center;width:22px;height:22px;flex:0 0 22px;border-radius:50%;background:#eaf7ed;color:#278443;font-weight:900}
+  .bus-phone{margin-top:22px;padding:15px 17px;border-radius:14px;background:#f7f8fa;color:#576171}
+  .bus-phone a{color:#a91f1f;font-weight:900;text-decoration:none}
+  .bus-routes{display:flex;flex-wrap:wrap;gap:9px}
+  .bus-route-link{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #f0d7d7;border-radius:999px;background:#fff;color:#8f2020;text-decoration:none;font-size:.88rem;font-weight:800;transition:background .18s,border-color .18s}
+  .bus-route-link:hover{background:#fff0f0;border-color:#dfa2a2;color:#8f2020}
+  .bus-booking{scroll-margin-top:22px;max-width:800px;margin:46px auto 0;padding:clamp(20px,4vw,32px);border:1px solid #e8eaf0;border-radius:20px;background:#fff;box-shadow:0 14px 38px rgba(24,33,48,.07)}
+  .bus-booking h2{margin:0 0 7px;font-size:1.55rem;font-weight:900}
+  .bus-booking-intro{margin:0 0 20px;color:var(--bus-muted)}
+  .bus-booking form p{margin-bottom:14px}
+  .bus-booking label{display:block;margin-bottom:6px;font-weight:800}
+  .bus-booking input,.bus-booking textarea{width:100%;padding:11px 12px;border:1px solid #dfe2e8;border-radius:11px}
+  .bus-booking input[type=checkbox]{width:auto}
+  .bus-submit{border:0;border-radius:12px;padding:13px 19px;background:var(--bus-red);color:#fff;font-weight:900}
+  .bus-submit:hover{background:#a91f1f}
+  .booking-unavailable{margin-top:28px;padding:16px;border:1px solid #f1cdcd;border-radius:14px;background:#fff4f4;color:#922020;font-weight:800}
+  @media(max-width:850px){.bus-layout{grid-template-columns:1fr;gap:24px}.bus-gallery-main{height:clamp(250px,60vw,430px)}.bus-info{padding:0}}
+  @media(max-width:560px){.bus-page{padding:25px 15px 52px}.bus-gallery-main{height:260px;border-radius:15px}.bus-gallery-photo{height:125px;border-radius:11px}.bus-facts{grid-template-columns:1fr 1fr;gap:8px}.bus-fact{padding:10px 8px;gap:8px}.bus-fact-icon{width:34px;height:34px;flex-basis:34px}.bus-cta-row{align-items:stretch;flex-direction:column}.bus-cta{width:100%}}
 </style>
+{% endblock %}
 
+{% block content %}
+<main class="bus-page">
+  <nav class="bus-breadcrumb" aria-label="Навігаційний ланцюжок">
+    <a href="{% url 'main:nashbusindex' %}">Каталог</a>
+    {% if bus.carrier %}<span aria-hidden="true">/</span><a href="{% url 'main:carrier_detail' bus.carrier.id %}">{{ bus.carrier.company_name }}</a>{% endif %}
+    <span aria-hidden="true">/</span><span>{{ bus.title }}</span>
+  </nav>
 
-<div class="container">
-
-    <div class="bus-wrapper">
-
-        <!-- IMAGE -->
-        <div class="bus-image">
-            {% if bus.image %}
-                <img src="{{ bus.image.url }}" alt="{{ bus.title }}" onerror="this.onerror=null;this.src='{% static 'img/neoplanwhite.jpg' %}';">
-            {% else %}
-                <img src="{% static 'img/neoplanwhite.jpg' %}" alt="Нема фото">
-            {% endif %}
+  <div class="bus-layout">
+    <section class="bus-gallery" aria-label="Фотографії автобуса">
+      {% if bus.image %}
+        <img class="bus-gallery-main" src="{{ bus.image.url }}" alt="{{ bus.title }} — головне фото">
+      {% elif bus.photos.all %}
+        {% with first_photo=bus.photos.all|first %}
+          {% if first_photo %}<img class="bus-gallery-main" src="{{ first_photo.image.url }}" alt="{{ first_photo.caption|default:bus.title }}">{% else %}<img class="bus-gallery-main" src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">{% endif %}
+        {% endwith %}
+      {% else %}
+        <img class="bus-gallery-main" src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">
+      {% endif %}
+      {% if bus.photos.all %}
+        <div class="bus-gallery-more">
+          {% for photo in bus.photos.all %}
+            <img class="bus-gallery-photo" src="{{ photo.image.url }}" alt="{{ photo.caption|default:bus.title }}">
+          {% endfor %}
         </div>
+      {% endif %}
+      <p class="bus-gallery-caption">Фотографії автопарку {{ carrier_name|default:"Dieller Bus" }}</p>
+    </section>
 
-        <!-- INFO -->
-        <div class="bus-info">
+    <section class="bus-info">
+      {% if bus.carrier %}<div class="bus-carrier-label"><span aria-hidden="true">●</span>{{ bus.carrier.company_name }}</div>{% endif %}
+      <h1>{{ bus.title }}</h1>
+      <p class="bus-tagline">{% if bus.description %}{{ bus.description|truncatewords:24 }}{% else %}Комфортний автобус для подорожей, групових поїздок та особливих подій.{% endif %}</p>
 
-            <h1>{{ bus.title }}</h1>
+      <div class="bus-cta-row">
+        {% if booking_enabled %}
+          <a class="bus-cta" href="#bus-booking">Дізнатися ціну та замовити</a>
+        {% else %}
+          <span class="bus-cta" aria-disabled="true">Замовлення тимчасово недоступні</span>
+        {% endif %}
+        <span class="bus-price-note">{% if bus.price_per_hour %}від {{ bus.price_per_hour }} грн/год{% else %}Вартість узгоджується індивідуально{% endif %}</span>
+      </div>
 
-            <div class="price">
-                {% if bus.price_per_hour %}
-                    від {{ bus.price_per_hour }} грн/год
-                {% else %}
-                    ціна договірна
-                {% endif %}
-            </div>
+      <div class="bus-facts">
+        <div class="bus-fact"><span class="bus-fact-icon" aria-hidden="true">♙</span><div><span>Пасажиромісткість</span><strong>{{ bus.seats }} місць</strong></div></div>
+        <div class="bus-fact"><span class="bus-fact-icon" aria-hidden="true">₴</span><div><span>Вартість</span><strong>{% if bus.price_per_hour %}від {{ bus.price_per_hour }} грн/год{% else %}За домовленістю{% endif %}</strong></div></div>
+        {% if bus.price_note %}<div class="bus-fact"><span class="bus-fact-icon" aria-hidden="true">i</span><div><span>Умови ціни</span><strong>{{ bus.price_note }}</strong></div></div>{% endif %}
+        <div class="bus-fact"><span class="bus-fact-icon" aria-hidden="true">✓</span><div><span>Сервіс</span><strong>Комфортна поїздка</strong></div></div>
+      </div>
 
-            <div class="info-item">
-                Кількість місць: {{ bus.seats }}
-            </div>
+      {% if bus.description %}
+        <h2 class="bus-section-title">Про автобус</h2>
+        <div class="bus-description">{{ bus.description|linebreaksbr }}</div>
+      {% endif %}
 
-            <div class="info-item">
-                {{ bus.price_note }}
-            </div>
+      <h2 class="bus-section-title">Замовляючи транспорт, ви отримуєте</h2>
+      <ul class="bus-benefits">
+        <li>Допомогу з підбором транспорту для вашої поїздки.</li>
+        <li>Узгодження часу подачі та маршруту з перевізником.</li>
+        <li>Комфортні місця для всіх пасажирів.</li>
+      </ul>
 
-            <div class="contact">
-                <h3>Контакти</h3>
-                <p>{{ bus.contact_name }}</p>
-                <p>{{ bus.contact_phone }}</p>
-            </div>
+      {% if bus_phone %}<div class="bus-phone">Потрібна консультація? <a href="tel:{{ bus_phone }}">{{ bus_phone }}</a></div>{% endif %}
 
-            <!-- 🔥 BUTTON -->
-            <button class="btn-book open-call"
-                    data-phone="{{ bus.contact_phone }}">
-                📞 Замовити автобус
-            </button>
-
+      {% if routes %}
+        <h2 class="bus-section-title">Маршрути цього перевізника</h2>
+        <div class="bus-routes">
+          {% for route in routes %}
+            <a class="bus-route-link" href="{{ route.url }}">{{ route.from_city }} → {{ route.to_city }}</a>
+          {% endfor %}
         </div>
+      {% endif %}
+    </section>
+  </div>
 
-    </div>
-
-</div>
-
-
-<!-- ===== MODAL ===== -->
-<div id="callModal" class="call-modal">
-    <div class="call-box">
-
-        <span class="close-modal">&times;</span>
-
-        <h2>Зателефонувати</h2>
-
-        <p>Номер телефону:</p>
-
-        <div id="phoneNumber" class="phone-number"></div>
-
-        <a id="callBtn" href="#" class="call-btn">
-            📞 Подзвонити
-        </a>
-
-    </div>
-</div>
-
-
-<script>
-// ===== ELEMENTS =====
-const modal = document.getElementById("callModal");
-const phoneText = document.getElementById("phoneNumber");
-const callBtn = document.getElementById("callBtn");
-
-// ===== OPEN =====
-document.querySelectorAll(".open-call").forEach(btn => {
-    btn.addEventListener("click", () => {
-
-        const phone = btn.dataset.phone || "Нема номера";
-
-        phoneText.innerText = phone;
-        callBtn.href = "tel:" + phone;
-
-        modal.classList.add("active");
-    });
-});
-
-// ===== CLOSE =====
-document.querySelector(".close-modal").onclick = () => {
-    modal.classList.remove("active");
-};
-
-// CLICK OUTSIDE
-modal.onclick = (e) => {
-    if (e.target === modal) {
-        modal.classList.remove("active");
-    }
-};
-</script>
-
+  {% if booking_enabled %}
+    <section class="bus-booking" id="bus-booking">
+      <form method="post" action="{% url 'main:bus_booking' bus.slug %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="bus-submit" type="submit">Надіслати запит</button>
+      </form>
+    </section>
+  {% else %}
+    <div class="booking-unavailable">Замовлення автобусів цього перевізника тимчасово недоступні.</div>
+  {% endif %}
+</main>
 {% endblock %}

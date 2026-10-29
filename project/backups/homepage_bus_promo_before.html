@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Автобусні квитки Україна — Європа | Dieller Bus{% endblock %}
+{% block body_class %}homepage-body{% endblock %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="home-page">
+  <section class="home-hero">
+    <div class="container home-hero-layout">
+      <div class="home-hero-copy">
+        <span class="home-eyebrow"><span></span> МАНДРУЙТЕ ЗРУЧНО</span>
+        <h1>Ваша наступна подорож <strong>починається тут</strong></h1>
+        <p>Знаходьте автобусні рейси між Україною та Європою, обирайте зручну дату й бронюйте квитки онлайн.</p>
+        <div class="home-hero-actions">
+          <a class="home-primary-link" href="{% url 'main:kvitokindex' %}">Знайти квиток <span aria-hidden="true">→</span></a>
+          <a class="home-secondary-link" href="{% url 'main:contacts' %}">Потрібна допомога?</a>
+        </div>
+        <div class="home-trust-row">
+          <span><b aria-hidden="true">✓</b> Зручне бронювання</span>
+          <span><b aria-hidden="true">✓</b> Надійні перевізники</span>
+        </div>
+      </div>
+      <div class="home-hero-art">
+        <img src="{% static 'img/dieller-home-journey.svg' %}" alt="Автобус Dieller Bus вирушає у подорож Європою">
+        <div class="home-art-note"><span class="home-art-note-icon">✦</span><span><strong>Подорожуйте з комфортом</strong><small>Ваш маршрут — у кілька кліків</small></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-search-section" aria-labelledby="home-search-title">
+    <div class="container">
+      <form class="home-search-card" action="{% url 'main:kvitokindex' %}" method="get" role="search">
+        <div class="home-search-heading">
+          <div>
+            <span class="home-section-kicker">ПЛАНУЄТЕ ПОЇЗДКУ?</span>
+            <h2 id="home-search-title">Знайдіть свій рейс</h2>
+          </div>
+          <span class="home-search-caption">Оберіть напрямок і дату подорожі</span>
+        </div>
+        <div class="home-search-fields">
+          <div class="home-route-fields">
+            <label class="home-field">
+              <span>Звідки</span>
+              <input name="from" type="text" list="home-cities" placeholder="Вкажіть місто" autocomplete="off" required>
+            </label>
+            <button class="home-swap-button" type="button" aria-label="Поміняти місцями міста" title="Поміняти місцями міста">⇄</button>
+            <label class="home-field">
+              <span>Куди</span>
+              <input name="to" type="text" list="home-cities" placeholder="Вкажіть місто" autocomplete="off" required>
+            </label>
+          </div>
+          <label class="home-field">
+            <span>Дата поїздки</span>
+            <input name="date" type="date" value="{{ today_iso }}" min="{{ today_iso }}">
+          </label>
+          <label class="home-field">
+            <span>Пасажири</span>
+            <select name="pax" aria-label="Кількість пасажирів">
+              <option value="1">1 пасажир</option>
+              <option value="2">2 пасажири</option>
+              <option value="3">3 пасажири</option>
+              <option value="4">4 пасажири</option>
+              <option value="5">5 пасажирів</option>
+              <option value="6">6 пасажирів</option>
+            </select>
+          </label>
+          <button class="home-search-button" type="submit"><span aria-hidden="true">⌕</span> Шукати рейс</button>
+        </div>
+        {% if home_cities %}
+          <datalist id="home-cities">
+            {% for city in home_cities %}<option value="{{ city }}">{% endfor %}
+          </datalist>
+        {% endif %}
+      </form>
+    </div>
+  </section>
+
+  <section class="home-benefits container" aria-label="Переваги Dieller Bus">
+    <article class="home-benefit">
+      <span class="home-benefit-icon" aria-hidden="true">↗</span>
+      <div><h3>Легко знайти</h3><p>Обирайте маршрут і дату без зайвих кроків.</p></div>
+    </article>
+    <article class="home-benefit">
+      <span class="home-benefit-icon" aria-hidden="true">♡</span>
+      <div><h3>Комфортна поїздка</h3><p>Переглядайте доступні рейси та деталі маршруту.</p></div>
+    </article>
+    <article class="home-benefit">
+      <span class="home-benefit-icon" aria-hidden="true">☏</span>
+      <div><h3>Ми на зв’язку</h3><p>Підтримка допоможе, якщо виникнуть питання.</p></div>
+    </article>
+  </section>
+
+  <section class="home-popular-section" aria-labelledby="popular-routes-title">
+    <div class="container">
+      <div class="home-section-heading">
+        <div>
+          <span class="home-section-kicker">ОБИРАЙТЕ СВІЙ НАПРЯМОК</span>
+          <h2 id="popular-routes-title">Квитки на популярні напрямки</h2>
+          <p>Маршрути оновлюються автоматично з актуальних рейсів.</p>
+        </div>
+        <a href="{% url 'main:kvitokindex' %}" class="home-text-link">Усі квитки <span aria-hidden="true">→</span></a>
+      </div>
+
+      {% if popular_routes %}
+        <div class="home-routes-grid">
+          {% for trip in popular_routes %}
+            <a class="home-route-card" href="{% url 'main:kvitokindex' %}?from={{ trip.home_start_city.name|urlencode }}&amp;to={{ trip.home_end_city.name|urlencode }}{% if trip.date and trip.date >= today_date %}&amp;date={{ trip.date|date:'Y-m-d' }}{% endif %}">
+              <span class="home-route-card-icon" aria-hidden="true">↗</span>
+              <span class="home-route-label">АВТОБУСНИЙ МАРШРУТ</span>
+              <span class="home-route-name">{{ trip.home_start_city.name }} <span aria-hidden="true">→</span> {{ trip.home_end_city.name }}</span>
+              <span class="home-route-bottom">
+                {% if trip.base_price %}<span>від <strong>{{ trip.base_price|floatformat:0 }} {{ trip.currency }}</strong></span>{% else %}<span>Переглянути рейси</span>{% endif %}
+                <span class="home-route-arrow" aria-hidden="true">→</span>
+              </span>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="home-empty-routes">
+          <span class="home-empty-icon" aria-hidden="true">↗</span>
+          <div><strong>Нові маршрути вже в дорозі</strong><p>Перейдіть до квитків, щоб переглянути доступні рейси.</p></div>
+          <a class="home-text-link" href="{% url 'main:kvitokindex' %}">Переглянути рейси →</a>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="home-about-section">
+    <div class="container home-about-layout">
+      <div class="home-about-mark" aria-hidden="true"><span>D</span><i></i><i></i><i></i></div>
+      <div class="home-about-copy">
+        <span class="home-section-kicker">DIELLER BUS</span>
+        <h2>Подорожуйте Україною та Європою зручно</h2>
+        <p>На Dieller Bus можна знайти маршрут, обрати дату та перейти до доступних рейсів. Збережіть квиток у профілі, а якщо потрібна допомога — наша команда підкаже.</p>
+        <a class="home-primary-link" href="{% url 'main:nashbusindex' %}">Переглянути каталог <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-bottom-cta container">
+    <div>
+      <span class="home-section-kicker">ЧАС ВИРУШАТИ</span>
+      <h2>Куди поїдемо наступного разу?</h2>
+      <p>Знайдіть рейс і сплануйте подорож заздалегідь.</p>
+    </div>
+    <a class="home-primary-link" href="{% url 'main:kvitokindex' %}">Обрати квиток <span aria-hidden="true">→</span></a>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const swapButton = document.querySelector('.home-swap-button');
+      const cityInputs = document.querySelectorAll('.home-route-fields input');
+      if (!swapButton || cityInputs.length !== 2) return;
+
+      swapButton.addEventListener('click', function () {
+        const fromCity = cityInputs[0].value;
+        cityInputs[0].value = cityInputs[1].value;
+        cityInputs[1].value = fromCity;
+        cityInputs[0].focus();
+      });
+    });
+  </script>
+{% endblock %}

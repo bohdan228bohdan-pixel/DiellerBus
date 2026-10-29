@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ carrier.company_name }} — Dieller Bus{% endblock %}
+
+{% block head_extra %}
+<style>
+  .carrier-profile{max-width:1180px;margin:0 auto;padding:42px 20px 70px;color:#20242c}
+  .carrier-back{display:inline-block;margin-bottom:20px;color:#a91f1f;text-decoration:none;font-weight:700}
+  .carrier-profile-head{display:flex;align-items:center;gap:22px;padding:clamp(22px,4vw,38px);background:#fff;border:1px solid #e8eaf0;border-radius:22px;box-shadow:0 12px 32px rgba(20,29,44,.07)}
+  .carrier-profile-logo{width:88px;height:88px;flex:0 0 88px;object-fit:cover;border-radius:22px;background:#f3f4f6}
+  .carrier-profile-head h1{font-size:clamp(1.8rem,4vw,2.7rem);font-weight:800;margin:0 0 8px}
+  .carrier-profile-head p{color:#606a79;line-height:1.7;margin:0}
+  .carrier-contact{margin-top:12px;color:#606a79}
+  .carrier-contact a{color:#a91f1f;font-weight:700}
+  .carrier-section{margin-top:42px}
+  .carrier-section h2{font-size:1.7rem;font-weight:800;margin:0 0 18px}
+  .carrier-routes{display:flex;flex-wrap:wrap;gap:10px}
+  .carrier-route{padding:10px 14px;background:#fff;border:1px solid #ece1e1;border-radius:999px;color:#8f2020;font-weight:700}
+  .carrier-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+  .carrier-bus{overflow:hidden;background:#fff;border:1px solid #e8eaf0;border-radius:18px;box-shadow:0 10px 28px rgba(20,29,44,.06)}
+  .carrier-bus img{width:100%;height:220px;object-fit:cover;background:#f3f4f6}
+  .carrier-bus-info{padding:18px}
+  .carrier-bus-info h3{font-size:1.15rem;font-weight:800;margin:0 0 8px}
+  .carrier-bus-info p{color:#687080;margin:0 0 10px}
+  .carrier-button{display:inline-flex;justify-content:center;align-items:center;min-height:42px;padding:10px 15px;border-radius:11px;background:#c62828;color:#fff;text-decoration:none;font-weight:800}
+  .carrier-button:hover{background:#a91f1f;color:#fff}
+  .carrier-unavailable,.carrier-no-data{padding:16px;background:#f7f7f8;border-radius:12px;color:#687080}
+  @media(max-width:900px){.carrier-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:600px){.carrier-profile{padding:30px 15px 50px}.carrier-profile-head{align-items:flex-start;gap:14px}.carrier-profile-logo{width:64px;height:64px;flex-basis:64px;border-radius:16px}.carrier-grid{grid-template-columns:1fr}.carrier-bus img{height:210px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="carrier-profile">
+  <a class="carrier-back" href="{% url 'main:nashbusindex' %}">← До каталогу перевізників</a>
+
+  <header class="carrier-profile-head">
+    {% if carrier.avatar %}
+      <img class="carrier-profile-logo" src="{{ carrier.avatar.url }}" alt="Логотип {{ carrier.company_name }}">
+    {% else %}
+      <div class="carrier-profile-logo d-flex align-items-center justify-content-center fs-2" aria-hidden="true">🚌</div>
+    {% endif %}
+    <div>
+      <h1>{{ carrier.company_name }}</h1>
+      {% if carrier.catalog_description %}
+        <p>{{ carrier.catalog_description|linebreaksbr }}</p>
+      {% else %}
+        <p>Автопарк і пропозиції перевізника Dieller Bus.</p>
+      {% endif %}
+      {% if carrier.phone %}
+        <div class="carrier-contact">Телефон: <a href="tel:{{ carrier.phone }}">{{ carrier.phone }}</a></div>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if routes %}
+    <section class="carrier-section">
+      <h2>Маршрути</h2>
+      <div class="carrier-routes">
+        {% for route in routes %}
+          <span class="carrier-route">{{ route }}</span>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="carrier-section">
+    <h2>Автопарк</h2>
+    {% if buses %}
+      <div class="carrier-grid">
+        {% for bus in buses %}
+          <article class="carrier-bus">
+            {% if bus.image %}
+              <img src="{{ bus.image.url }}" alt="{{ bus.title }}">
+            {% else %}
+              <img src="{% static 'img/neoplanwhite.jpg' %}" alt="{{ bus.title }}">
+            {% endif %}
+            <div class="carrier-bus-info">
+              <h3>{{ bus.title }}</h3>
+              <p>{{ bus.seats }} місць · {% if bus.price_per_hour %}від {{ bus.price_per_hour }} грн/год{% else %}ціна договірна{% endif %}</p>
+              {% if bus.description %}<p>{{ bus.description|truncatewords:24 }}</p>{% endif %}
+              {% if carrier.bus_booking_enabled %}
+                <a class="carrier-button" href="{{ bus.get_absolute_url }}">Замовити автобус</a>
+              {% else %}
+                <div class="carrier-unavailable">Замовлення тимчасово недоступні</div>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="carrier-no-data">Автобуси цього перевізника поки не опубліковані.</div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

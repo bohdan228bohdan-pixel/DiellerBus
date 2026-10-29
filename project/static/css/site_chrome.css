@@ -1,0 +1,121 @@
+.social-topbar {
+  position: relative;
+  z-index: 41;
+  min-height: 38px;
+  background: #c62832;
+  color: #fff;
+}
+
+.social-topbar-inner {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.social-topbar-label {
+  color: rgba(255, 255, 255, .86);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .025em;
+}
+
+.social-topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.social-topbar-links a {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .38);
+  border-radius: 50%;
+  color: #fff;
+  transition: background-color .15s ease, transform .15s ease;
+}
+
+.social-topbar-links a:hover,
+.social-topbar-links a:focus-visible {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
+}
+
+.social-topbar-links svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.social-topbar-links a:nth-child(2) svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.social-topbar-links a:nth-child(2) .social-icon-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+body .site-footer {
+  margin-top: 0 !important;
+  padding: 48px 0 20px;
+  border-top: 1px solid #252525;
+  background: #111 !important;
+  color: #d3d0d0 !important;
+}
+
+body .site-footer h5 {
+  color: #fff !important;
+}
+
+body .site-footer .muted-small,
+body .site-footer .footer-links a {
+  color: #b7b2b2 !important;
+}
+
+body .site-footer a {
+  color: #ff777d;
+}
+
+body .site-footer a:hover,
+body .site-footer .footer-links a:hover {
+  color: #fff !important;
+}
+
+body .site-footer .footer-bottom {
+  align-items: center;
+  gap: 12px;
+  border-color: #303030;
+  color: #aaa4a4;
+}
+
+body .site-footer .footer-bottom span {
+  color: #ee434c;
+}
+
+@media (max-width: 575.98px) {
+  .social-topbar-inner {
+    justify-content: space-between;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .social-topbar-label {
+    font-size: .68rem;
+  }
+
+  body .site-footer {
+    padding-top: 34px;
+  }
+
+  body .site-footer .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
