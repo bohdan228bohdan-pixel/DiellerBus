@@ -4258,11 +4258,8 @@ def _get_carrier_business_details(carrier):
     return 'ФОП/ТОВ', business_number
 
 
-def _generate_ticket_pdf_bytes(ticket, request=None):
-    """Return PDF bytes for a Ticket using reportlab.
-
-    The PDF includes carrier information, but does not embed a QR code.
-    """
+def _generate_ticket_pdf_bytes_legacy(ticket, request=None):
+    """Keep the previous ticket renderer available as an explicit fallback."""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
@@ -4796,6 +4793,311 @@ def _generate_ticket_pdf_bytes(ticket, request=None):
     c.save()
     buffer.seek(0)
     return buffer.read()
+
+
+def _generate_ticket_pdf_bytes(ticket, request=None):
+    """Create the branded, single-page PDF ticket without changing ticket data."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+    except Exception:
+        return _generate_ticket_pdf_bytes_legacy(ticket, request)
+
+    logger = logging.getLogger(__name__)
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+    red = colors.HexColor('#C62832')
+    dark_red = colors.HexColor('#9F1D27')
+    ink = colors.HexColor('#242424')
+    muted = colors.HexColor('#666666')
+    line = colors.HexColor('#E6E6E6')
+    pale_red = colors.HexColor('#FFF4F4')
+    white = colors.white
+
+    regular_font = 'Helvetica'
+    bold_font = 'Helvetica-Bold'
+    font_candidates = [
+        ('Arial', r'C:\Windows\Fonts\arial.ttf'),
+        ('Arial-Bold', r'C:\Windows\Fonts\arialbd.ttf'),
+        ('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+        ('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
+        ('NotoSans-Regular', '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf'),
+        ('NotoSans-Bold', '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf'),
+    ]
+    for font_name, font_path in font_candidates:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont(font_name, font_path))
+                if 'bold' in font_name.lower():
+                    bold_font = font_name
+                else:
+                    regular_font = font_name
+            except Exception:
+                logger.warning('Could not register PDF font %s from %s', font_name, font_path)
+
+    def fit_font(text, font_name, size, max_width, minimum=8):
+        while size > minimum and pdfmetrics.stringWidth(text, font_name, size) > max_width:
+            size -= 1
+        return size
+
+    def draw_field(label, value, x, y, max_width, value_size=10):
+        pdf.setFillColor(muted)
+        pdf.setFont(regular_font, 8)
+        pdf.drawString(x, y, label.upper())
+        text = str(value or '—')
+        size = fit_font(text, regular_font, value_size, max_width)
+        pdf.setFillColor(ink)
+        pdf.setFont(regular_font, size)
+        pdf.drawString(x, y - 14, text)
+
+    try:
+        trip = getattr(ticket, 'trip', None)
+        if not trip and ticket.from_city and ticket.to_city:
+            trips = Trip.objects.filter(
+                start_city__name__iexact=ticket.from_city,
+                end_city__name__iexact=ticket.to_city,
+            )
+            if ticket.travel_date:
+                dated_trips = trips.filter(date=ticket.travel_date)
+                if dated_trips.exists():
+                    trips = dated_trips
+            trip = trips.first()
+
+        carrier_name = ''
+        carrier_business_label = ''
+        carrier_business_number = ''
+        carrier_phone = ''
+        if trip:
+            carrier_user = getattr(trip, 'carrier_user', None)
+            carrier_name = (
+                carrier_user.username
+                if carrier_user
+                else (trip.carrier or trip.title or (trip.route.name if trip.route else ''))
+            ).strip()
+            carrier = getattr(carrier_user, 'carrier_account', None) if carrier_user else None
+            if carrier:
+                carrier_name = (carrier.company_name or carrier.username or carrier_name).strip()
+                carrier_business_label, carrier_business_number = _get_carrier_business_details(carrier)
+                carrier_phone = (carrier.phone or '').strip()
+
+        departure_time = ''
+        arrival_time = ''
+        if trip:
+            stops = list(trip.trip_stops.order_by('order'))
+            if stops:
+                if stops[0].departure_time:
+                    departure_time = stops[0].departure_time.strftime('%H:%M')
+                if stops[-1].arrival_time:
+                    arrival_time = stops[-1].arrival_time.strftime('%H:%M')
+
+        passenger_names = [
+            ' '.join(part for part in (passenger.first_name, passenger.last_name) if part).strip()
+            for passenger in ticket.passenger_set.all()
+        ]
+        passenger_names = [name for name in passenger_names if name]
+
+        qr_url = 'https://diellerbus.com/'
+
+        outer_margin = 8 * mm
+        card_x = outer_margin
+        card_y = outer_margin
+        card_width = page_width - 2 * outer_margin
+        card_height = page_height - 2 * outer_margin
+        card_top = card_y + card_height
+        header_height = 92
+
+        pdf.setFillColor(red)
+        pdf.rect(0, 0, page_width, page_height, fill=1, stroke=0)
+        pdf.setFillColor(white)
+        pdf.roundRect(card_x, card_y, card_width, card_height, 18, fill=1, stroke=0)
+
+        pdf.saveState()
+        pdf.setFillColor(red)
+        pdf.roundRect(card_x + 1, card_top - header_height, card_width - 2, header_height, 17, fill=1, stroke=0)
+        pdf.setFillColor(red)
+        pdf.rect(card_x + 1, card_top - header_height, card_width - 2, 18, fill=1, stroke=0)
+        pdf.restoreState()
+
+        logo_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'логоБодяD.png')
+        logo_x = card_x + 22
+        logo_y = card_top - 72
+        try:
+            pdf.drawImage(
+                ImageReader(logo_path),
+                logo_x,
+                logo_y,
+                width=48,
+                height=48,
+                preserveAspectRatio=True,
+                mask='auto',
+            )
+        except Exception:
+            logger.warning('Could not draw Dieller Bus logo for ticket %s', ticket.id)
+            pdf.setFillColor(white)
+            pdf.circle(logo_x + 24, logo_y + 24, 22, fill=1, stroke=0)
+            pdf.setFillColor(red)
+            pdf.setFont(bold_font, 23)
+            pdf.drawCentredString(logo_x + 24, logo_y + 16, 'D')
+
+        title_x = logo_x + 60
+        pdf.setFillColor(white)
+        pdf.setFont(bold_font, 22)
+        pdf.drawString(title_x, card_top - 42, 'Dieller Bus')
+        pdf.setFont(regular_font, 9)
+        pdf.drawString(title_x, card_top - 60, 'ЕЛЕКТРОННИЙ КВИТОК')
+        pdf.setFont(regular_font, 7)
+        pdf.drawString(
+            title_x,
+            card_top - 77,
+            'Квиток на проїзд пасажира автомобільним транспортом на приміських автобусних маршрутах',
+        )
+        pdf.setFont(bold_font, 15)
+        pdf.drawRightString(card_x + card_width - 22, card_top - 39, f'№ {ticket.id}')
+        status_text = 'ОПЛАЧЕНО' if ticket.paid else 'РЕЗЕРВАЦІЯ'
+        status_width = 92
+        status_x = card_x + card_width - 22 - status_width
+        pdf.setFillColor(dark_red)
+        pdf.roundRect(status_x, card_top - 68, status_width, 18, 8, fill=1, stroke=0)
+        pdf.setFillColor(white)
+        pdf.setFont(bold_font, 8)
+        pdf.drawCentredString(status_x + status_width / 2, card_top - 62, status_text)
+
+        content_left = card_x + 28
+        content_right = card_x + card_width - 28
+        content_top = card_top - header_height - 28
+        qr_size = 100
+        qr_x = content_right - qr_size
+        qr_y = content_top - 124
+        left_width = qr_x - content_left - 22
+
+        pdf.setFillColor(red)
+        pdf.setFont(bold_font, 9)
+        pdf.drawString(content_left, content_top, 'МАРШРУТ')
+        route_text = f'{ticket.from_city or "—"}  →  {ticket.to_city or "—"}'
+        route_size = fit_font(route_text, bold_font, 18, left_width, minimum=10)
+        pdf.setFillColor(ink)
+        pdf.setFont(bold_font, route_size)
+        pdf.drawString(content_left, content_top - 25, route_text)
+
+        date_text = ticket.travel_date.strftime('%d.%m.%Y') if ticket.travel_date else '—'
+        draw_field('Дата відправлення', date_text, content_left, content_top - 55, left_width)
+        time_text = departure_time or 'За розкладом перевізника'
+        if arrival_time:
+            time_text = f'{time_text} — {arrival_time}' if departure_time else arrival_time
+        draw_field('Час рейсу', time_text, content_left, content_top - 100, left_width)
+        draw_field('Пасажирів', ticket.passengers, content_left, content_top - 145, left_width)
+        draw_field('Контактний телефон', ticket.contact_phone, content_left, content_top - 190, left_width)
+
+        pdf.setFillColor(pale_red)
+        pdf.roundRect(qr_x - 8, qr_y - 10, qr_size + 16, qr_size + 43, 10, fill=1, stroke=0)
+        qr_drawn = False
+        try:
+            from reportlab.graphics import renderPDF
+            from reportlab.graphics.barcode.qr import QrCodeWidget
+            from reportlab.graphics.shapes import Drawing
+
+            qr = QrCodeWidget(qr_url)
+            bounds = qr.getBounds()
+            scale = qr_size / max(bounds[2] - bounds[0], bounds[3] - bounds[1])
+            drawing = Drawing(qr_size, qr_size, transform=[scale, 0, 0, scale, 0, 0])
+            drawing.add(qr)
+            renderPDF.draw(drawing, pdf, qr_x, qr_y)
+            qr_drawn = True
+        except Exception:
+            logger.exception('Could not draw verification QR for ticket %s', ticket.id)
+        if not qr_drawn:
+            pdf.setFillColor(ink)
+            pdf.setFont(regular_font, 8)
+            pdf.drawCentredString(qr_x + qr_size / 2, qr_y + qr_size / 2, 'QR недоступний')
+        pdf.setFillColor(ink)
+        pdf.setFont(bold_font, 8)
+        pdf.drawCentredString(qr_x + qr_size / 2, qr_y - 1, 'СКАНУЙТЕ ДЛЯ ПЕРЕВІРКИ')
+
+        divider_y = content_top - 240
+        pdf.setStrokeColor(line)
+        pdf.setLineWidth(1)
+        pdf.line(content_left, divider_y, content_right, divider_y)
+
+        passenger_top = divider_y - 25
+        pdf.setFillColor(ink)
+        pdf.setFont(bold_font, 12)
+        pdf.drawString(content_left, passenger_top, 'ПАСАЖИРИ')
+        passenger_y = passenger_top - 22
+        pdf.setFillColor(muted)
+        pdf.setFont(regular_font, 10)
+        if passenger_names:
+            for index, name in enumerate(passenger_names):
+                if passenger_y < card_y + 215:
+                    remaining = len(passenger_names) - index
+                    pdf.drawString(content_left + 4, passenger_y, f'та ще {remaining} пас.')
+                    break
+                pdf.setFillColor(red)
+                pdf.circle(content_left + 4, passenger_y + 3, 2, fill=1, stroke=0)
+                pdf.setFillColor(ink)
+                pdf.setFont(regular_font, fit_font(name, regular_font, 10, card_width - 72))
+                pdf.drawString(content_left + 14, passenger_y, name)
+                passenger_y -= 17
+        else:
+            pdf.drawString(content_left + 4, passenger_y, 'Ім’я пасажира не вказано')
+
+        carrier_top = card_y + 160
+        pdf.setStrokeColor(line)
+        pdf.line(content_left, carrier_top + 20, content_right, carrier_top + 20)
+        pdf.setFillColor(ink)
+        pdf.setFont(bold_font, 10)
+        pdf.drawString(content_left, carrier_top, 'ІНФОРМАЦІЯ ПЕРЕВІЗНИКА')
+        detail_y = carrier_top - 19
+        details = []
+        if carrier_name:
+            details.append(f'Перевізник: {carrier_name}')
+        if carrier_business_number:
+            details.append(f'{carrier_business_label}: {carrier_business_number}')
+        if carrier_phone:
+            details.append(f'Телефон: {carrier_phone}')
+        if not details:
+            details.append('Перевізник: Dieller Bus')
+        for detail in details:
+            pdf.setFillColor(muted)
+            pdf.setFont(regular_font, fit_font(detail, regular_font, 9, card_width - 56))
+            pdf.drawString(content_left, detail_y, detail)
+            detail_y -= 13
+
+        pdf.setFillColor(pale_red)
+        pdf.roundRect(content_left, card_y + 38, card_width - 56, 64, 10, fill=1, stroke=0)
+        try:
+            total_price = float(ticket.total_price or 0)
+        except (TypeError, ValueError):
+            total_price = 0.0
+        currency = getattr(ticket, 'currency', 'UAH') or 'UAH'
+        pdf.setFillColor(muted)
+        pdf.setFont(regular_font, 9)
+        pdf.drawString(content_left + 14, card_y + 78, 'ВАРТІСТЬ КВИТКА')
+        pdf.setFillColor(ink)
+        pdf.setFont(bold_font, 17)
+        pdf.drawString(content_left + 14, card_y + 53, f'{total_price:.2f} {currency}')
+        pdf.setFillColor(muted)
+        pdf.setFont(regular_font, 8)
+        purchase_time = ticket.created_at.strftime('%d.%m.%Y %H:%M') if ticket.created_at else ''
+        pdf.drawRightString(content_right - 12, card_y + 66, f'Квиток № {ticket.id}')
+        if purchase_time:
+            pdf.drawRightString(content_right - 12, card_y + 52, f'Придбано: {purchase_time}')
+        pdf.setFillColor(red)
+        pdf.setFont(bold_font, 8)
+        pdf.drawCentredString(page_width / 2, card_y + 18, 'DIELLER BUS  ·  diellerbus.com')
+
+        pdf.showPage()
+        pdf.save()
+        buffer.seek(0)
+        return buffer.read()
+    except Exception:
+        logger.exception('Branded PDF generation failed for ticket %s; using the previous layout', ticket.id)
+        return _generate_ticket_pdf_bytes_legacy(ticket, request)
 
 
 def _send_ticket_email(ticket, payment):

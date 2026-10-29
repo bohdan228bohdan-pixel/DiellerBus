@@ -193,6 +193,30 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertTrue(pdf_bytes)
 		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
 
+	def test_generate_ticket_pdf_draws_verification_qr(self):
+		from reportlab.graphics.barcode.qr import QrCodeWidget
+
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			from_city='Львів',
+			to_city='Київ',
+			travel_date=date.today() + timedelta(days=2),
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			paid=True,
+		)
+		with patch('reportlab.graphics.renderPDF.draw') as draw_qr, patch(
+			'reportlab.graphics.barcode.qr.QrCodeWidget',
+			wraps=QrCodeWidget,
+		) as qr_code:
+			pdf_bytes = _generate_ticket_pdf_bytes(ticket, RequestFactory().get('/'))
+
+		self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+		draw_qr.assert_called_once()
+		qr_code.assert_called_once_with('https://diellerbus.com/')
+
 	def test_send_ticket_email_uses_contact_email_when_user_email_missing(self):
 		user = User.objects.create_user(username='noemail', email='', password='pass1234')
 		ticket = Ticket.objects.create(
