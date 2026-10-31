@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from decimal import Decimal
 
 import requests
 from django.conf import settings
@@ -201,6 +202,53 @@ class WayForPayService:
                 'exception': str(exc),
                 'payload': payload,
             }
+
+    def build_refund_payload(self, order_reference, amount, currency, comment, merchant_login=None, merchant_secret=None):
+        merchant_login = merchant_login or self.merchant_login
+        merchant_secret = merchant_secret or self.merchant_secret
+        if not merchant_login or not merchant_secret:
+            raise ValueError('WayForPay merchant credentials are not configured')
+
+        amount_value = f'{Decimal(str(amount)).quantize(Decimal("0.01")):.2f}'
+        currency_value = str(currency or 'UAH').upper()
+        payload = {
+            'transactionType': 'REFUND',
+            'merchantAccount': merchant_login,
+            'orderReference': str(order_reference),
+            'amount': amount_value,
+            'currency': currency_value,
+            'comment': str(comment),
+            'apiVersion': 1,
+        }
+        payload['merchantSignature'] = self._build_signature(
+            [merchant_login, order_reference, amount_value, currency_value],
+            merchant_secret,
+        )
+        return payload
+
+    def refund(self, order_reference, amount, currency, comment):
+        payload = self.build_refund_payload(order_reference, amount, currency, comment)
+        api_url = self.api_url or get_wayforpay_settings()['api_url']
+        try:
+            response = requests.post(api_url, json=payload, timeout=20)
+            try:
+                data = response.json()
+            except ValueError:
+                data = {'raw': getattr(response, 'text', '')}
+            if response.status_code >= 400 or not isinstance(data, dict):
+                logging.getLogger('main').error(
+                    'WayForPay refund API failed: status=%s response=%s',
+                    response.status_code,
+                    data,
+                )
+                return {'error': 'WayForPay refund API request failed', 'response': data}
+            return data
+        except requests.RequestException:
+            logging.getLogger('main').exception(
+                'WayForPay refund request failed for order %s',
+                order_reference,
+            )
+            raise
 
     @staticmethod
     def _get_field_value(data, key):

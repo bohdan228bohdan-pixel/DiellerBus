@@ -328,8 +328,13 @@ else:
 # testing settings safe and easy to use. These defaults can be overridden
 # via environment variables in production.
 if DEBUG:
-    # Use console email backend for local testing unless explicitly set
-    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+    # Use SMTP locally when credentials are configured; otherwise keep emails in the console.
+    if 'EMAIL_BACKEND' in os.environ:
+        EMAIL_BACKEND = os.environ['EMAIL_BACKEND']
+    elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+        EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    else:
+        EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
     # Ensure local hosts are allowed for the development server
     try:
@@ -382,7 +387,7 @@ LOGGING = {
             'propagate': True,
         },
         'main': {
-            'handlers': ['file'],
+            'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': False,
         },

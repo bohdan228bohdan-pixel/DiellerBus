@@ -8,11 +8,104 @@ from django.test import TestCase, RequestFactory, Client, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.core import mail
-from .models import City, Route, RouteStop, Trip, TripStop, TripFare, TripDayAvailability, Ticket, Payment, Profile, Carrier, Bus, BusPhoto, BusBooking
+from .models import City, Route, RouteStop, Trip, TripStop, TripFare, TripDayAvailability, TripCancellation, Ticket, Payment, Profile, Carrier, Bus, BusPhoto, BusBooking, SiteNotification, NotificationRead
 from .views import api_trips, _generate_ticket_pdf_bytes, _render_wayforpay_form, _send_ticket_email
 from .wayforpay import WayForPayService, create_wayforpay_invoice, _build_signature
 
 User = get_user_model()
+
+
+class ProfileNotificationTests(TestCase):
+	def setUp(self):
+		self.dieller = User.objects.create_user(username='dieller', password='pass1234')
+		self.user = User.objects.create_user(username='reader', password='pass1234')
+		self.carrier = User.objects.create_user(username='carrier-reader', password='pass1234')
+		self.carrier.profile.is_carrier = True
+		self.carrier.profile.save(update_fields=['is_carrier'])
+		self.all_notification = SiteNotification.objects.create(
+			title='Оновлення сайту',
+			message='Новий пошук квитків ✨',
+			audience=SiteNotification.AUDIENCE_ALL,
+			link_url='https://example.com/news',
+			link_label='Детальніше',
+			created_by=self.dieller,
+		)
+		self.carrier_notification = SiteNotification.objects.create(
+			title='Для перевізників',
+			message='Оновлення кабінету',
+			audience=SiteNotification.AUDIENCE_CARRIERS,
+			created_by=self.dieller,
+		)
+
+	def test_notifications_are_scoped_by_audience(self):
+		self.client.force_login(self.user)
+		response = self.client.get(reverse('main:profile'), {'section': 'notifications'})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Оновлення сайту')
+		self.assertNotContains(response, 'Для перевізників')
+		self.assertEqual(response.context['unread_notifications_count'], 1)
+		self.assertContains(response, 'profile-card-main')
+
+		self.client.force_login(self.carrier)
+		response = self.client.get(reverse('main:profile'), {'section': 'notifications'})
+		self.assertContains(response, 'Оновлення сайту')
+		self.assertContains(response, 'Для перевізників')
+		self.assertEqual(response.context['unread_notifications_count'], 2)
+
+	def test_notification_badge_shows_unread_count_in_profile(self):
+		self.client.force_login(self.user)
+		response = self.client.get(reverse('main:profile'))
+		self.assertContains(response, '🔔 Сповіщення')
+		self.assertContains(response, 'notification-badge')
+		self.assertContains(response, '>1</span>')
+
+	def test_reader_can_mark_only_visible_notifications_read(self):
+		self.client.force_login(self.user)
+		response = self.client.post(reverse('main:profile_notifications'), {
+			'action': 'mark_read',
+			'notification_id': self.all_notification.id,
+		})
+		notifications_url = f"{reverse('main:profile')}?section=notifications"
+		self.assertRedirects(response, notifications_url)
+		self.assertTrue(NotificationRead.objects.filter(
+			notification=self.all_notification,
+			user=self.user,
+		).exists())
+		self.assertEqual(
+			self.client.get(reverse('main:profile'), {'section': 'notifications'}).context['unread_notifications_count'],
+			0,
+		)
+
+		response = self.client.post(reverse('main:profile_notifications'), {
+			'action': 'mark_read',
+			'notification_id': self.carrier_notification.id,
+		})
+		self.assertEqual(response.status_code, 404)
+
+	def test_only_dieller_can_publish_notifications_from_profile(self):
+		self.client.force_login(self.user)
+		response = self.client.post(reverse('main:profile_notifications'), {
+			'action': 'create',
+			'title': 'Несанкціоноване',
+			'message': 'Не має бути створено',
+			'audience': SiteNotification.AUDIENCE_ALL,
+		})
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(SiteNotification.objects.filter(title='Несанкціоноване').exists())
+
+		self.client.force_login(self.dieller)
+		response = self.client.post(reverse('main:profile_notifications'), {
+			'action': 'create',
+			'title': 'Важливі новини',
+			'message': 'Зустрінемось у новому сезоні 🎉',
+			'audience': SiteNotification.AUDIENCE_CARRIERS,
+			'link_url': 'https://example.com/update',
+			'link_label': 'Дивитись',
+		})
+		self.assertRedirects(response, f"{reverse('main:profile')}?section=notifications")
+		notification = SiteNotification.objects.get(title='Важливі новини')
+		self.assertEqual(notification.created_by, self.dieller)
+		self.assertEqual(notification.audience, SiteNotification.AUDIENCE_CARRIERS)
 
 
 class SubcityMatchingTests(TestCase):
@@ -218,8 +311,8 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		draw_qr.assert_called_once()
 		qr_code.assert_called_once_with('https://diellerbus.com/')
 
-	def test_send_ticket_email_uses_contact_email_when_user_email_missing(self):
-		user = User.objects.create_user(username='noemail', email='', password='pass1234')
+	def test_send_ticket_email_prefers_checkout_contact_email(self):
+		user = User.objects.create_user(username='noemail', email='account@example.com', password='pass1234')
 		ticket = Ticket.objects.create(
 			user=user,
 			trip=self.trip,
@@ -543,6 +636,9 @@ class TicketPdfAndPaymentFallbackTests(TestCase):
 		self.assertEqual(payment.status, 'success')
 		self.assertTrue(ticket.paid)
 		self.assertEqual(payment.provider_payment_id, 'tx-123')
+		self.assertEqual(payment.order_reference, payload['orderReference'])
+		self.assertEqual(len(mail.outbox), 1)
+		self.assertEqual(mail.outbox[0].to, [self.user.email])
 
 	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
 	def test_callback_accepts_product_array_field_names(self):
@@ -709,6 +805,115 @@ class TripAvailabilityTests(TestCase):
 		TripStop.objects.create(trip=self.trip, city=self.city1, order=1, departure_time='08:00')
 		TripStop.objects.create(trip=self.trip, city=self.city2, order=2, arrival_time='12:00')
 
+	@override_settings(WAYFORPAY_MERCHANT_LOGIN='test-merchant', WAYFORPAY_MERCHANT_SECRET='test-secret')
+	def test_saved_availability_is_searchable_by_route_city_when_stop_is_station(self):
+		self.user.profile.is_carrier = True
+		self.user.profile.save(update_fields=['is_carrier'])
+		lutsk = City.objects.create(name='Луцьк', country='UA')
+		station = City.objects.create(name='АС-2', country='UA')
+		lviv = City.objects.create(name='Львів', country='UA')
+		route = Route.objects.create(name='Луцьк — Львів', include_subcities=True)
+		trip = Trip.objects.create(
+			route=route,
+			carrier_user=self.user,
+			start_city=station,
+			end_city=lviv,
+			direction='UA_UA',
+			seats=20,
+			base_price='0.00',
+			active=True,
+		)
+		TripStop.objects.create(trip=trip, city=station, order=1, departure_time='05:40')
+		TripStop.objects.create(trip=trip, city=lviv, order=2, arrival_time='12:00')
+		TripFare.objects.create(trip=trip, from_city=lutsk, to_city=lviv, price='506.00', currency='UAH')
+		travel_date = date.today() + timedelta(days=2)
+		self.client.force_login(self.user)
+
+		save_response = self.client.post(
+			reverse('main:carrier_trip_availability', args=[trip.id]),
+			{'available_dates': [travel_date.isoformat()]},
+		)
+		self.assertEqual(save_response.status_code, 302)
+		self.assertTrue(TripDayAvailability.objects.get(trip=trip, date=travel_date).available)
+
+		api_response = api_trips(RequestFactory().get('/api/trips/', {
+			'from': lutsk.name,
+			'to': lviv.name,
+			'date': travel_date.isoformat(),
+		}))
+		import json as _json
+		data = _json.loads(api_response.content.decode('utf-8'))
+		result = next(item for item in data['trips'] if item['id'] == trip.id)
+		self.assertEqual(result['depart'], '05:40')
+		self.assertEqual(result['from'], lutsk.name)
+		self.assertEqual(result['from_place'], station.name)
+
+		from urllib.parse import urlencode
+		from unittest.mock import patch
+
+		checkout_url = (
+			f"{reverse('main:checkout', args=[trip.id])}?"
+			+ urlencode({
+				'pax': 1,
+				'date': travel_date.isoformat(),
+				'from': lutsk.name,
+				'to': lviv.name,
+			})
+		)
+		checkout_response = self.client.get(checkout_url)
+		self.assertEqual(checkout_response.status_code, 200)
+		self.assertEqual(checkout_response.context['price_per_ticket'], 506)
+
+		class DummyResponse:
+			status_code = 200
+			text = ''
+
+			@staticmethod
+			def json():
+				return {'invoiceUrl': 'https://secure.wayforpay.com/pay/test', 'reasonCode': 1100}
+
+		with patch('main.wayforpay.requests.post', return_value=DummyResponse()) as wayforpay_post:
+			payment_response = self.client.post(checkout_url, {
+				'passengers': '1',
+				'email': self.user.email,
+				'phone': '+380501112233',
+				'passenger_first': ['Тест'],
+				'passenger_last': ['Покупець'],
+				'accept_agreements': 'on',
+			})
+
+		self.assertEqual(payment_response.status_code, 302)
+		self.assertEqual(payment_response['Location'], 'https://secure.wayforpay.com/pay/test')
+		ticket = Ticket.objects.get(trip=trip, user=self.user, travel_date=travel_date)
+		self.assertEqual(ticket.from_city, lutsk.name)
+		self.assertEqual(ticket.to_city, lviv.name)
+		self.assertEqual(ticket.total_price, 506)
+		self.assertFalse(ticket.paid)
+		payment = ticket.payments.get(provider='wayforpay')
+		self.assertEqual(payment.amount, 506)
+		wayforpay_post.assert_called_once()
+
+		torchyn = City.objects.create(name='Торчин', country='UA')
+		other_trip = Trip.objects.create(
+			route=route,
+			carrier_user=self.user,
+			start_city=torchyn,
+			end_city=lviv,
+			direction='UA_UA',
+			seats=20,
+			base_price='100.00',
+			active=True,
+		)
+		TripStop.objects.create(trip=other_trip, city=torchyn, order=1, departure_time='06:50')
+		TripStop.objects.create(trip=other_trip, city=lviv, order=2, arrival_time='12:30')
+		TripDayAvailability.objects.create(trip=other_trip, date=travel_date, available=True)
+		data = _json.loads(api_trips(RequestFactory().get('/api/trips/', {
+			'from': lutsk.name,
+			'to': lviv.name,
+			'date': travel_date.isoformat(),
+		})).content.decode('utf-8'))
+		self.assertFalse(any(item['id'] == other_trip.id for item in data['trips']))
+
 	def test_api_trips_accounts_for_paid_tickets_when_calculating_free_seats(self):
 		Ticket.objects.create(
 			user=self.user,
@@ -732,6 +937,68 @@ class TripAvailabilityTests(TestCase):
 		data = _json.loads(res.content.decode('utf-8'))
 		self.assertEqual(len(data['trips']), 1)
 		self.assertEqual(data['trips'][0]['free'], 3)
+
+	def test_api_trips_returns_all_stops_in_reverse_travel_order(self):
+		middle = City.objects.create(name='Краків', country='PL')
+		route = Route.objects.create(name='Львів — Київ, зворотний рейс')
+		trip = Trip.objects.create(
+			route=route,
+			direction='PL_UA',
+			seats=20,
+			base_price=100.0,
+			active=True,
+		)
+		TripStop.objects.create(trip=trip, city=self.city1, order=1, departure_time='08:00', price=100)
+		TripStop.objects.create(
+			trip=trip,
+			city=middle,
+			order=2,
+			arrival_time='12:00',
+			departure_time='12:15',
+			price=150,
+		)
+		TripStop.objects.create(trip=trip, city=self.city2, order=3, arrival_time='18:15')
+
+		response = api_trips(RequestFactory().get('/api/trips/', {
+			'from': 'Київ',
+			'to': 'Львів',
+		}))
+		import json as _json
+		data = _json.loads(response.content.decode('utf-8'))
+
+		reverse_trip = next(item for item in data['trips'] if item['id'] == trip.id)
+		self.assertEqual(
+			[item['place'] for item in reverse_trip['stops']],
+			['Київ', 'Краків', 'Львів'],
+		)
+		self.assertEqual(reverse_trip['stops'][1]['arrival'], '12:00')
+		self.assertEqual(reverse_trip['stops'][1]['departure'], '12:15')
+		self.assertEqual(reverse_trip['duration'], '13 год 45 хв')
+		self.assertEqual(reverse_trip['price'], 250.0)
+
+	def test_api_trips_includes_carrier_brand_and_avatar(self):
+		carrier_user = User.objects.create_user(
+			username='route-carrier',
+			email='route-carrier@example.com',
+			password='pass1234',
+		)
+		Carrier.objects.create(
+			user=carrier_user,
+			company_name='Перевізник Тест',
+			avatar='carriers/test-logo.png',
+		)
+		self.trip.carrier_user = carrier_user
+		self.trip.save(update_fields=['carrier_user'])
+
+		response = api_trips(RequestFactory().get('/api/trips/', {
+			'from': 'Львів',
+			'to': 'Київ',
+		}))
+		import json as _json
+		data = _json.loads(response.content.decode('utf-8'))
+
+		self.assertEqual(data['trips'][0]['carrier'], 'Перевізник Тест')
+		self.assertEqual(data['trips'][0]['carrier_avatar'], '/media/carriers/test-logo.png')
 
 	@override_settings(DEBUG=True)
 	def test_payment_success_marks_ticket_paid_from_order_reference_without_signature_in_debug(self):
@@ -802,6 +1069,236 @@ class TripAvailabilityTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertFalse(Ticket.objects.filter(pk=ticket.id).exists())
 		self.assertFalse(Payment.objects.filter(pk=payment.id).exists())
+
+
+class WayForPayRefundTests(TestCase):
+	def test_refund_payload_uses_documented_signature_fields(self):
+		service = WayForPayService(
+			merchant_login='test-merchant',
+			merchant_secret='test-secret',
+			api_url='https://api.example.test',
+		)
+		payload = service.build_refund_payload(
+			order_reference='ticket-5-token',
+			amount='125.50',
+			currency='UAH',
+			comment='Trip cancelled',
+		)
+
+		self.assertEqual(payload['transactionType'], 'REFUND')
+		self.assertEqual(payload['amount'], '125.50')
+		self.assertEqual(payload['merchantSignature'], _build_signature(
+			['test-merchant', 'ticket-5-token', '125.50', 'UAH'],
+			'test-secret',
+		))
+
+	@patch('main.wayforpay.requests.post')
+	def test_refund_posts_to_wayforpay_api(self, post):
+		class DummyResponse:
+			status_code = 200
+			text = ''
+
+			@staticmethod
+			def json():
+				return {'transactionStatus': 'refunded', 'reasonCode': 1100}
+
+		post.return_value = DummyResponse()
+		service = WayForPayService(
+			merchant_login='test-merchant',
+			merchant_secret='test-secret',
+			api_url='https://api.example.test',
+		)
+
+		result = service.refund('ticket-5-token', '125.50', 'UAH', 'Trip cancelled')
+
+		self.assertEqual(result['transactionStatus'], 'refunded')
+		self.assertEqual(post.call_args.kwargs['json']['transactionType'], 'REFUND')
+		self.assertEqual(post.call_args.args[0], 'https://api.example.test')
+
+
+@override_settings(
+	WAYFORPAY_MERCHANT_LOGIN='test-merchant',
+	WAYFORPAY_MERCHANT_SECRET='test-secret',
+	EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+	DEFAULT_FROM_EMAIL='tickets@example.test',
+)
+class CarrierTripCancellationTests(TestCase):
+	def setUp(self):
+		self.carrier_user = User.objects.create_user(
+			username='cancel-carrier',
+			email='carrier@example.test',
+			password='pass1234',
+		)
+		Carrier.objects.create(user=self.carrier_user, company_name='Перевізник')
+		self.passenger = User.objects.create_user(
+			username='cancel-passenger',
+			email='passenger@example.test',
+			password='pass1234',
+		)
+		self.city_from = City.objects.create(name='Львів', country='UA')
+		self.city_to = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ')
+		self.trip = Trip.objects.create(
+			route=self.route,
+			carrier_user=self.carrier_user,
+			start_city=self.city_from,
+			end_city=self.city_to,
+			seats=20,
+			base_price='100.00',
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city_from, order=1, departure_time='10:00')
+		TripStop.objects.create(trip=self.trip, city=self.city_to, order=2, arrival_time='12:00')
+		self.travel_date = date.today() + timedelta(days=4)
+		self.ticket = Ticket.objects.create(
+			user=self.passenger,
+			trip=self.trip,
+			route=self.route.name,
+			from_city=self.city_from.name,
+			to_city=self.city_to.name,
+			travel_date=self.travel_date,
+			passengers=1,
+			total_price='100.00',
+			currency='UAH',
+			contact_email=self.passenger.email,
+			paid=True,
+		)
+		self.payment = Payment.objects.create(
+			ticket=self.ticket,
+			user=self.passenger,
+			provider='wayforpay',
+			order_reference=f'ticket-{self.ticket.id}-original',
+			provider_payment_id='transaction-1',
+			amount='100.00',
+			currency='UAH',
+			status='success',
+		)
+		self.client.force_login(self.carrier_user)
+
+	@patch('main.wayforpay.requests.post')
+	def test_carrier_cancellation_refunds_card_closes_date_and_emails_passenger(self, post):
+		class DummyResponse:
+			status_code = 200
+			text = ''
+
+			@staticmethod
+			def json():
+				return {
+					'orderReference': 'ticket-1-original',
+					'transactionStatus': 'refunded',
+					'reasonCode': 1100,
+					'merchantAccount': 'test-merchant',
+				}
+
+		post.return_value = DummyResponse()
+		response = self.client.post(
+			reverse('main:carrier_cancel_trip', args=[self.trip.id]),
+			{'date': self.travel_date.isoformat()},
+		)
+
+		self.assertRedirects(response, reverse('main:carrier_cancel_trip', args=[self.trip.id]))
+		self.assertFalse(self.trip.is_available_on(self.travel_date))
+		self.ticket.refresh_from_db()
+		self.assertFalse(self.ticket.paid)
+		refund = Payment.objects.get(ticket=self.ticket, provider='wayforpay_refund')
+		self.assertEqual(refund.status, 'refunded')
+		self.assertEqual(refund.order_reference, self.payment.order_reference)
+		self.assertEqual(len(mail.outbox), 1)
+		self.assertIn('повернено', mail.outbox[0].subject.lower())
+		self.assertIn('на вашу картку', mail.outbox[0].body)
+
+	@patch('main.wayforpay.requests.post')
+	def test_declined_refund_keeps_ticket_paid_and_does_not_claim_success_by_email(self, post):
+		class DummyResponse:
+			status_code = 200
+			text = ''
+
+			@staticmethod
+			def json():
+				return {
+					'orderReference': 'ticket-1-original',
+					'transactionStatus': 'Declined',
+					'reasonCode': 1101,
+					'merchantAccount': 'test-merchant',
+				}
+
+		post.return_value = DummyResponse()
+		self.client.post(
+			reverse('main:carrier_cancel_trip', args=[self.trip.id]),
+			{'date': self.travel_date.isoformat()},
+		)
+
+		self.assertFalse(self.trip.is_available_on(self.travel_date))
+		self.ticket.refresh_from_db()
+		self.assertTrue(self.ticket.paid)
+		refund = Payment.objects.get(ticket=self.ticket, provider='wayforpay_refund')
+		self.assertEqual(refund.status, 'failure')
+		cancellation = TripCancellation.objects.get(trip=self.trip, date=self.travel_date)
+		self.assertEqual(cancellation.status, 'refund_pending')
+		self.assertEqual(mail.outbox, [])
+
+	@patch('main.wayforpay.requests.post')
+	def test_cancelled_date_stays_closed_after_availability_form_post(self, post):
+		post.side_effect = AssertionError('Canceled dates must not create another refund request')
+		TripCancellation.objects.create(
+			trip=self.trip,
+			date=self.travel_date,
+			initiated_by=self.carrier_user,
+			status='refund_pending',
+		)
+		TripDayAvailability.objects.create(trip=self.trip, date=self.travel_date, available=False)
+
+		self.client.post(
+			reverse('main:carrier_trip_availability', args=[self.trip.id]),
+			{'available_dates': [self.travel_date.isoformat()]},
+		)
+
+		self.assertFalse(self.trip.is_available_on(self.travel_date))
+		availability = TripDayAvailability.objects.get(trip=self.trip, date=self.travel_date)
+		self.assertFalse(availability.available)
+
+	def test_non_owner_cannot_cancel_carrier_trip(self):
+		other_user = User.objects.create_user(username='other-user', password='pass1234')
+		self.client.force_login(other_user)
+		response = self.client.post(
+			reverse('main:carrier_cancel_trip', args=[self.trip.id]),
+			{'date': self.travel_date.isoformat()},
+		)
+
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(TripCancellation.objects.filter(trip=self.trip).exists())
+
+	def test_cancellation_page_shows_route_date_and_paid_ticket_count(self):
+		response = self.client.get(
+			reverse('main:carrier_cancel_trip', args=[self.trip.id])
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, self.route.name)
+		self.assertContains(response, self.travel_date.strftime('%d.%m.%Y'))
+		self.assertContains(response, 'Скасувати цю дату')
+		self.assertEqual(response.context['days'][0]['paid_tickets'], 1)
+
+	def test_cancelled_date_is_excluded_from_search_even_if_availability_is_reopened(self):
+		TripCancellation.objects.create(
+			trip=self.trip,
+			date=self.travel_date,
+			initiated_by=self.carrier_user,
+			status='refund_pending',
+		)
+		TripDayAvailability.objects.create(
+			trip=self.trip,
+			date=self.travel_date,
+			available=True,
+		)
+
+		response = api_trips(RequestFactory().get('/api/trips/', {
+			'from': self.city_from.name,
+			'to': self.city_to.name,
+			'date': self.travel_date.isoformat(),
+		}))
+		import json as _json
+
+		self.assertEqual(_json.loads(response.content.decode('utf-8'))['trips'], [])
 
 
 class HomePagePopularRoutesTests(TestCase):

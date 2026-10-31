@@ -98,6 +98,104 @@
     }
     /* ensure content doesn't spill outside visible area */
     .container.ticket-page { overflow-x: hidden; }
+
+    .results-list { gap:16px; }
+    .results-list .trip-card {
+      padding:0 !important;
+      border:1px solid #e6eaf0 !important;
+      border-radius:16px !important;
+      box-shadow:0 8px 24px rgba(16, 42, 67, .07) !important;
+      overflow:hidden;
+      transition:box-shadow .2s ease, transform .2s ease;
+    }
+    .results-list .trip-card:hover {
+      transform:translateY(-2px);
+      box-shadow:0 14px 32px rgba(16, 42, 67, .12) !important;
+    }
+    .carrier-strip {
+      display:flex; align-items:center; gap:11px; padding:16px 20px 12px;
+      border-bottom:1px solid #eef1f5;
+    }
+    .carrier-avatar {
+      width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center;
+      overflow:hidden; border-radius:50%; background:#edf4fb; color:#245577;
+      font-weight:800; font-size:17px; position:relative;
+    }
+    .carrier-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .carrier-avatar img + .carrier-initials { display:none; }
+    .carrier-name { color:#1e293b; font-weight:700; line-height:1.2; }
+    .carrier-caption { color:#8491a2; font-size:12px; margin-top:3px; }
+    .journey-summary {
+      display:grid; grid-template-columns:minmax(0,1fr) minmax(100px,.7fr) minmax(0,1fr) auto;
+      gap:18px; align-items:center; padding:20px;
+    }
+    .journey-point { min-width:0; }
+    .journey-point--arrival { text-align:right; }
+    .journey-time { color:#163b59; font-size:22px; font-weight:800; line-height:1.2; }
+    .journey-city { margin-top:5px; color:#29394a; font-weight:700; }
+    .journey-place { margin-top:3px; color:#758397; font-size:12px; line-height:1.4; }
+    .journey-middle { color:#6b7b8d; text-align:center; font-size:12px; }
+    .journey-line { display:flex; align-items:center; gap:7px; margin:9px 0; color:#2b6288; }
+    .journey-line:before, .journey-line:after { content:""; height:1px; background:#cfdae5; flex:1; }
+    .trip-availability { display:flex; align-items:center; gap:6px; margin-top:8px; color:#64748b; font-size:13px; }
+    .trip-price-box { min-width:145px; text-align:right; }
+    .trip-price-box .price { color:#c81b60 !important; font-size:23px; }
+    .trip-actions {
+      display:flex; justify-content:space-between; align-items:center; gap:12px;
+      padding:12px 20px; background:#f8fafc; border-top:1px solid #eef1f5;
+    }
+    .details-toggle {
+      border:0; padding:8px 0; background:transparent; color:var(--kvitok-accent);
+      font-weight:700; display:inline-flex; align-items:center; gap:7px;
+    }
+    .details-toggle:hover { color:#a8144f; }
+    .details-chevron { transition:transform .2s ease; }
+    .details-toggle[aria-expanded="true"] .details-chevron { transform:rotate(180deg); }
+    .results-list .trip-card .choose-btn,
+    .results-list .trip-card .buy-now {
+      background:linear-gradient(90deg,var(--kvitok-accent),#ff4f6b) !important;
+      color:#fff !important; border:0 !important; border-radius:9px !important;
+      padding:10px 18px !important; font-weight:700 !important;
+    }
+    .results-list .trip-card .choose-btn:hover,
+    .results-list .trip-card .buy-now:hover { filter:brightness(.94); }
+    .trip-details { padding:20px; border-top:1px solid #eef1f5; }
+    .trip-details h5 { color:#1e293b; font-size:15px; font-weight:800; margin:0 0 14px; }
+    .stops-timeline { border-left:2px solid #dce5ed; margin-left:6px; padding:0 0 0 18px; }
+    .stop-row { position:relative; gap:14px; padding:0 0 17px; border:0 !important; }
+    .stop-row:last-child { padding-bottom:0; }
+    .stop-row:before {
+      content:""; position:absolute; left:-25px; top:5px; width:12px; height:12px;
+      border:2px solid #4a7898; border-radius:50%; background:#fff;
+    }
+    .stop-row:first-child:before, .stop-row:last-child:before { border-color:#c81b60; }
+    .stop-times { width:98px; flex:0 0 98px; color:#245577; font-size:12px; line-height:1.55; }
+    .stop-place { color:#344256 !important; font-size:13px; line-height:1.5; }
+    .stop-kind { display:block; color:#8793a2; font-size:11px; font-weight:700; margin-bottom:2px; }
+    .stop-place strong { display:block; color:#1e293b; }
+    .stop-address { display:block; color:#758397; font-size:12px; }
+    .trip-details-side { padding:16px; border:1px solid #e8edf2; border-radius:12px; background:#fbfcfe; }
+    .trip-details-side p { color:#526174; font-size:13px; margin:0 0 10px; }
+    .trip-details-side p:last-child { margin-bottom:0; }
+    .trip-details-side strong { color:#25364a; }
+    @media(max-width:767px) {
+      .journey-summary { grid-template-columns:minmax(0,1fr) minmax(75px,.55fr) minmax(0,1fr); gap:9px; padding:16px; }
+      .journey-time { font-size:19px; }
+      .journey-city { font-size:14px; }
+      .trip-price-box { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; min-width:0; text-align:left; border-top:1px solid #eef1f5; padding-top:12px; }
+      .trip-price-box .price { font-size:21px; }
+      .trip-actions { padding:10px 16px; }
+      .trip-details { padding:16px; }
+      .stop-times { width:84px; flex-basis:84px; }
+    }
+    @media(max-width:420px) {
+      .carrier-strip { padding:13px 15px 10px; }
+      .journey-summary { gap:6px; padding:14px 12px; }
+      .journey-time { font-size:17px; }
+      .journey-place { font-size:11px; }
+      .trip-actions { padding:9px 12px; }
+      .results-list .trip-card .choose-btn { padding:9px 12px !important; }
+    }
   </style>
 {% endblock %}
 
@@ -126,7 +224,7 @@
       <div>
         <div class="hero-label">Швидкий пошук</div>
         <h3 class="search-title" style="margin:4px 0 8px;">Знайдіть найзручніший рейс — швидко й вигідно</h3>
-        <div class="search-sub" style="max-width:70%;">Пошук за нашою базою: миттєве порівняння рейсів, акції й кращі місця. Клік на квитку веде до покупки.</div>
+        <div class="search-sub" style="max-width:70%;">Перегляньте весь маршрут, порівняйте рейси та переходьте до бронювання.</div>
       </div>
       <div>
         <button class="btn btn-primary" onclick="document.getElementById('fromCity').focus(); return false;">Розпочати пошук</button>
@@ -181,16 +279,6 @@
     <div id="resultsBadge" class="badge bg-secondary" style="display:none">0</div>
   </div>
   
-
-  <div class="results-table mb-3">
-    <div class="results-headers d-none d-md-flex text-uppercase small muted-small">
-      <div class="col">ВІДПРАВЛЕННЯ</div>
-      <div class="col">В ДОРОЗІ</div>
-      <div class="col">ПРИБУТТЯ</div>
-      <div class="col">ВІЛЬНИХ МІСЦЬ</div>
-      <div class="col text-end">ЦІНА</div>
-    </div>
-  </div>
 
   <div class="results-panel mb-4">
     <div id="results" class="results-list"></div>
@@ -347,55 +435,86 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
     const total = t.price * pax;
     const disabled = (t.free < pax);
     const hasDiscount = (t.discount && t.discount > 0);
+    const carrierName = escapeHtml(t.carrier || 'Перевізник');
+    const carrierAvatar = `${t.carrier_avatar ? `<img src="${escapeHtml(t.carrier_avatar)}" alt="">` : ''}<span class="carrier-initials">${escapeHtml(carrierName.slice(0, 1).toUpperCase())}</span>`;
+    const stopCount = Array.isArray(t.stops) ? t.stops.length : 0;
+    const intermediateCount = Math.max(stopCount - 2, 0);
+    const stopLabel = stopCount === 1 ? '1 зупинка' : stopCount > 1 && stopCount < 5 ? `${stopCount} зупинки` : `${stopCount} зупинок`;
+    const intermediateLabel = intermediateCount === 1
+      ? '1 проміжна зупинка'
+      : intermediateCount > 1 && intermediateCount < 5
+        ? `${intermediateCount} проміжні зупинки`
+        : `${intermediateCount} проміжних зупинок`;
+    const stops = Array.isArray(t.stops) ? t.stops : [];
     return `
       <div class="trip-card mb-3" data-id="${t.id}">
-        <div class="trip-grid align-items-center">
-          <div class="trip-col">
-            <div class="k">Відправлення</div>
-            <div class="v">${t.depart}</div>
-            <div class="sub">${t.from}<br><small class="muted-small">${t.from_place}</small></div>
+        <div class="carrier-strip">
+          <div class="carrier-avatar">${carrierAvatar}</div>
+          <div><div class="carrier-name">${carrierName}</div><div class="carrier-caption">Перевізник</div></div>
+        </div>
+        <div class="journey-summary">
+          <div class="journey-point">
+            <div class="journey-time">${escapeHtml(t.depart || '—')}</div>
+            <div class="journey-city">${escapeHtml(t.from || '')}</div>
+            <div class="journey-place">${escapeHtml(t.from_place || '')}</div>
           </div>
-          <div class="trip-col text-center">
-            <div class="k">В дорозі</div>
-            <div class="v">${t.duration || ''}</div>
-            <div class="sub small-muted">${t.carrier || ''}</div>
+          <div class="journey-middle">
+            <div>${escapeHtml(t.duration || (stopCount ? stopLabel : 'Маршрут'))}</div>
+            <div class="journey-line" aria-hidden="true">●</div>
+            <div>${escapeHtml(intermediateLabel)}</div>
           </div>
-          <div class="trip-col">
-            <div class="k">Прибуття</div>
-            <div class="v">${t.arrive}</div>
-            <div class="sub">${t.to}<br><small class="muted-small">${t.to_place}</small></div>
+          <div class="journey-point journey-point--arrival">
+            <div class="journey-time">${escapeHtml(t.arrive || '—')}</div>
+            <div class="journey-city">${escapeHtml(t.to || '')}</div>
+            <div class="journey-place">${escapeHtml(t.to_place || '')}</div>
           </div>
-          <div class="trip-col text-center">
-            <div class="k">Вільних місць</div>
-            <div class="v">${t.free}</div>
-          </div>
-          <div class="trip-col price-col text-end">
-            <div class="k">Ціна</div>
+          <div class="trip-price-box">
+            <div>
+              <div class="k">Вільних місць: ${escapeHtml(t.free)}</div>
             ${hasDiscount ? `<div class="muted-small"><del>${formatPrice(t.original_price, t.currency)}</del></div><div class="price text-danger fw-bold">${formatPrice(t.price, t.currency)}</div>` : `<div class="price text-danger fw-bold">${formatPrice(t.price, t.currency)}</div>`}
             <div class="sub">Разом: <strong>${formatPrice(total, t.currency)}</strong></div>
-            <div class="mt-2"><button type="button" class="btn choose-btn" ${disabled ? 'disabled' : ''}>Обрати</button></div>
+            </div>
+            <button type="button" class="btn choose-btn" ${disabled ? 'disabled' : ''}>Обрати</button>
           </div>
         </div>
-
-        <div class="trip-details mt-3" style="display:none">
+        <div class="trip-actions">
+          <button type="button" class="details-toggle" aria-expanded="false">
+            Детальніше про маршрут <span class="details-chevron" aria-hidden="true">⌄</span>
+          </button>
+          ${disabled ? '<span class="muted-small">Недостатньо місць для обраної кількості пасажирів</span>' : '<span class="trip-availability">Доступно для бронювання</span>'}
+        </div>
+        <div class="trip-details" hidden>
           <div class="row">
             <div class="col-md-8">
-              <h5>Зупинки</h5>
+              <h5>Маршрут по зупинках</h5>
               <div class="stops-timeline">
-                ${t.stops.map(s => `
+                ${stops.map((s, index) => `
                   <div class="stop-row d-flex align-items-start">
-                    <div class="stop-time me-3">${s.time}</div>
-                    <div class="stop-place">${s.place}</div>
+                    <div class="stop-times">
+                      ${s.arrival ? `<div>Прибуття <strong>${escapeHtml(s.arrival)}</strong></div>` : ''}
+                      ${s.departure ? `<div>Відправлення <strong>${escapeHtml(s.departure)}</strong></div>` : ''}
+                      ${!s.arrival && !s.departure && s.time ? `<div><strong>${escapeHtml(s.time)}</strong></div>` : ''}
+                      ${!s.arrival && !s.departure && !s.time ? '<div>Час не вказано</div>' : ''}
+                    </div>
+                    <div class="stop-place">
+                      <span class="stop-kind">${index === 0 ? 'Відправлення' : index === stops.length - 1 ? 'Прибуття' : 'Зупинка'}</span>
+                      <strong>${escapeHtml(s.city || s.place || '')}</strong>
+                      ${s.address ? `<span class="stop-address">${escapeHtml(s.address)}</span>` : s.place && s.place !== s.city ? `<span class="stop-address">${escapeHtml(s.place)}</span>` : ''}
+                      ${!s.city && !s.place ? `<span class="stop-address">${index === 0 ? 'Початок поїздки' : index === stops.length - 1 ? 'Кінець поїздки' : 'Зупинка'}</span>` : ''}
+                    </div>
                   </div>
                 `).join('')}
               </div>
             </div>
             <div class="col-md-4">
-              <h5>Інформація</h5>
-              <p><strong>Перевізник:</strong> ${t.carrier}</p>
-              <p><strong>Вільних місць:</strong> <span class="seats-count-right">${t.free}</span></p>
-              <p><strong>Умови повернення:</strong><br><small class="muted-small">Див. умови перевізника</small></p>
-              <div><button type="button" class="btn buy-now mt-2" ${disabled ? 'disabled' : ''}>Купити</button></div>
+              <h5>Інформація про рейс</h5>
+              <div class="trip-details-side">
+                <p><strong>Перевізник:</strong> ${carrierName}</p>
+                <p><strong>Відправлення:</strong> ${escapeHtml(t.from || '')} · ${escapeHtml(t.depart || 'час не вказано')}</p>
+                <p><strong>Прибуття:</strong> ${escapeHtml(t.to || '')} · ${escapeHtml(t.arrive || 'час не вказано')}</p>
+                <p><strong>Вільних місць:</strong> <span class="seats-count-right">${escapeHtml(t.free)}</span></p>
+                <button type="button" class="btn buy-now mt-2" ${disabled ? 'disabled' : ''}>Продовжити покупку</button>
+              </div>
             </div>
           </div>
         </div>
@@ -442,26 +561,26 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
       const cur = (currencySelect && currencySelect.value) ? currencySelect.value : '';
       const url = `/api/trips/?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&date=${encodeURIComponent(d)}&pax=${encodeURIComponent(pax)}${cur ? '&currency=' + encodeURIComponent(cur) : ''}`;
       const res = await fetch(url);
-        if (res.ok){
-          const data = await res.json();
-          list = (data.trips || []).map(x => ({
-            id: String(x.id), direction: x.direction, from: x.from, from_place: x.from_place || '',
-            to: x.to, to_place: x.to_place || '', depart: x.depart || '', arrive: x.arrive || '',
-            duration: x.duration || '',
-            original_price: Number(x.price) || 0,
-            price: Number(x.price_after_discount) || Number(x.price) || 0,
-            discount: Number(x.discount_percent) || 0,
-            currency: x.currency || 'UAH',
-            free: Number(x.free) || 0, carrier: x.carrier || '', stops: x.stops || []
-          }));
-          list.sort((a, b) => {
-            const parseTime = (val) => {
-              if (!val) return 9999;
-              const parts = val.split(':').map(x => Number(x));
-              return parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) ? parts[0] * 60 + parts[1] : 9999;
-            };
-            return parseTime(a.depart || a.arrive) - parseTime(b.depart || b.arrive);
-          });
+      if (res.ok){
+        const data = await res.json();
+        list = (data.trips || []).map(x => ({
+          id: String(x.id), direction: x.direction, from: x.from, from_place: x.from_place || '',
+          to: x.to, to_place: x.to_place || '', depart: x.depart || '', arrive: x.arrive || '',
+          duration: x.duration || '',
+          original_price: Number(x.price) || 0,
+          price: Number(x.price_after_discount) || Number(x.price) || 0,
+          discount: Number(x.discount_percent) || 0,
+          currency: x.currency || 'UAH',
+          free: Number(x.free) || 0, carrier: x.carrier || '', carrier_avatar: x.carrier_avatar || '', stops: x.stops || []
+        }));
+        list.sort((a, b) => {
+          const parseTime = (val) => {
+            if (!val) return 9999;
+            const parts = val.split(':').map(x => Number(x));
+            return parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) ? parts[0] * 60 + parts[1] : 9999;
+          };
+          return parseTime(a.depart || a.arrive) - parseTime(b.depart || b.arrive);
+        });
       }
     }catch(e){ console.warn('API trips fetch failed', e); }
 
@@ -470,66 +589,76 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
 
     results.innerHTML = list.map(x => renderTripCard(x, pax)).join('');
 
+    results.querySelectorAll('.carrier-avatar img').forEach(image => {
+      image.addEventListener('error', () => {
+        image.remove();
+        const initials = image.parentElement.querySelector('.carrier-initials');
+        if (initials) initials.style.display = 'grid';
+      }, {once: true});
+    });
+
     results.querySelectorAll('.trip-card').forEach(card => {
       const id = card.dataset.id;
       console.log("CARD DATA ID =", id);
       const chooseBtn = card.querySelector('.choose-btn');
+      const detailsToggle = card.querySelector('.details-toggle');
       const buyNow = card.querySelector('.buy-now');
       const details = card.querySelector('.trip-details');
 
-      chooseBtn && chooseBtn.addEventListener('click', (e) => { e.preventDefault(); details.style.display = details.style.display === 'none' ? 'block' : 'none'; details.scrollIntoView({behavior:'smooth', block:'center'}); });
+      const toggleDetails = (scrollToDetails) => {
+        const isHidden = details.hidden;
+        details.hidden = !isHidden;
+        detailsToggle.setAttribute('aria-expanded', String(isHidden));
+        if (isHidden && scrollToDetails) details.scrollIntoView({behavior:'smooth', block:'center'});
+      };
+      detailsToggle && detailsToggle.addEventListener('click', () => toggleDetails(false));
+      chooseBtn && chooseBtn.addEventListener('click', (e) => { e.preventDefault(); toggleDetails(true); });
 
-        buyNow && buyNow.addEventListener('click', (e) => {
-          e.preventDefault();
-      const pax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
-      const trip = list.find(x => String(x.id) === String(id));
-      if (!trip) return;
+      buyNow && buyNow.addEventListener('click', (e) => {
+        e.preventDefault();
+        const currentPax = Math.max(1, Math.min(6, parseInt(passengers.value || '1', 10)));
+        const trip = list.find(x => String(x.id) === String(id));
+        if (!trip) return;
 
-      if (trip.free < pax){
-        alert('Недостатньо вільних місць для цієї кількості пасажирів.');
-        return;
-      }
-
-      if (!IS_AUTH){
-        window.location.href = '{% url "main:registerindex" %}?next=' + encodeURIComponent(window.location.pathname + window.location.search);
-        return;
-      }
-
-      // Include selected travel date so server can validate availability for that date
-      const dateVal = (travelDate && travelDate.value) ? encodeURIComponent(travelDate.value) : '';
-      const dateParam = dateVal ? `&date=${dateVal}` : '';
-
-      console.log("CARD ID =", id, "pax=", pax, "date=", dateVal);
-
-      // Build checkout URL robustly: take reversed sample URL and replace trailing digits with actual id
-      const sample = `{% url 'main:checkout' 1 %}`;
-      // remove trailing number (1) and optional slash to get base
-      const base = sample.replace(/\d+\/?$/, '');
-
-      if (!id){
-        console.error('Missing trip id when attempting checkout; using fallback form.');
-        const fp = document.getElementById('buyForm');
-        if (fp){
-          document.getElementById('form_trip').value = '';
-          document.getElementById('form_passengers').value = pax;
-          document.getElementById('form_travel_date').value = travelDate && travelDate.value ? travelDate.value : '';
-          document.getElementById('form_price').value = (trip && trip.price) ? trip.price : '';
-          document.getElementById('form_from').value = (trip && trip.from) ? trip.from : (fromCity && fromCity.value) || '';
-          document.getElementById('form_to').value = (trip && trip.to) ? trip.to : (toCity && toCity.value) || '';
-          try{ document.getElementById('form_exchange').value = exchangeTicket || ''; }catch(e){}
-          fp.submit();
+        if (trip.free < currentPax){
+          alert('Недостатньо вільних місць для цієї кількості пасажирів.');
           return;
         }
-        alert('Не вдалося визначити рейс для оплати. Спробуйте ще раз.');
-        return;
-      }
 
-      const fromParam = (trip && trip.from) ? '&from=' + encodeURIComponent(trip.from) : (fromCity && fromCity.value) ? '&from=' + encodeURIComponent(fromCity.value) : '';
-      const toParam = (trip && trip.to) ? '&to=' + encodeURIComponent(trip.to) : (toCity && toCity.value) ? '&to=' + encodeURIComponent(toCity.value) : '';
-      const exchangeParam = exchangeTicket ? '&exchange_ticket=' + encodeURIComponent(exchangeTicket) : '';
-      const target = base + encodeURIComponent(id) + '/?pax=' + encodeURIComponent(pax) + dateParam + fromParam + toParam + exchangeParam;
-      console.log('Redirecting to checkout:', target);
-      window.location.href = target;
+        if (!IS_AUTH){
+          window.location.href = '{% url "main:registerindex" %}?next=' + encodeURIComponent(window.location.pathname + window.location.search);
+          return;
+        }
+
+        const dateVal = (travelDate && travelDate.value) ? encodeURIComponent(travelDate.value) : '';
+        const dateParam = dateVal ? `&date=${dateVal}` : '';
+        const sample = `{% url 'main:checkout' 1 %}`;
+        const base = sample.replace(/\d+\/?$/, '');
+
+        if (!id){
+          console.error('Missing trip id when attempting checkout; using fallback form.');
+          const fp = document.getElementById('buyForm');
+          if (fp){
+            document.getElementById('form_trip').value = '';
+            document.getElementById('form_passengers').value = currentPax;
+            document.getElementById('form_travel_date').value = travelDate && travelDate.value ? travelDate.value : '';
+            document.getElementById('form_price').value = (trip && trip.price) ? trip.price : '';
+            document.getElementById('form_from').value = (trip && trip.from) ? trip.from : (fromCity && fromCity.value) || '';
+            document.getElementById('form_to').value = (trip && trip.to) ? trip.to : (toCity && toCity.value) || '';
+            try{ document.getElementById('form_exchange').value = exchangeTicket || ''; }catch(e){}
+            fp.submit();
+            return;
+          }
+          alert('Не вдалося визначити рейс для оплати. Спробуйте ще раз.');
+          return;
+        }
+
+        const fromParam = trip.from ? '&from=' + encodeURIComponent(trip.from) : (fromCity && fromCity.value) ? '&from=' + encodeURIComponent(fromCity.value) : '';
+        const toParam = trip.to ? '&to=' + encodeURIComponent(trip.to) : (toCity && toCity.value) ? '&to=' + encodeURIComponent(toCity.value) : '';
+        const exchangeParam = exchangeTicket ? '&exchange_ticket=' + encodeURIComponent(exchangeTicket) : '';
+        const target = base + encodeURIComponent(id) + '/?pax=' + encodeURIComponent(currentPax) + dateParam + fromParam + toParam + exchangeParam;
+        console.log('Redirecting to checkout:', target);
+        window.location.href = target;
       });
     });
   }
@@ -558,5 +687,3 @@ console.log('kvitokindex: kvitok.css link', document.querySelector('link[href*="
 })();
 </script>
 {% endblock %}
-
-

@@ -29,11 +29,13 @@ from .models import (
     SupportTicket,
     SupportMessage,
     SupportPresetQuestion,
+    SiteNotification,
+    NotificationRead,
 )
 from .wayforpay import get_wayforpay_service, verify_wayforpay_signature, build_wayforpay_callback_response
 from django.views.generic import ListView, DetailView, FormView
 from django.urls import reverse_lazy, reverse
-from .forms import BusBookingForm
+from .forms import BusBookingForm, SiteNotificationForm
 from .forms import SupportTicketForm, SupportMessageForm, TicketEditForm, PassengerFormSet, ProfileForm, SupportUserForm
 from .forms import RequestPasswordChangeForm
 
@@ -138,10 +140,29 @@ def _parse_ticket_id_from_order_reference(order_reference):
         return None
 
 
+def _extract_wayforpay_order_reference(payload):
+    if not payload:
+        return ''
+    try:
+        if hasattr(payload, 'getlist'):
+            value = payload.get('orderReference') or ''
+        elif isinstance(payload, dict):
+            value = payload.get('orderReference') or payload.get('orderReference[]') or ''
+        else:
+            return ''
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else ''
+        return str(value or '')
+    except (AttributeError, IndexError, TypeError):
+        return ''
+
+
 def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provider_payment_id=None, payload=None):
     from .models import Payment
     if not ticket:
         return None
+
+    order_reference = _extract_wayforpay_order_reference(payload)
 
     if payment is None:
         payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
@@ -149,6 +170,7 @@ def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provi
     if payment:
         payment.provider = provider
         payment.provider_payment_id = provider_payment_id or payment.provider_payment_id
+        payment.order_reference = order_reference or payment.order_reference
         payment.status = 'success'
         if payload is not None:
             payment.data = payload
@@ -159,6 +181,7 @@ def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provi
             user=ticket.user if hasattr(ticket, 'user') else None,
             provider=provider,
             provider_payment_id=provider_payment_id or '',
+            order_reference=order_reference,
             amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
             currency=(getattr(ticket, 'currency', None) or 'UAH'),
             status='success',
@@ -167,10 +190,7 @@ def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provi
 
     ticket.paid = True
     ticket.save(update_fields=['paid'])
-    try:
-        _send_ticket_email(ticket, payment)
-    except Exception:
-        pass
+    _send_ticket_email(ticket, payment)
     try:
         if request is not None:
             request.session.pop('last_ticket_id', None)
@@ -181,6 +201,8 @@ def _mark_ticket_paid(ticket, payment, request=None, provider='wayforpay', provi
 
 def _render_wayforpay_form(request, ticket, payment, contact_email='', contact_phone=''):
     order_reference = f"ticket-{ticket.id}-{uuid.uuid4().hex}"
+    payment.order_reference = order_reference
+    payment.save(update_fields=['order_reference'])
     amount_value = f"{Decimal(str(payment.amount or 0)).quantize(Decimal('0.01')):.2f}"
     merchant_login = getattr(settings, 'WAYFORPAY_MERCHANT_LOGIN', None) or ''
     merchant_secret = getattr(settings, 'WAYFORPAY_MERCHANT_SECRET', None) or getattr(settings, 'WAYFORPAY_SECRET_KEY', None) or ''
@@ -363,6 +385,7 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
 
     if payment is None:
         payment = Payment.objects.filter(ticket=ticket).order_by('-created_at').first()
+    order_reference = _extract_wayforpay_order_reference(payload)
 
     if success:
         if payment is None:
@@ -371,6 +394,7 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
                 user=ticket.user if hasattr(ticket, 'user') else None,
                 provider='wayforpay',
                 provider_payment_id=transaction_id or '',
+                order_reference=order_reference,
                 amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
                 currency=(getattr(ticket, 'currency', None) or 'UAH'),
                 status='success',
@@ -379,15 +403,13 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
         else:
             payment.provider = 'wayforpay'
             payment.provider_payment_id = transaction_id or payment.provider_payment_id or ''
+            payment.order_reference = order_reference or payment.order_reference
             payment.status = 'success'
             payment.data = payload or {}
             payment.save()
         ticket.paid = True
         ticket.save(update_fields=['paid'])
-        try:
-            _send_ticket_email(ticket, payment)
-        except Exception:
-            pass
+        _send_ticket_email(ticket, payment)
         return payment
 
     if payment is None:
@@ -396,6 +418,7 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
             user=ticket.user if hasattr(ticket, 'user') else None,
             provider='wayforpay',
             provider_payment_id=transaction_id or '',
+            order_reference=order_reference,
             amount=(float(ticket.total_price) if getattr(ticket, 'total_price', None) is not None else 0.0),
             currency=(getattr(ticket, 'currency', None) or 'UAH'),
             status='failure',
@@ -404,6 +427,7 @@ def _apply_wayforpay_result(ticket, payment, request, payload, success, transact
     else:
         payment.provider = 'wayforpay'
         payment.provider_payment_id = transaction_id or payment.provider_payment_id or ''
+        payment.order_reference = order_reference or payment.order_reference
         payment.status = 'failure'
         payment.data = payload or {}
         payment.save()
@@ -554,11 +578,53 @@ def find_trip_fare(trip, from_city, to_city):
         return None
 
 
+def _normalize_trip_search_text(value):
+    if not value:
+        return ''
+    value = str(value).strip().lower()
+    value = unicodedata.normalize('NFKD', value)
+    value = ''.join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r'[^0-9a-z\u0400-\u04FF\s]', '', value)
+    return re.sub(r'\s+', ' ', value).strip()
+
+
+def _find_route_endpoint_stop(trip, stops, city_name, purpose):
+    route_name = getattr(getattr(trip, 'route', None), 'name', '') or ''
+    endpoints = [
+        _normalize_trip_search_text(part)
+        for part in re.split(r'\s*(?:→|—|–)\s*|\s+-\s+', route_name)
+    ]
+    if len(endpoints) < 2:
+        return None
+
+    query = _normalize_trip_search_text(city_name)
+    route_endpoint = endpoints[0] if purpose == 'from' else endpoints[-1]
+    if not query or not route_endpoint or not (
+        query == route_endpoint or query in route_endpoint or route_endpoint in query
+    ):
+        return None
+
+    trip_endpoint = getattr(trip, 'start_city' if purpose == 'from' else 'end_city', None)
+    if trip_endpoint:
+        actual_city = _normalize_trip_search_text(trip_endpoint.name)
+        station_label = re.search(
+            r'(?:^|\s)(?:ас\d*|автостанц\w*|автовокзал|вокзал|станц\w*)',
+            actual_city,
+        )
+        if query not in actual_city and actual_city not in query and not station_label:
+            return None
+
+    ordered_stops = list(reversed(stops)) if trip.direction == 'PL_UA' else stops
+    if len(ordered_stops) < 2:
+        return None
+    return ordered_stops[0] if purpose == 'from' else ordered_stops[-1]
+
+
 
 
 from .models import EmailVerification
 from django.http import JsonResponse
-from .models import City, Route, RouteStop, Trip, TripStop, TripDayAvailability, TripFare
+from .models import City, Route, RouteStop, Trip, TripStop, TripDayAvailability, TripCancellation, TripFare
 from django.db.models import Q, Exists, OuterRef, Count, Sum
 from .models import StaticPage, SiteConfig, PasswordChangeRequest
 from django.db.models import Count
@@ -1690,14 +1756,7 @@ def api_trips(request):
     results = []
 
     def normalize_text(s):
-        if not s:
-            return ''
-        s = str(s).strip().lower()
-        s = unicodedata.normalize('NFKD', s)
-        s = ''.join(ch for ch in s if not unicodedata.combining(ch))
-        s = re.sub(r'[^0-9a-z\u0400-\u04FF\s]', '', s)
-        s = re.sub(r'\s+', ' ', s).strip()
-        return s
+        return _normalize_trip_search_text(s)
 
     def similar(a, b):
         try:
@@ -1738,7 +1797,6 @@ def api_trips(request):
                 date_obj = datetime.strptime(date_str, '%d.%m.%Y').date()
             except Exception:
                 date_obj = None
-
     # Build small normalized map of known cities for token -> City resolution.
     try:
         all_cities_list = list(City.objects.all())
@@ -1843,38 +1901,46 @@ def api_trips(request):
     if date_obj:
         unavail_qs = TripDayAvailability.objects.filter(trip=OuterRef('pk'), date=date_obj, available=False)
         avail_qs = TripDayAvailability.objects.filter(trip=OuterRef('pk'), date=date_obj, available=True)
+        cancelled_qs = TripCancellation.objects.filter(trip=OuterRef('pk'), date=date_obj)
         trips_qs = trips_qs.annotate(unavailable_on_date=Exists(unavail_qs), available_on_date=Exists(avail_qs))
         trips_qs = trips_qs.filter(unavailable_on_date=False).filter(
             Q(date__isnull=True) | Q(date=date_obj) | Q(available_on_date=True)
-        )
+        ).filter(~Exists(cancelled_qs))
     if direction:
         trips_qs = trips_qs.filter(direction=direction)
 
     # iterate trips and try flexible matching: match by TripStop city/address or RouteStop
-    for trip in trips_qs.select_related('route'):
-        trip_stops = list(trip.trip_stops.select_related('city').all())
-        route_stops = list(trip.route.stops.select_related('city').all()) if trip.route_id else []
+    for trip in trips_qs.select_related(
+        'route',
+        'carrier_user',
+        'carrier_user__carrier_account',
+        'carrier_user__profile',
+    ):
+        trip_stops = list(trip.trip_stops.select_related('city').order_by('order', 'id'))
+        route_stops = list(trip.route.stops.select_related('city').order_by('order', 'id')) if trip.route_id else []
+        base_stops = trip_stops if trip_stops else route_stops
 
-        from_stop = find_match(trip_stops, q_from, purpose='from') or find_match(route_stops, q_from, purpose='from')
-        to_stop = find_match(trip_stops, q_to, purpose='to') or find_match(route_stops, q_to, purpose='to')
+        from_stop = find_match(base_stops, q_from, purpose='from')
+        to_stop = find_match(base_stops, q_to, purpose='to')
 
         # Fallback: if trip has explicit start/end cities, allow matching by them
         try:
             if (not from_stop) and getattr(trip, 'start_city', None):
                 sc = trip.start_city.name.lower() if trip.start_city and trip.start_city.name else ''
                 if sc and (q_from in sc or sc in q_from):
-                    from_stop = trip.trip_stops.filter(city=trip.start_city).select_related('city').first() or None
-                    if not from_stop and route_stops:
-                        from_stop = next((s for s in route_stops if getattr(s.city, 'id', None) == trip.start_city.id), None)
+                    from_stop = next((s for s in base_stops if getattr(s.city, 'id', None) == trip.start_city.id), None)
 
             if (not to_stop) and getattr(trip, 'end_city', None):
                 ec = trip.end_city.name.lower() if trip.end_city and trip.end_city.name else ''
                 if ec and (q_to in ec or ec in q_to):
-                    to_stop = trip.trip_stops.filter(city=trip.end_city).select_related('city').first() or None
-                    if not to_stop and route_stops:
-                        to_stop = next((s for s in route_stops if getattr(s.city, 'id', None) == trip.end_city.id), None)
+                    to_stop = next((s for s in base_stops if getattr(s.city, 'id', None) == trip.end_city.id), None)
         except Exception:
             pass
+
+        if not from_stop:
+            from_stop = _find_route_endpoint_stop(trip, base_stops, from_name, 'from')
+        if not to_stop:
+            to_stop = _find_route_endpoint_stop(trip, base_stops, to_name, 'to')
 
         if not from_stop or not to_stop:
             # no match for this trip
@@ -1909,9 +1975,13 @@ def api_trips(request):
                 except Exception:
                     continue
 
-        # choose which stops list to use for building the segment (prefer trip_stops for times)
-        base_stops = trip_stops if trip_stops else route_stops
-        segment = [s for s in base_stops if s.order >= from_order and s.order <= to_order]
+        from_index = base_stops.index(from_stop)
+        to_index = base_stops.index(to_stop)
+        segment_start = min(from_index, to_index)
+        segment_end = max(from_index, to_index) + 1
+        segment = base_stops[segment_start:segment_end]
+        if from_index > to_index:
+            segment.reverse()
 
         stops_list = []
         for s in segment:
@@ -1923,7 +1993,15 @@ def api_trips(request):
             elif arr:
                 time = arr.strftime('%H:%M')
             place = s.address or (s.city.name if getattr(s, 'city', None) else '')
-            stops_list.append({'time': time or '', 'place': place, 'price': float(getattr(s, 'price', 0.0) or 0.0)})
+            stops_list.append({
+                'time': time or '',
+                'arrival': arr.strftime('%H:%M') if arr else '',
+                'departure': dep.strftime('%H:%M') if dep else '',
+                'place': place,
+                'city': s.city.name if getattr(s, 'city', None) else '',
+                'address': s.address or '',
+                'price': float(getattr(s, 'price', 0.0) or 0.0),
+            })
 
         # Compute price for segment: prefer explicit TripFare if present,
         # otherwise fall back to summing TripStop.price or Trip.base_price.
@@ -1967,12 +2045,14 @@ def api_trips(request):
                 # sum per-leg prices
                 missing_price = False
                 price_sum = 0.0
+                segment_low = min(from_order, to_order)
+                segment_high = max(from_order, to_order)
                 if trip_stops:
                     for s in trip_stops:
                         so = getattr(s, 'order', None)
                         if so is None:
                             continue
-                        if so >= from_order and so < to_order:
+                        if segment_low <= so < segment_high:
                             p = float(getattr(s, 'price', 0.0) or 0.0)
                             if p <= 0:
                                 missing_price = True
@@ -1995,6 +2075,12 @@ def api_trips(request):
             depart_time = from_dep.strftime('%H:%M')
         if to_arr:
             arrive_time = to_arr.strftime('%H:%M')
+        duration = ''
+        if depart_time and arrive_time:
+            depart_minutes = int(depart_time[:2]) * 60 + int(depart_time[3:])
+            arrive_minutes = int(arrive_time[:2]) * 60 + int(arrive_time[3:])
+            duration_minutes = (arrive_minutes - depart_minutes) % (24 * 60)
+            duration = f'{duration_minutes // 60} год {duration_minutes % 60:02d} хв'
 
         sold = 0
         try:
@@ -2004,6 +2090,20 @@ def api_trips(request):
         except Exception:
             sold = 0
         free_seats = max(0, int(getattr(trip, 'seats', 0) or 0) - int(sold or 0))
+
+        carrier_account = getattr(trip.carrier_user, 'carrier_account', None) if trip.carrier_user_id else None
+        carrier_profile = getattr(trip.carrier_user, 'profile', None) if trip.carrier_user_id else None
+        carrier_avatar_file = (
+            carrier_account.avatar if carrier_account and carrier_account.avatar
+            else carrier_profile.avatar if carrier_profile and carrier_profile.avatar
+            else None
+        )
+        carrier_avatar = carrier_avatar_file.url if carrier_avatar_file else ''
+        carrier_name = (
+            carrier_account.company_name if carrier_account and carrier_account.company_name
+            else trip.carrier_user.username if trip.carrier_user_id
+            else trip.carrier or trip.title or (trip.route.name if trip.route else '')
+        )
 
         results.append({
             'id': trip.id,
@@ -2016,7 +2116,7 @@ def api_trips(request):
             'to_place': to_stop.address or (to_stop.city.name if getattr(to_stop, 'city', None) else to_name),
             'depart': depart_time,
             'arrive': arrive_time,
-            'duration': '',
+            'duration': duration,
             'price': price,
             'currency': currency,
             'fare_used': bool(fare_used),
@@ -2024,7 +2124,8 @@ def api_trips(request):
             'discount_percent': discount,
             'price_after_discount': price_after,
             'free': free_seats,
-            'carrier': (trip.carrier_user.username if getattr(trip, 'carrier_user', None) else (trip.carrier or trip.title or (trip.route.name if trip.route else ''))),
+            'carrier': carrier_name,
+            'carrier_avatar': carrier_avatar,
             'stops': stops_list,
         })
 
@@ -2067,7 +2168,48 @@ def profile(request):
     profile = getattr(request.user, 'profile', None)
     is_carrier = bool(profile and getattr(profile, 'is_carrier', False))
     is_dieller = (getattr(request.user, 'username', '') or '').lower() == 'dieller'
-    if request.method == 'POST':
+    action = request.POST.get('action') if request.method == 'POST' else ''
+    show_notifications = request.GET.get('section') == 'notifications' or action in {
+        'create',
+        'mark_read',
+        'mark_all_read',
+    }
+    notification_form = SiteNotificationForm()
+    form = ProfileForm(instance=profile)
+
+    if action == 'create':
+        if not is_dieller:
+            return HttpResponse(status=403)
+        notification_form = SiteNotificationForm(request.POST, request.FILES)
+        if notification_form.is_valid():
+            notification = notification_form.save(commit=False)
+            notification.created_by = request.user
+            notification.save()
+            messages.success(request, 'Сповіщення опубліковано.')
+            return redirect(f'{reverse("main:profile")}?section=notifications')
+    elif action == 'mark_read':
+        notification = get_object_or_404(
+            _visible_notifications_for_user(request.user),
+            pk=request.POST.get('notification_id'),
+        )
+        NotificationRead.objects.get_or_create(
+            notification=notification,
+            user=request.user,
+        )
+        return redirect(f'{reverse("main:profile")}?section=notifications')
+    elif action == 'mark_all_read':
+        unread = _visible_notifications_for_user(request.user).exclude(
+            read_receipts__user=request.user,
+        )
+        NotificationRead.objects.bulk_create(
+            [
+                NotificationRead(notification_id=notification_id, user=request.user)
+                for notification_id in unread.values_list('id', flat=True)
+            ],
+            ignore_conflicts=True,
+        )
+        return redirect(f'{reverse("main:profile")}?section=notifications')
+    elif request.method == 'POST':
         form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
@@ -2098,6 +2240,19 @@ def profile(request):
     except Exception:
         tickets = Ticket.objects.filter(user=request.user, paid=True).order_by('-created_at')
     support_tickets = SupportTicket.objects.filter(user=request.user, is_archived=False).order_by('-last_message_at')
+    unread_notifications_count = _visible_notifications_for_user(request.user).exclude(
+        read_receipts__user=request.user,
+    ).count()
+    notifications = []
+    if show_notifications:
+        notifications = _visible_notifications_for_user(request.user).annotate(
+            is_read=Exists(
+                NotificationRead.objects.filter(
+                    notification_id=OuterRef('pk'),
+                    user=request.user,
+                )
+            )
+        )[:100]
 
     # attach signature to each ticket for preview/download links
     try:
@@ -2115,7 +2270,28 @@ def profile(request):
         'support_tickets': support_tickets,
         'is_carrier': is_carrier,
         'is_dieller': is_dieller,
+        'unread_notifications_count': unread_notifications_count,
+        'show_notifications': show_notifications,
+        'notifications': notifications,
+        'notification_form': notification_form,
     })
+
+
+def _visible_notifications_for_user(user):
+    notifications = SiteNotification.objects.all()
+    if not (getattr(getattr(user, 'profile', None), 'is_carrier', False)):
+        return notifications.filter(audience=SiteNotification.AUDIENCE_ALL)
+    return notifications.filter(
+        Q(audience=SiteNotification.AUDIENCE_ALL)
+        | Q(audience=SiteNotification.AUDIENCE_CARRIERS)
+    )
+
+
+@login_required
+def profile_notifications(request):
+    if request.method == 'POST':
+        return profile(request)
+    return redirect(f'{reverse("main:profile")}?section=notifications')
 
 
 @login_required
@@ -2990,6 +3166,245 @@ def carrier_manage_trips(request):
     return render(request, 'carrier/manage_trips.html', {'trips': trips})
 
 
+def _refund_ticket_for_cancellation(ticket_id, cancellation):
+    with transaction.atomic():
+        ticket = Ticket.objects.select_for_update().select_related('user').get(pk=ticket_id)
+        previous_attempt = cancellation.refund_payments.filter(ticket=ticket).order_by('-created_at').first()
+        if previous_attempt and previous_attempt.status == 'refunded':
+            return 'refunded', False
+        if previous_attempt and previous_attempt.status == 'pending':
+            return 'pending', False
+
+        original_payment = ticket.payments.filter(
+            status='success',
+            provider='wayforpay',
+            cancellation__isnull=True,
+        ).order_by('-created_at').first()
+        order_reference = original_payment.order_reference if original_payment else ''
+        if not order_reference and original_payment and isinstance(original_payment.data, dict):
+            stored_reference = original_payment.data.get('orderReference') or original_payment.data.get('orderReference[]') or ''
+            if isinstance(stored_reference, (list, tuple)):
+                stored_reference = stored_reference[0] if stored_reference else ''
+            if isinstance(stored_reference, str):
+                order_reference = stored_reference
+
+        amount = Decimal(ticket.total_price or 0).quantize(Decimal('0.01'))
+        attempt = Payment.objects.create(
+            ticket=ticket,
+            cancellation=cancellation,
+            user=ticket.user,
+            provider='wayforpay_refund',
+            order_reference=order_reference,
+            amount=-abs(amount),
+            currency=(ticket.currency or 'UAH'),
+            status='pending',
+            data={'reason': 'trip_cancelled'},
+        )
+
+    if not original_payment or not order_reference or amount <= 0:
+        attempt.status = 'failure'
+        attempt.data = {
+            'reason': 'trip_cancelled',
+            'error': 'Missing successful WayForPay payment reference or refund amount',
+        }
+        attempt.save(update_fields=['status', 'data', 'updated_at'])
+        return 'failure', False
+
+    service = get_wayforpay_service()
+    try:
+        response = service.refund(
+            order_reference=order_reference,
+            amount=amount,
+            currency=ticket.currency or 'UAH',
+            comment=f'Trip cancelled {cancellation.date.isoformat()}',
+        )
+    except ValueError as exc:
+        attempt.status = 'failure'
+        attempt.data = {'reason': 'trip_cancelled', 'error': str(exc)}
+        attempt.save(update_fields=['status', 'data', 'updated_at'])
+        logging.getLogger('main').exception('WayForPay refund could not be configured for ticket %s', ticket.id)
+        return 'failure', False
+    except Exception as exc:
+        attempt.data = {'reason': 'trip_cancelled', 'error': str(exc)[:500]}
+        attempt.save(update_fields=['data', 'updated_at'])
+        logging.getLogger('main').exception('WayForPay refund outcome is unknown for ticket %s', ticket.id)
+        return 'pending', False
+
+    response_order = str(response.get('orderReference') or '')
+    response_status = str(response.get('transactionStatus') or '').strip().lower()
+    reason_code = str(response.get('reasonCode') or '')
+    valid_response = response_order == order_reference
+    merchant_account = str(response.get('merchantAccount') or '')
+    if merchant_account and service.merchant_login and merchant_account != service.merchant_login:
+        valid_response = False
+    response_signature = str(response.get('merchantSignature') or '')
+    if response_signature:
+        expected_signature = service._build_signature(
+            [
+                merchant_account,
+                response_order,
+                response.get('transactionStatus') or '',
+                response.get('reasonCode') or '',
+            ],
+            service.merchant_secret,
+        )
+        if not hmac.compare_digest(response_signature, expected_signature):
+            valid_response = False
+
+    if valid_response and response_status in ('refunded', 'voided') and reason_code == '1100':
+        attempt.status = 'refunded'
+        attempt.provider_payment_id = str(response.get('transactionId') or response.get('invoiceId') or '')
+        attempt.data = {'reason': 'trip_cancelled', 'response': response}
+        attempt.save(update_fields=['status', 'provider_payment_id', 'data', 'updated_at'])
+        ticket.paid = False
+        ticket.save(update_fields=['paid'])
+
+        recipient = ticket.contact_email or getattr(ticket.user, 'email', '')
+        if not recipient:
+            logging.getLogger('main').error('Refund completed but ticket %s has no notification email', ticket.id)
+            return 'refunded', False
+        subject = f'Рейс скасовано — кошти за квиток #{ticket.id} повернено'
+        body = (
+            f'Нам шкода, але рейс {ticket.from_city} → {ticket.to_city} '
+            f'на {cancellation.date.strftime("%d.%m.%Y")} скасовано. '
+            f'Повернення {amount:.2f} {ticket.currency or "UAH"} на вашу картку '
+            'підтверджено WayForPay.'
+        )
+        try:
+            EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [recipient]).send(fail_silently=False)
+            logging.getLogger('main').info(
+                'Cancellation refund email sent for ticket %s to %s',
+                ticket.id,
+                recipient,
+            )
+            return 'refunded', True
+        except Exception:
+            logging.getLogger('main').exception('Failed to send cancellation refund email for ticket %s', ticket.id)
+            return 'refunded', False
+
+    attempt.data = {'reason': 'trip_cancelled', 'response': response}
+    if valid_response and response_status == 'declined':
+        attempt.status = 'failure'
+        attempt.save(update_fields=['status', 'data', 'updated_at'])
+        return 'failure', False
+
+    attempt.save(update_fields=['data', 'updated_at'])
+    logging.getLogger('main').error(
+        'WayForPay refund was not confirmed for ticket %s: status=%s reasonCode=%s',
+        ticket.id,
+        response_status,
+        reason_code,
+    )
+    return 'pending', False
+
+
+@login_required
+def carrier_cancel_trip(request, trip_id):
+    profile = getattr(request.user, 'profile', None)
+    if not profile or not getattr(profile, 'is_carrier', False):
+        return HttpResponse(status=403)
+    trip = get_object_or_404(Trip.objects.select_related('route'), pk=trip_id)
+    if not (request.user.is_staff or trip.carrier_user_id == request.user.id):
+        return HttpResponse(status=403)
+
+    today = timezone.localdate()
+    if request.method == 'POST':
+        try:
+            cancel_date = datetime.date.fromisoformat(request.POST.get('date', ''))
+        except (TypeError, ValueError):
+            messages.error(request, 'Оберіть коректну дату рейсу.')
+            return redirect('main:carrier_cancel_trip', trip_id=trip.id)
+        if cancel_date < today:
+            messages.error(request, 'Не можна скасувати рейс за минулу дату.')
+            return redirect('main:carrier_cancel_trip', trip_id=trip.id)
+        if cancel_date == today:
+            first_stop = trip.trip_stops.order_by('order').first()
+            if first_stop and first_stop.departure_time:
+                departure = datetime.datetime.combine(cancel_date, first_stop.departure_time)
+                if timezone.is_aware(timezone.now()):
+                    departure = timezone.make_aware(departure, timezone.get_current_timezone())
+                if timezone.now() >= departure:
+                    messages.error(request, 'Не можна скасувати рейс після його відправлення.')
+                    return redirect('main:carrier_cancel_trip', trip_id=trip.id)
+
+        with transaction.atomic():
+            cancellation, _ = TripCancellation.objects.get_or_create(
+                trip=trip,
+                date=cancel_date,
+                defaults={'initiated_by': request.user, 'status': 'refund_pending'},
+            )
+            TripDayAvailability.objects.update_or_create(
+                trip=trip,
+                date=cancel_date,
+                defaults={'available': False},
+            )
+
+        tickets = list(
+            Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True)
+            .order_by('id')
+            .values_list('id', flat=True)
+        )
+        results = [
+            _refund_ticket_for_cancellation(ticket_id, cancellation)
+            for ticket_id in tickets
+        ]
+        pending_count = sum(status == 'pending' for status, _ in results)
+        failed_count = sum(status == 'failure' for status, _ in results)
+        refunded_count = sum(status == 'refunded' for status, _ in results)
+        emails_sent = sum(email_sent for _, email_sent in results)
+        still_paid = Ticket.objects.filter(trip=trip, travel_date=cancel_date, paid=True).exists()
+        cancellation.status = 'refund_pending' if still_paid else 'completed'
+        cancellation.save(update_fields=['status', 'updated_at'])
+
+        if pending_count or failed_count:
+            messages.error(
+                request,
+                f'Дату закрито для продажу. Підтверджено повернень: {refunded_count}; '
+                f'очікує перевірки: {pending_count}; відхилено: {failed_count}. '
+                'За непідтвердженими поверненнями не надіслано повідомлень про зарахування коштів.',
+            )
+        else:
+            messages.success(
+                request,
+                f'Рейс на {cancel_date.strftime("%d.%m.%Y")} скасовано. '
+                f'Квитків повернено: {refunded_count}; повідомлень надіслано: {emails_sent}.',
+            )
+        return redirect('main:carrier_cancel_trip', trip_id=trip.id)
+
+    date_values = set(
+        trip.day_availabilities.filter(date__gte=today).values_list('date', flat=True)
+    )
+    date_values.update(
+        Ticket.objects.filter(trip=trip, travel_date__gte=today, paid=True)
+        .values_list('travel_date', flat=True)
+    )
+    date_values.update(
+        TripCancellation.objects.filter(trip=trip, date__gte=today)
+        .values_list('date', flat=True)
+    )
+    if trip.date and trip.date >= today:
+        date_values.add(trip.date)
+
+    days = []
+    for day in sorted(date_values):
+        cancellation = TripCancellation.objects.filter(trip=trip, date=day).first()
+        availability = TripDayAvailability.objects.filter(trip=trip, date=day).first()
+        paid_tickets = Ticket.objects.filter(trip=trip, travel_date=day, paid=True).count()
+        failed_refunds = cancellation.refund_payments.filter(status='failure').count() if cancellation else 0
+        pending_refunds = cancellation.refund_payments.filter(status='pending').count() if cancellation else 0
+        days.append({
+            'date': day,
+            'cancellation': cancellation,
+            'paid_tickets': paid_tickets,
+            'failed_refunds': failed_refunds,
+            'pending_refunds': pending_refunds,
+            'sales_open': not cancellation and (not availability or availability.available),
+            'can_retry': bool(failed_refunds),
+        })
+
+    return render(request, 'carrier/cancel_trip.html', {'trip': trip, 'days': days})
+
+
 @login_required
 def carrier_toggle_trip(request, trip_id):
     profile = getattr(request.user, 'profile', None)
@@ -3022,6 +3437,10 @@ def carrier_trip_availability(request, trip_id):
     days_window = int(request.GET.get('days', 14))
     today = date.today()
     dates = [today + timedelta(days=i) for i in range(days_window)]
+    cancelled_dates = set(
+        TripCancellation.objects.filter(trip=trip, date__in=dates)
+        .values_list('date', flat=True)
+    )
 
     if request.method == 'POST':
         # posted available dates as ISO strings
@@ -3036,6 +3455,8 @@ def carrier_trip_availability(request, trip_id):
 
         # ensure TripDayAvailability exists/updated for each date in window
         for d in dates:
+            if d in cancelled_dates:
+                continue
             rec = trip.day_availabilities.filter(date=d).first()
             should_available = (d in posted_set)
             if rec:
@@ -3052,11 +3473,9 @@ def carrier_trip_availability(request, trip_id):
     days = []
     for d in dates:
         rec = trip.day_availabilities.filter(date=d).first()
-        if rec is None:
-            available = True
-        else:
-            available = bool(rec.available)
-        days.append({'date': d, 'available': available})
+        cancelled = d in cancelled_dates
+        available = not cancelled and (True if rec is None else bool(rec.available))
+        days.append({'date': d, 'available': available, 'cancelled': cancelled})
 
     return render(request, 'carrier/trip_availability.html', {'trip': trip, 'days': days})
 
@@ -3846,36 +4265,54 @@ def checkout(request, trip_id):
 
         from_stop = find_stop_by_name(selected_from)
         to_stop = find_stop_by_name(selected_to)
+        if not from_stop:
+            from_stop = _find_route_endpoint_stop(trip, trip_stops, selected_from, 'from')
+        if not to_stop:
+            to_stop = _find_route_endpoint_stop(trip, trip_stops, selected_to, 'to')
 
-        # Try explicit TripFare lookup for the exact pair
+        if selected_from and selected_to:
+            explicit_fare = trip.fares.filter(
+                from_city__name__iexact=selected_from,
+                to_city__name__iexact=selected_to,
+            ).first()
+        if not explicit_fare:
+            selected_from_city = City.objects.filter(name__iexact=selected_from).first() if selected_from else None
+            selected_to_city = City.objects.filter(name__iexact=selected_to).first() if selected_to else None
+            if selected_from_city and selected_to_city:
+                explicit_fare = find_trip_fare(trip, selected_from_city, selected_to_city)
+
+        # Prefer an exact fare for the selected cities, even if an endpoint
+        # cannot be represented by an individual TripStop.
         if from_stop and to_stop:
-            explicit_fare = find_trip_fare(trip, getattr(from_stop, 'city', None), getattr(to_stop, 'city', None))
+            stop_fare = find_trip_fare(trip, getattr(from_stop, 'city', None), getattr(to_stop, 'city', None))
+            if stop_fare:
+                explicit_fare = stop_fare
 
-            if explicit_fare and getattr(explicit_fare, 'price', None) is not None and float(explicit_fare.price or 0) > 0:
-                price = float(explicit_fare.price)
-            else:
-                # compute sum of leg prices between the two stops
-                try:
-                    fo = getattr(from_stop, 'order', None)
-                    to = getattr(to_stop, 'order', None)
-                    if fo is not None and to is not None:
-                        lo = min(fo, to)
-                        hi = max(fo, to)
-                        price_sum = 0.0
-                        missing_price = False
-                        for s in trip_stops:
-                            so = getattr(s, 'order', None)
-                            if so is None:
-                                continue
-                            if so >= lo and so < hi:
-                                p = float(getattr(s, 'price', 0.0) or 0.0)
-                                if p <= 0:
-                                    missing_price = True
-                                price_sum += p
-                        if price_sum > 0 and not missing_price:
-                            price = price_sum
-                except Exception:
-                    price = None
+        if explicit_fare and getattr(explicit_fare, 'price', None) is not None and float(explicit_fare.price or 0) > 0:
+            price = float(explicit_fare.price)
+        elif from_stop and to_stop:
+            # Compute the sum of leg prices between the selected stops.
+            try:
+                fo = getattr(from_stop, 'order', None)
+                to = getattr(to_stop, 'order', None)
+                if fo is not None and to is not None:
+                    lo = min(fo, to)
+                    hi = max(fo, to)
+                    price_sum = 0.0
+                    missing_price = False
+                    for s in trip_stops:
+                        so = getattr(s, 'order', None)
+                        if so is None:
+                            continue
+                        if so >= lo and so < hi:
+                            p = float(getattr(s, 'price', 0.0) or 0.0)
+                            if p <= 0:
+                                missing_price = True
+                            price_sum += p
+                    if price_sum > 0 and not missing_price:
+                        price = price_sum
+            except Exception:
+                price = None
 
         # fallback: sum all stop prices or use base_price
         if price is None:
@@ -5174,7 +5611,9 @@ def _send_ticket_email(ticket, payment):
     """Send ticket PDF to the ticket owner's email with attachment."""
     import logging
     logger = logging.getLogger(__name__)
-    recipient = (getattr(ticket, 'user', None) and getattr(ticket.user, 'email', None)) or getattr(ticket, 'contact_email', None)
+    recipient = getattr(ticket, 'contact_email', None) or (
+        getattr(ticket, 'user', None) and getattr(ticket.user, 'email', None)
+    )
     if not recipient:
         logger.warning('No email address available for ticket %s', getattr(ticket, 'id', None))
         return False
@@ -5216,6 +5655,7 @@ def _send_ticket_email(ticket, payment):
 
     try:
         msg.send(fail_silently=False)
+        logger.info('Ticket email sent for ticket %s to %s', ticket.id, recipient)
         return True
     except Exception:
         logger.exception('Failed to send ticket email for ticket %s', ticket.id)

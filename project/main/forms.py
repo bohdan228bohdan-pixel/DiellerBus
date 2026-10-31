@@ -41,6 +41,7 @@ from django.forms import ModelForm
 from django.forms.models import inlineformset_factory
 from .models import Ticket, Passenger
 from .models import Profile
+from .models import SiteNotification
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -61,6 +62,33 @@ class ProfileForm(ModelForm):
     class Meta:
         model = Profile
         fields = ['avatar', 'phone']
+
+
+class SiteNotificationForm(ModelForm):
+    class Meta:
+        model = SiteNotification
+        fields = ['title', 'message', 'audience', 'image', 'link_url', 'link_label']
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Наприклад, оновлення на сайті',
+            }),
+            'message': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 6,
+                'placeholder': 'Напишіть новину або важливе повідомлення...',
+            }),
+            'audience': forms.Select(attrs={'class': 'form-select'}),
+            'image': forms.ClearableFileInput(attrs={'accept': 'image/*'}),
+            'link_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://example.com',
+            }),
+            'link_label': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Переглянути деталі',
+            }),
+        }
 
 
 class SupportUserForm(ModelForm):

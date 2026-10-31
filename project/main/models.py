@@ -134,9 +134,17 @@ class Payment(models.Model):
     )
 
     ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    cancellation = models.ForeignKey(
+        'TripCancellation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='refund_payments',
+    )
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     provider = models.CharField(max_length=50, default='wayforpay')
     provider_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    order_reference = models.CharField(max_length=255, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     currency = models.CharField(max_length=10, default='UAH')
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')
@@ -263,6 +271,8 @@ class Trip(models.Model):
         try:
             if not date_obj:
                 return True
+            if TripCancellation.objects.filter(trip=self, date=date_obj).exists():
+                return False
             rec = self.day_availabilities.filter(date=date_obj).first()
             if rec is None:
                 return True
@@ -400,6 +410,31 @@ class TripDayAvailability(models.Model):
 
     def __str__(self):
         return f"{self.trip} — {self.date.isoformat()} — {'Їде' if self.available else 'Не їде'}"
+
+
+class TripCancellation(models.Model):
+    STATUS_CHOICES = (
+        ('refund_pending', 'Очікує повернення'),
+        ('completed', 'Скасовано'),
+    )
+
+    trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='cancellations')
+    date = models.DateField()
+    initiated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='refund_pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=('trip', 'date'), name='unique_trip_cancellation_date'),
+        ]
+        ordering = ('-date',)
+        verbose_name = 'Скасування рейсу за датою'
+        verbose_name_plural = 'Скасування рейсів за датами'
+
+    def __str__(self):
+        return f'{self.trip} — {self.date.isoformat()} — {self.get_status_display()}'
 
 
 class Bus(models.Model):
@@ -776,6 +811,7 @@ class StaticPage(models.Model):
         except Exception:
             return f"/page/{self.slug}/"
 
+
         # if an avatar was provided for the carrier, copy it to the created user's profile
         try:
             if getattr(self, 'avatar', None) and getattr(self, 'user', None):
@@ -785,3 +821,62 @@ class StaticPage(models.Model):
                     profile.save(update_fields=['avatar'])
         except Exception:
             pass
+
+
+class SiteNotification(models.Model):
+    AUDIENCE_ALL = 'all'
+    AUDIENCE_CARRIERS = 'carriers'
+    AUDIENCE_CHOICES = (
+        (AUDIENCE_ALL, 'Усі користувачі'),
+        (AUDIENCE_CARRIERS, 'Перевізники'),
+    )
+
+    title = models.CharField(max_length=180)
+    message = models.TextField()
+    audience = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default=AUDIENCE_ALL)
+    image = models.ImageField(upload_to='notifications/', blank=True)
+    link_url = models.URLField(max_length=500, blank=True)
+    link_label = models.CharField(max_length=100, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='site_notifications',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at', '-id')
+        verbose_name = 'Сповіщення сайту'
+        verbose_name_plural = 'Сповіщення сайту'
+
+    def __str__(self):
+        return self.title
+
+
+class NotificationRead(models.Model):
+    notification = models.ForeignKey(
+        SiteNotification,
+        on_delete=models.CASCADE,
+        related_name='read_receipts',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notification_reads',
+    )
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('notification', 'user'),
+                name='unique_notification_read_per_user',
+            ),
+        ]
+        verbose_name = 'Прочитане сповіщення'
+        verbose_name_plural = 'Прочитані сповіщення'
+
+    def __str__(self):
+        return f'{self.user} — {self.notification}'

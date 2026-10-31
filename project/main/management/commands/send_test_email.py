@@ -1,82 +1,31 @@
-from django.core.management.base import BaseCommand
+from django.conf import settings
 from django.core.mail import send_mail
-from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = 'Send a test email using the configured email backend (e.g. Brevo SMTP)'
+    help = 'Send a test email using the configured email backend'
 
     def add_arguments(self, parser):
-        parser.add_argument('--to', '-t', default=None, help='Destination email address')
-        parser.add_argument('--subject', '-s', default='Test message from Dieller Bus')
-        parser.add_argument('--body', '-b', default='This is a test message sent by management command send_test_email.')
+        parser.add_argument('recipient', help='Destination email address')
 
     def handle(self, *args, **options):
-        to = options.get('to')
-        if not to:
-            # Try to derive a sensible recipient from DEFAULT_FROM_EMAIL
-            default_from = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or ''
-            if '<' in default_from and '>' in default_from:
-                to = default_from.split('<')[-1].rstrip('>')
-        if not to:
-            self.stderr.write(self.style.ERROR('No recipient specified. Provide --to EMAIL'))
-            return
-
-        subject = options.get('subject')
-        body = options.get('body')
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+        recipient = options['recipient']
+        self.stdout.write(f"Email backend: {settings.EMAIL_BACKEND}")
+        self.stdout.write(f"SMTP credentials configured: {bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)}")
 
         try:
-            sent = send_mail(subject, body, from_email, [to], fail_silently=False)
-            if sent:
-                self.stdout.write(self.style.SUCCESS(f'Successfully sent {sent} message(s) to {to}'))
-            else:
-                self.stderr.write(self.style.ERROR('send_mail returned 0 (no messages sent)'))
-        except Exception as e:
-            self.stderr.write(self.style.ERROR(f'Failed to send email: {e}'))
-from django.core.management.base import BaseCommand
-from django.core.mail import send_mail, EmailMessage
-from django.conf import settings
-
-
-class Command(BaseCommand):
-    help = (
-        "Send a test email using current EMAIL_* settings.\n"
-        "Usage: python manage.py send_test_email recipient@example.com --subject 'Hi' --message 'Hello'"
-    )
-
-    def add_arguments(self, parser):
-        parser.add_argument('recipient', nargs=1, help='Recipient email address')
-        parser.add_argument('--subject', default='Test email from Dieller Bus', help='Email subject')
-        parser.add_argument('--message', default='This is a test email sent from Django.', help='Message body')
-        parser.add_argument('--html', action='store_true', help='Send message as HTML')
-        parser.add_argument('--from-email', dest='from_email', default=None, help='Override FROM email address')
-
-    def handle(self, *args, **options):
-        recipient = options['recipient'][0]
-        subject = options['subject']
-        message = options['message']
-        from_email = options['from_email'] or getattr(settings, 'DEFAULT_FROM_EMAIL', None)
-        send_as_html = options['html']
-
-        self.stdout.write(f"Using EMAIL_BACKEND={getattr(settings, 'EMAIL_BACKEND', '')}")
-        self.stdout.write(f"EMAIL_HOST={getattr(settings, 'EMAIL_HOST', '')}")
-        self.stdout.write(f"EMAIL_PORT={getattr(settings, 'EMAIL_PORT', '')}")
-        self.stdout.write(f"EMAIL_USE_TLS={getattr(settings, 'EMAIL_USE_TLS', '')}")
-        self.stdout.write(f"EMAIL_HOST_USER={getattr(settings, 'EMAIL_HOST_USER', '')}")
-        self.stdout.write(f"DEFAULT_FROM_EMAIL={getattr(settings, 'DEFAULT_FROM_EMAIL', '')}")
-        self.stdout.write(f"Sending test email to: {recipient}")
-
-        try:
-            if send_as_html:
-                email = EmailMessage(subject, message, from_email, [recipient])
-                email.content_subtype = 'html'
-                email.send(fail_silently=False)
-            else:
-                # send_mail returns number of emails sent
-                send_mail(subject, message, from_email, [recipient], fail_silently=False)
+            sent = send_mail(
+                'Test email from Dieller Bus',
+                'This is a test email sent from Django.',
+                settings.DEFAULT_FROM_EMAIL,
+                [recipient],
+                fail_silently=False,
+            )
         except Exception as exc:
-            self.stderr.write(self.style.ERROR(f"Failed to send test email: {exc}"))
-            return
+            raise CommandError(f'Email delivery failed: {exc}') from exc
 
-        self.stdout.write(self.style.SUCCESS(f"Test email sent to {recipient}"))
+        if sent != 1:
+            raise CommandError('The email backend did not send the test message.')
+
+        self.stdout.write(self.style.SUCCESS('Test email sent successfully.'))

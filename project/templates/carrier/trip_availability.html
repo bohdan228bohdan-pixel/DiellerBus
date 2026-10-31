@@ -44,10 +44,14 @@
       <div class="day-row">
         <div class="day-left">{{ d.date|date:"d.m.Y" }}</div>
         <div>
+          {% if d.cancelled %}
+            <span class="switch off"><span class="pill">Скасовано</span></span>
+          {% else %}
           <label class="switch {% if d.available %}on{% else %}off{% endif %}">
             <input type="checkbox" name="available_dates" value="{{ d.date|date:'Y-m-d' }}" {% if d.available %}checked{% endif %} />
             <span class="pill">{% if d.available %}Їде{% else %}Не їде{% endif %}</span>
           </label>
+          {% endif %}
         </div>
       </div>
     {% endfor %}

@@ -39,6 +39,7 @@ urlpatterns = [
     path("verify-email/", views.verify_email, name="verify_email"),
     path("resend-verification/", views.resend_verification_code, name="resend_verification"),
     path("profile/", views.profile, name="profile"),
+    path("profile/notifications/", views.profile_notifications, name="profile_notifications"),
     path("profile/reports/", views.dieller_reports, name="dieller_reports"),
     path("reports/routes/", views.route_reports, name="route_reports"),
     path("reports/routes/export/excel/", views.route_reports_export_excel, name="route_reports_export_excel"),
@@ -110,6 +111,7 @@ urlpatterns = [
     path("carrier/tickets/<int:year>/<int:month>/export/pdfs/", views.carrier_tickets_month_export_pdfs, name="carrier_tickets_month_export_pdfs"),
     # carrier trip management
     path("carrier/trips/", views.carrier_manage_trips, name="carrier_manage_trips"),
+    path("carrier/trip/<int:trip_id>/cancel/", views.carrier_cancel_trip, name="carrier_cancel_trip"),
     path("carrier/trip/<int:trip_id>/toggle/", views.carrier_toggle_trip, name="carrier_toggle_trip"),
     path("carrier/trip/<int:trip_id>/availability/", views.carrier_trip_availability, name="carrier_trip_availability"),
 ]

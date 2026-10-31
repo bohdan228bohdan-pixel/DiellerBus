@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}DiellerBus — Мої квитки{% endblock %}
+{% block title %}DiellerBus — {% if show_notifications %}Сповіщення{% else %}Мої квитки{% endif %}{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -21,6 +21,8 @@
     .profile-menu a:hover, .profile-menu a.active { background: rgba(225,29,72,0.17); transform: translateY(-1px); }
     .profile-menu a .item-title { display: block; font-weight: 700; }
     .profile-menu a .item-sub { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+    .notification-menu-title { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; }
+    .notification-badge { display: inline-grid; min-width: 24px; height: 24px; padding: 0 7px; place-items: center; border-radius: 999px; background: #e11d48; color: #fff; font-size: 0.75rem; font-weight: 900; }
     .profile-side-section { display: grid; gap: 10px; }
     .profile-side-section-title { color: rgba(255,255,255,0.55); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
     .profile-side-links { display: grid; gap: 10px; }
@@ -61,6 +63,27 @@
     .empty-state { padding: 40px 28px; display: grid; gap: 10px; align-items: center; justify-items: center; text-align: center; color: #374151; }
     .empty-state h3 { margin: 0; font-size: 1.35rem; color: #111827; }
     .empty-state p { margin: 0; color: #6b7280; }
+    .profile-notification-card { margin: 0 24px 16px; padding: 20px; border: 1px solid #e8ebf0; border-radius: 18px; background: #fff; }
+    .profile-notification-card.unread { border-color: rgba(225,29,72,.45); box-shadow: 0 0 0 2px rgba(225,29,72,.06); }
+    .profile-notification-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #6b7280; font-size: .88rem; }
+    .profile-notification-new { color: #be123c; font-weight: 800; }
+    .profile-notification-title { margin: 0 0 8px; color: #111827; font-size: 1.15rem; font-weight: 850; }
+    .profile-notification-message { color: #374151; line-height: 1.7; overflow-wrap: anywhere; }
+    .profile-notification-image { display: block; width: 100%; max-height: 420px; margin-top: 14px; border-radius: 14px; object-fit: cover; }
+    .profile-notification-link { display: inline-flex; gap: 8px; margin-top: 14px; padding: 9px 14px; border-radius: 999px; background: #e11d48; color: #fff; font-weight: 750; text-decoration: none; }
+    .profile-notification-link:hover { background: #be123c; color: #fff; }
+    .profile-notification-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .notification-composer { margin: 20px 24px 24px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 18px; background: #f9fafb; }
+    .notification-composer h2 { margin: 0 0 5px; color: #111827; font-size: 1.15rem; font-weight: 850; }
+    .notification-composer > p { margin: 0 0 16px; color: #6b7280; }
+    .notification-composer-form { display: grid; gap: 14px; }
+    .notification-composer-form label { margin-bottom: 5px; color: #253044; font-weight: 700; }
+    .notification-composer-form .form-control, .notification-composer-form .form-select { border-radius: 11px; }
+    .notification-composer-form textarea { min-height: 130px; }
+    .notification-composer-form .emoji-picker { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+    .notification-composer-form .emoji-picker button { width: 36px; height: 36px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; font-size: 1.15rem; }
+    .notification-composer-form .emoji-picker button:hover { border-color: #e11d48; background: #fff1f2; }
+    .notification-form-errors { color: #b91c1c; font-size: .9rem; }
 
     @media (max-width: 1080px) {
       .profile-panel { grid-template-columns: 1fr; }
@@ -74,6 +97,7 @@
       .profile-side { padding: 20px; }
       .profile-card-main { border-radius: 22px; }
       .profile-card-main-header, .profile-note { padding-left: 18px; padding-right: 18px; }
+      .profile-notification-card, .notification-composer { margin-left: 16px; margin-right: 16px; padding: 16px; }
       .profile-main-header h1 { font-size: 1.9rem; }
       .profile-main-header p { max-width: 100%; }
       .tickets-table th, .tickets-table td { padding: 14px 16px; }
@@ -84,6 +108,7 @@
       .profile-main-header { flex-direction: column; align-items: flex-start; }
       .profile-side { padding: 18px; }
       .profile-card-main-header, .profile-note { padding-left: 14px; padding-right: 14px; }
+      .profile-notification-card, .notification-composer { margin-left: 12px; margin-right: 12px; padding: 14px; }
       .tickets-table th, .tickets-table td { padding: 12px 10px; }
       .profile-user .name { font-size: 1.2rem; }
       .profile-user .email { font-size: 0.85rem; }
@@ -114,7 +139,11 @@
       </div>
 
       <div class="profile-menu">
-        <a href="#" class="active"><span class="item-title">Мої квитки</span><small class="item-sub">Тут ваші останні покупки</small></a>
+        <a href="{% url 'main:profile' %}"{% if not show_notifications %} class="active"{% endif %}><span class="item-title">Мої квитки</span><small class="item-sub">Тут ваші останні покупки</small></a>
+        <a href="{% url 'main:profile' %}?section=notifications"{% if show_notifications %} class="active"{% endif %}>
+          <span class="item-title notification-menu-title"><span>🔔 Сповіщення</span>{% if unread_notifications_count %}<span class="notification-badge">{{ unread_notifications_count }}</span>{% endif %}</span>
+          <small class="item-sub">Новини та важливі оновлення</small>
+        </a>
         <a href="{% url 'main:kvitokindex' %}"><span class="item-title">Покупка квитків</span><small class="item-sub">Перейти до пошуку та бронювання</small></a>
         <a href="{% url 'main:contacts' %}"><span class="item-title">Контакти</span><small class="item-sub">Зв’язатись з підтримкою</small></a>
       </div>
@@ -154,7 +183,6 @@
       <div class="profile-info-card">
         <div class="info-item"><span class="info-title">Дата реєстрації</span><span class="info-value">{{ user.date_joined|date:'d.m.Y H:i' }}</span></div>
         <div class="info-item"><span class="info-title">Квитків</span><span class="info-value">{{ tickets|length }}</span></div>
-        <div class="info-item"><span class="info-title">Баланс</span><span class="info-value">{% if user.profile.balance %}{{ user.profile.balance }} грн{% else %}0.00 грн{% endif %}</span></div>
       </div>
 
       <div class="profile-side-footer">
@@ -167,20 +195,127 @@
     <section class="profile-main">
       <div class="profile-main-header">
         <div>
-          <h1>Мої квитки</h1>
-          <p>Завантажуйте квитки, дивіться статус оплати та переглядайте всю історію купівель.</p>
+          {% if show_notifications %}
+            <h1>Сповіщення</h1>
+            <p>Новини DiellerBus та важливі оновлення для вас.</p>
+          {% else %}
+            <h1>Мої квитки</h1>
+            <p>Завантажуйте квитки, дивіться статус оплати та переглядайте всю історію купівель.</p>
+          {% endif %}
         </div>
-        <span class="profile-pill">{{ tickets|length }} квитків</span>
+        {% if show_notifications %}
+          <div class="tickets-actions">
+            {% if unread_notifications_count %}
+              <span class="profile-pill">{{ unread_notifications_count }} непрочитаних</span>
+              <form method="post">
+                {% csrf_token %}
+                <button class="btn btn-outline-light" type="submit" name="action" value="mark_all_read">Позначити всі прочитаними</button>
+              </form>
+            {% endif %}
+          </div>
+        {% else %}
+          <span class="profile-pill">{{ tickets|length }} квитків</span>
+        {% endif %}
       </div>
 
       <div class="profile-card-main">
         <div class="profile-card-main-header">
-          <div class="section-title">Список квитків</div>
-          <div class="profile-pill">Останні покупки</div>
+          {% if show_notifications %}
+            <div class="section-title">Стрічка сповіщень</div>
+            <div class="profile-pill">{{ notifications|length }} повідомлень</div>
+          {% else %}
+            <div class="section-title">Список квитків</div>
+            <div class="profile-pill">Останні покупки</div>
+          {% endif %}
         </div>
-        <div class="profile-note">Поки що показується лише таблиця квитків. У майбутньому під цією панеллю з’являться додаткові блоки й розділи.</div>
 
-        {% if tickets %}
+        {% if show_notifications %}
+          {% if messages %}
+            <div class="px-4 pt-3">
+              {% for message in messages %}<div class="alert alert-success" role="status">{{ message }}</div>{% endfor %}
+            </div>
+          {% endif %}
+          {% if is_dieller %}
+            <section class="notification-composer">
+              <h2>Створити сповіщення</h2>
+              <p>Оберіть аудиторію, додайте текст, фото, посилання або емодзі.</p>
+              <form class="notification-composer-form" method="post" enctype="multipart/form-data" action="{% url 'main:profile_notifications' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                {% if notification_form.non_field_errors %}<div class="notification-form-errors">{{ notification_form.non_field_errors }}</div>{% endif %}
+                <div>
+                  <label for="{{ notification_form.title.id_for_label }}">Заголовок</label>
+                  {{ notification_form.title }}
+                  {% if notification_form.title.errors %}<div class="notification-form-errors">{{ notification_form.title.errors }}</div>{% endif %}
+                </div>
+                <div>
+                  <label for="{{ notification_form.audience.id_for_label }}">Кому надіслати</label>
+                  {{ notification_form.audience }}
+                  {% if notification_form.audience.errors %}<div class="notification-form-errors">{{ notification_form.audience.errors }}</div>{% endif %}
+                </div>
+                <div>
+                  <label for="{{ notification_form.message.id_for_label }}">Текст повідомлення</label>
+                  <div class="emoji-picker" aria-label="Додати емодзі">
+                    <button type="button" data-emoji="📢" aria-label="Додати мегафон">📢</button>
+                    <button type="button" data-emoji="🚌" aria-label="Додати автобус">🚌</button>
+                    <button type="button" data-emoji="🎉" aria-label="Додати святкування">🎉</button>
+                    <button type="button" data-emoji="✨" aria-label="Додати блискітки">✨</button>
+                    <button type="button" data-emoji="❤️" aria-label="Додати серце">❤️</button>
+                    <button type="button" data-emoji="👍" aria-label="Додати вподобайку">👍</button>
+                  </div>
+                  {{ notification_form.message }}
+                  {% if notification_form.message.errors %}<div class="notification-form-errors">{{ notification_form.message.errors }}</div>{% endif %}
+                </div>
+                <div>
+                  <label for="{{ notification_form.image.id_for_label }}">Фото або стікер (необов’язково)</label>
+                  {{ notification_form.image }}
+                  {% if notification_form.image.errors %}<div class="notification-form-errors">{{ notification_form.image.errors }}</div>{% endif %}
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-7">
+                    <label for="{{ notification_form.link_url.id_for_label }}">Посилання (необов’язково)</label>
+                    {{ notification_form.link_url }}
+                    {% if notification_form.link_url.errors %}<div class="notification-form-errors">{{ notification_form.link_url.errors }}</div>{% endif %}
+                  </div>
+                  <div class="col-md-5">
+                    <label for="{{ notification_form.link_label.id_for_label }}">Текст кнопки</label>
+                    {{ notification_form.link_label }}
+                    {% if notification_form.link_label.errors %}<div class="notification-form-errors">{{ notification_form.link_label.errors }}</div>{% endif %}
+                  </div>
+                </div>
+                <div><button class="btn btn-danger rounded-pill px-4" type="submit">Опублікувати сповіщення</button></div>
+              </form>
+            </section>
+          {% endif %}
+          {% for notification in notifications %}
+            <article class="profile-notification-card{% if not notification.is_read %} unread{% endif %}">
+              <div class="profile-notification-meta">
+                <time datetime="{{ notification.created_at|date:'c' }}">{{ notification.created_at|date:'d.m.Y · H:i' }}</time>
+                {% if not notification.is_read %}<span class="profile-notification-new">Нове</span>{% endif %}
+              </div>
+              <h2 class="profile-notification-title">{{ notification.title }}</h2>
+              <div class="profile-notification-message">{{ notification.message|linebreaksbr }}</div>
+              {% if notification.image %}<img class="profile-notification-image" src="{{ notification.image.url }}" alt="Зображення до сповіщення" loading="lazy">{% endif %}
+              {% if notification.link_url %}
+                <a class="profile-notification-link" href="{{ notification.link_url }}" target="_blank" rel="noopener noreferrer">{{ notification.link_label|default:'Детальніше' }} <span aria-hidden="true">→</span></a>
+              {% endif %}
+              {% if not notification.is_read %}
+                <div class="profile-notification-actions">
+                  <form method="post" action="{% url 'main:profile_notifications' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="mark_read">
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button class="btn btn-sm btn-outline-dark" type="submit">Позначити прочитаним</button>
+                  </form>
+                </div>
+              {% endif %}
+            </article>
+          {% empty %}
+            {% if not is_dieller %}
+              <div class="empty-state"><h3>Поки що сповіщень немає</h3><p>Тут з’являтимуться новини та важливі оновлення DiellerBus.</p></div>
+            {% endif %}
+          {% endfor %}
+        {% elif tickets %}
           <div style="overflow-x:auto;">
             <table class="tickets-table">
               <thead>
@@ -221,7 +356,7 @@
               </tbody>
             </table>
           </div>
-        {% else %}
+        {% elif not show_notifications %}
           <div class="empty-state">
             <h3>Квитків поки що немає</h3>
             <p>Оплатіть квиток, і він зʼявиться у цьому списку з можливістю перегляду та завантаження.</p>
@@ -234,4 +369,17 @@
 </div>
 {% endblock %}
 
-
+{% block scripts %}
+{% if show_notifications and is_dieller %}
+<script>
+  document.querySelectorAll('.emoji-picker [data-emoji]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const field = document.getElementById('{{ notification_form.message.id_for_label }}');
+      if (!field) return;
+      field.setRangeText(button.dataset.emoji, field.selectionStart, field.selectionEnd, 'end');
+      field.focus();
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}

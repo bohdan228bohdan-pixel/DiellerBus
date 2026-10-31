@@ -3,31 +3,29 @@
 {% block title %}Керування рейсами — Перевізник{% endblock %}
 {% block head_extra %}
 <style>
-.carrier-manage{max-width:900px;margin:24px auto;padding:12px;color:#fff}
-.trip-card{background:linear-gradient(180deg,#0f0f10,#0b0b0);border:1px solid rgba(255,255,255,0.04);padding:16px;border-radius:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.trip-left{flex:1;min-width:0}
-.trip-title{font-weight:800;color:#ff6b6b;margin-bottom:6px;word-break:break-word}
-.trip-meta{color:#cfcfcf;font-size:0.95rem}
-.trip-actions{display:flex;gap:8px;align-items:center}
-.btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:700}
-.btn-primary{background:linear-gradient(90deg,#ff3b30,#ff6b6b);color:#fff;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:800;border:1px solid rgba(255,255,255,0.06)}
-.btn-date{background:transparent;color:#fff;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);font-weight:800}
-.btn-view{background:rgba(255,255,255,0.03);color:#fff;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
-.status-on{background:#10b981;color:#fff;padding:6px 10px;border-radius:8px;font-weight:800}
-.status-off{background:#ef4444;color:#fff;padding:6px 10px;border-radius:8px;font-weight:800}
-
-/* Toggle button */
-.toggle-btn{padding:8px 14px;border-radius:999px;font-weight:800;border:1px solid rgba(0,0,0,0.12);min-width:150px;cursor:pointer}
-.toggle-on{background:#10b981;color:#fff;border-color:rgba(255,255,255,0.04)}
-.toggle-off{background:#ef4444;color:#fff;border-color:rgba(255,255,255,0.04)}
-
-/* Mobile layout */
+.carrier-manage{width:min(900px,calc(100% - 32px));margin:24px auto;padding:12px;color:#fff}
+.carrier-manage .trip-card{display:block;background:linear-gradient(180deg,#111,#0b0b0b);border:1px solid rgba(255,255,255,.08);padding:18px;border-radius:12px;margin-bottom:14px}
+.carrier-manage .trip-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.carrier-manage .trip-left{flex:1;min-width:0}
+.carrier-manage .trip-title{font-weight:800;color:#ff6b6b;margin-bottom:8px;line-height:1.4;overflow-wrap:anywhere}
+.carrier-manage .trip-meta{color:#cfcfcf;font-size:.95rem;line-height:1.5;overflow-wrap:anywhere}
+.carrier-manage .trip-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:stretch}
+.carrier-manage .trip-actions a,.carrier-manage .trip-actions .toggle-btn{display:flex;align-items:center;justify-content:center;min-height:44px;max-width:100%;padding:10px 14px;border-radius:9px;color:#fff;text-align:center;text-decoration:none;font:inherit;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+.carrier-manage .btn-date{background:transparent;border:1px solid rgba(255,255,255,.14)}
+.carrier-manage .btn-view{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+.carrier-manage .status-on,.carrier-manage .status-off{display:inline-block;padding:6px 10px;border-radius:8px;color:#fff;font-weight:800;white-space:nowrap}
+.carrier-manage .status-on{background:#10b981}
+.carrier-manage .status-off{background:#ef4444}
+.carrier-manage .toggle-form{margin:0}
+.carrier-manage .trip-actions .toggle-btn{min-width:150px;border:1px solid rgba(255,255,255,.08);cursor:pointer}
+.carrier-manage .toggle-on{background:#10b981}
+.carrier-manage .toggle-off{background:#ef4444}
 @media (max-width:720px){
-  .carrier-manage{padding:12px;margin:16px}
-  .trip-card{flex-direction:column;align-items:flex-start;padding:14px}
-  .trip-actions{width:100%;flex-direction:column;align-items:stretch}
-  .trip-actions a,.trip-actions form .toggle-btn{width:100%}
-  .trip-actions .btn-primary,.trip-actions .btn-ghost{width:100%;text-align:center}
+  .carrier-manage{width:100%;margin:16px auto;padding:12px}
+  .carrier-manage .trip-card{padding:14px}
+  .carrier-manage .trip-actions{display:grid;grid-template-columns:1fr}
+  .carrier-manage .trip-actions a,.carrier-manage .trip-actions form,.carrier-manage .trip-actions .toggle-btn{width:100%}
+  .carrier-manage .trip-header{align-items:flex-start}
 }
 </style>
 {% endblock %}
@@ -38,11 +36,11 @@
   {% if trips %}
     {% for trip in trips %}
       <div class="trip-card">
-        <div class="trip-left">
-          <div class="trip-title">{{ trip.route.name }} — {{ trip.title|default:trip.date }}</div>
-          <div class="trip-meta">{{ trip.start_city }} → {{ trip.end_city }} · Дата: {{ trip.date|default:'—' }}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto">
+        <div class="trip-header">
+          <div class="trip-left">
+            <div class="trip-title">{{ trip.route.name }} — {{ trip.title|default:trip.date }}</div>
+            <div class="trip-meta">{{ trip.start_city }} → {{ trip.end_city }} · Дата: {{ trip.date|default:'—' }}</div>
+          </div>
           <div>
             {% if trip.active %}
               <span class="status-on">Їде</span>
@@ -50,15 +48,16 @@
               <span class="status-off">Не їде</span>
             {% endif %}
           </div>
-          <div class="trip-actions">
-            <a class="btn-date" href="{% url 'main:carrier_trip_availability' trip.id %}">Налаштувати дати</a>
-            <form method="post" action="{% url 'main:carrier_toggle_trip' trip.id %}" class="toggle-form">{% csrf_token %}
-              <button class="toggle-btn {% if trip.active %}toggle-on{% else %}toggle-off{% endif %}" type="submit" aria-pressed="{% if trip.active %}true{% else %}false{% endif %}">
-                {% if trip.active %}Позначити як "Не їде"{% else %}Позначити як "Їде"{% endif %}
-              </button>
-            </form>
-            <a class="btn-view" href="{% url 'main:carrier_dashboard' %}?trip_id={{ trip.id }}">Переглянути квитки</a>
-          </div>
+        </div>
+        <div class="trip-actions">
+          <a class="btn-date" href="{% url 'main:carrier_trip_availability' trip.id %}">Налаштувати дати</a>
+          <a class="btn-view" href="{% url 'main:carrier_cancel_trip' trip.id %}">Скасувати дату й повернути кошти</a>
+          <form method="post" action="{% url 'main:carrier_toggle_trip' trip.id %}" class="toggle-form">{% csrf_token %}
+            <button class="toggle-btn {% if trip.active %}toggle-on{% else %}toggle-off{% endif %}" type="submit" aria-pressed="{% if trip.active %}true{% else %}false{% endif %}">
+              {% if trip.active %}Позначити як "Не їде"{% else %}Позначити як "Їде"{% endif %}
+            </button>
+          </form>
+          <a class="btn-view" href="{% url 'main:carrier_dashboard' %}?trip_id={{ trip.id }}">Переглянути квитки</a>
         </div>
       </div>
     {% endfor %}

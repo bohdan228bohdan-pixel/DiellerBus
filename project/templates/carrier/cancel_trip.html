@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Скасування рейсу — {{ trip.route.name }}{% endblock %}
+{% block head_extra %}
+<style>
+.cancel-trip-page{max-width:980px;margin:28px auto;padding:16px;color:#fff}
+.cancel-trip-card{background:#111;border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:20px;margin:14px 0}
+.cancel-trip-title{font-weight:800;color:#ff6b6b;font-size:1.1rem}
+.cancel-trip-meta{color:#cbd5e1;margin-top:6px}
+.cancel-trip-note{padding:14px;border-radius:10px;background:rgba(225,29,72,.12);border:1px solid rgba(225,29,72,.25);color:#ffe4e6}
+.cancel-trip-table{width:100%;border-collapse:collapse;margin-top:14px}
+.cancel-trip-table th,.cancel-trip-table td{padding:12px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.09);vertical-align:middle}
+.cancel-trip-table th{color:#cbd5e1;font-size:.9rem}
+.cancel-status{font-weight:700;color:#fbbf24}
+.cancel-status.done{color:#86efac}
+.cancel-status.off{color:#fb7185}
+.cancel-button{background:linear-gradient(90deg,#c81b60,#ff4f6b);border:0;border-radius:9px;color:#fff;padding:9px 13px;font-weight:800;white-space:nowrap}
+.cancel-button:hover{filter:brightness(.94)}
+.cancel-button:disabled{opacity:.55;cursor:not-allowed}
+.cancel-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.cancel-links a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:9px 13px}
+.cancel-empty{padding:24px;color:#cbd5e1;text-align:center}
+@media(max-width:700px){.cancel-trip-card{padding:14px}.cancel-trip-table th,.cancel-trip-table td{padding:10px 6px;font-size:.88rem}.cancel-trip-table{min-width:620px}.cancel-table-scroll{overflow-x:auto}}
+</style>
+{% endblock %}
+{% block content %}
+<main class="cancel-trip-page">
+  <h1>Скасування рейсу за датою</h1>
+  <section class="cancel-trip-card">
+    <div class="cancel-trip-title">{{ trip.route.name }}{% if trip.title %} — {{ trip.title }}{% endif %}</div>
+    <div class="cancel-trip-meta">{{ trip.start_city|default:'Початок маршруту' }} → {{ trip.end_city|default:'Кінець маршруту' }}</div>
+    <p class="cancel-trip-note" style="margin:16px 0 0">
+      Скасування закриє продаж квитків на вибрану дату. Для кожного оплаченого квитка запитується повернення через WayForPay.
+      Лист про повернення буде надісланий тільки після підтвердження провайдера. Якщо запит не підтвердиться, квиток залишиться на перевірці.
+    </p>
+    <div class="cancel-table-scroll">
+      <table class="cancel-trip-table">
+        <thead>
+          <tr><th>Дата рейсу</th><th>Оплачених квитків</th><th>Стан</th><th>Дія</th></tr>
+        </thead>
+        <tbody>
+          {% for day in days %}
+            <tr>
+              <td>{{ day.date|date:"d.m.Y" }}</td>
+              <td>{{ day.paid_tickets }}</td>
+              <td>
+                {% if day.cancellation.status == 'completed' %}
+                  <span class="cancel-status done">Скасовано, повернення підтверджені</span>
+                {% elif day.cancellation.status == 'refund_pending' %}
+                  <span class="cancel-status">Дата закрита; є повернення для обробки</span>
+                  {% if day.pending_refunds %}<div class="cancel-trip-meta">Очікують перевірки: {{ day.pending_refunds }}</div>{% endif %}
+                  {% if day.failed_refunds %}<div class="cancel-trip-meta">Відхилено, можна повторити: {{ day.failed_refunds }}</div>{% endif %}
+                {% else %}
+                  {% if day.sales_open %}<span>Продажі відкриті</span>{% else %}<span>Продажі закриті</span>{% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if day.cancellation.status == 'completed' %}
+                  <button class="cancel-button" type="button" disabled>Скасовано</button>
+                {% elif not day.cancellation or day.can_retry %}
+                  <form method="post" onsubmit="return confirm('Скасувати рейс на {{ day.date|date:"d.m.Y" }} та надіслати запити на повернення всіх оплачених квитків?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="date" value="{{ day.date|date:'Y-m-d' }}">
+                    <button class="cancel-button" type="submit">
+                      {% if day.cancellation %}Повторити відхилені повернення{% else %}Скасувати цю дату{% endif %}
+                    </button>
+                  </form>
+                {% else %}
+                  <button class="cancel-button" type="button" disabled>Очікує перевірки</button>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="cancel-empty">Для цього рейсу ще немає майбутніх дат. Спочатку додайте дати в налаштуваннях доступності.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="cancel-links">
+      <a href="{% url 'main:carrier_trip_availability' trip.id %}">Налаштувати дати</a>
+      <a href="{% url 'main:carrier_manage_trips' %}">До списку рейсів</a>
+    </div>
+  </section>
+</main>
+{% endblock %}
