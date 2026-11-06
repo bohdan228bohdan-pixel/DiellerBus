@@ -10,6 +10,7 @@ from django.middleware.csrf import get_token
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
+from django.core.paginator import Paginator
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.utils import timezone
@@ -21,6 +22,7 @@ from django.conf import settings
 from .models import (
     Ticket,
     Payment,
+    Profile,
     Carrier,
     Bus,
     Trip,
@@ -52,7 +54,7 @@ import hmac
 import os
 import uuid
 from django.db import IntegrityError, transaction
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 try:
 
 
@@ -490,6 +492,14 @@ def _support_user_allowed(user, require_worker=False):
     except Exception:
         pass
     return False
+
+
+def _is_dieller(user):
+    return bool(
+        user
+        and getattr(user, 'is_authenticated', False)
+        and (getattr(user, 'username', '') or '').lower() == 'dieller'
+    )
 
 
 def _qr_png_bytes(data, size=220):
@@ -1558,17 +1568,32 @@ def support_admin_close(request, ticket_id):
 
 @login_required
 def support_admin_user(request, user_id):
-    if not _support_user_allowed(request.user):
+    if not _support_user_allowed(request.user) and not _is_dieller(request.user):
         return HttpResponse(status=403)
     user = get_object_or_404(User, pk=user_id)
     tickets = SupportTicket.objects.filter(user=user, is_archived=False).order_by('-last_message_at', '-created_at')
     # Also collect purchased tickets and user profile info for full view
-    purchased = Ticket.objects.filter(user=user).order_by('-created_at')
+    purchased = Ticket.objects.filter(user=user).prefetch_related('passenger_set', 'payments').order_by('-created_at')
+    for purchased_ticket in purchased:
+        purchased_ticket.refund_payments = [
+            payment for payment in purchased_ticket.payments.all()
+            if payment.status == 'refunded' and payment.provider == 'manual_refund'
+        ]
+        purchased_ticket.refunded_amount = sum(
+            (-payment.amount for payment in purchased_ticket.refund_payments),
+            Decimal('0.00'),
+        )
     try:
         profile = user.profile
     except Exception:
         profile = None
-    return render(request, 'support_admin_user.html', {'tickets': tickets, 'view_user': user, 'purchased_tickets': purchased, 'profile': profile})
+    return render(request, 'support_admin_user.html', {
+        'tickets': tickets,
+        'view_user': user,
+        'purchased_tickets': purchased,
+        'profile': profile,
+        'is_dieller': _is_dieller(request.user),
+    })
 
 
 @login_required
@@ -2167,7 +2192,10 @@ def api_cities(request):
 def profile(request):
     profile = getattr(request.user, 'profile', None)
     is_carrier = bool(profile and getattr(profile, 'is_carrier', False))
-    is_dieller = (getattr(request.user, 'username', '') or '').lower() == 'dieller'
+    is_dieller = _is_dieller(request.user)
+    show_profiles = request.GET.get('section') == 'profiles'
+    if show_profiles and not is_dieller:
+        return HttpResponse(status=403)
     action = request.POST.get('action') if request.method == 'POST' else ''
     show_notifications = request.GET.get('section') == 'notifications' or action in {
         'create',
@@ -2254,6 +2282,28 @@ def profile(request):
             )
         )[:100]
 
+    profiles_page = None
+    profile_query = ''
+    if show_profiles:
+        from django.db.models import Count
+
+        profile_query = (request.GET.get('q') or '').strip()
+        users = User.objects.select_related('profile').annotate(
+            ticket_count=Count('ticket', distinct=True),
+            active_ticket_count=Count('ticket', filter=Q(ticket__paid=True), distinct=True),
+        )
+        if profile_query:
+            users = users.filter(
+                Q(username__icontains=profile_query)
+                | Q(first_name__icontains=profile_query)
+                | Q(last_name__icontains=profile_query)
+                | Q(email__icontains=profile_query)
+                | Q(profile__phone__icontains=profile_query)
+            )
+        profiles_page = Paginator(users.order_by('-date_joined'), 25).get_page(
+            request.GET.get('page'),
+        )
+
     # attach signature to each ticket for preview/download links
     try:
         for t in tickets:
@@ -2272,6 +2322,9 @@ def profile(request):
         'is_dieller': is_dieller,
         'unread_notifications_count': unread_notifications_count,
         'show_notifications': show_notifications,
+        'show_profiles': show_profiles,
+        'profiles_page': profiles_page,
+        'profile_query': profile_query,
         'notifications': notifications,
         'notification_form': notification_form,
     })
@@ -2295,9 +2348,96 @@ def profile_notifications(request):
 
 
 @login_required
+def admin_profiles(request):
+    if not _is_dieller(request.user):
+        return HttpResponse(status=403)
+    query = urlencode({
+        'section': 'profiles',
+        **{
+            key: value
+            for key, value in request.GET.items()
+            if key in {'q', 'page'} and value
+        },
+    })
+    return redirect(f'{reverse("main:profile")}?{query}')
+
+
+@login_required
+@require_POST
+def admin_ticket_refund(request, ticket_id):
+    if not _is_dieller(request.user):
+        return HttpResponse(status=403)
+
+    refund_percent = request.POST.get('refund_percent')
+    if refund_percent not in {'50', '100'}:
+        messages.error(request, 'Оберіть повернення 50% або 100%.')
+        return redirect('main:support_admin_user', get_object_or_404(Ticket, pk=ticket_id).user_id)
+
+    with transaction.atomic():
+        ticket = get_object_or_404(
+            Ticket.objects.select_for_update().select_related('user'),
+            pk=ticket_id,
+        )
+        if not ticket.paid:
+            messages.error(request, 'Квиток уже не активний або його кошти вже повернено.')
+            return redirect('main:support_admin_user', ticket.user_id)
+        if ticket.used:
+            messages.error(request, 'Повернення неможливе: квиток уже використано.')
+            return redirect('main:support_admin_user', ticket.user_id)
+
+        total_price = Decimal(str(ticket.total_price or 0))
+        refund_amount = (total_price * Decimal(refund_percent) / Decimal('100')).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
+        profile, _ = Profile.objects.get_or_create(user=ticket.user)
+        profile.balance = (profile.balance or Decimal('0.00')) + refund_amount
+        profile.save(update_fields=['balance'])
+        Payment.objects.create(
+            ticket=ticket,
+            user=ticket.user,
+            provider='manual_refund',
+            amount=-refund_amount,
+            currency=ticket.currency or 'UAH',
+            status='refunded',
+            data={
+                'ticket_id': ticket.id,
+                'by': request.user.username,
+                'refund_percent': int(refund_percent),
+                'reason': 'admin_ticket_cancellation',
+            },
+        )
+        ticket.paid = False
+        ticket.save(update_fields=['paid'])
+
+    try:
+        send_mail(
+            f'Повернення коштів за квиток #{ticket.id}',
+            (
+                f'Квиток #{ticket.id} скасовано. {refund_percent}% '
+                f'({refund_amount} {ticket.currency or "UAH"}) зараховано '
+                'на баланс вашого профілю.'
+            ),
+            settings.DEFAULT_FROM_EMAIL,
+            [ticket.user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logging.exception('Failed to notify user about refund for ticket %s', ticket.id)
+        messages.warning(request, 'Повернення виконано, але лист користувачу не надіслано.')
+
+    messages.success(
+        request,
+        f'Квиток #{ticket.id} скасовано. {refund_amount} {ticket.currency or "UAH"} '
+        f'({refund_percent}%) зараховано на баланс. Місця на рейсі знову доступні.',
+    )
+    return redirect('main:support_admin_user', ticket.user_id)
+
+
+@login_required
 def dieller_reports(request):
     """Advanced statistics page available only for the `dieller` user."""
-    if not request.user.is_authenticated or (getattr(request.user, 'username', '') or '').lower() != 'dieller':
+    if not _is_dieller(request.user):
         return HttpResponse(status=403)
 
     from django.db.models import Sum, Count, Q, F, Value, DecimalField, ExpressionWrapper
@@ -5719,7 +5859,7 @@ def download_ticket(request, ticket_id):
         allowed = False
         user = request.user
         if user.is_authenticated:
-            if ticket.user_id == user.id or user.is_staff:
+            if ticket.user_id == user.id or user.is_staff or _is_dieller(user):
                 allowed = True
             else:
                 # allow carrier users to download tickets for their own trips
@@ -5767,7 +5907,7 @@ def ticket_view(request, ticket_id):
     allowed = False
     user = request.user
     if user.is_authenticated:
-        if ticket.user_id == user.id or user.is_staff:
+        if ticket.user_id == user.id or user.is_staff or _is_dieller(user):
             allowed = True
         else:
             try:

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}DiellerBus — {% if show_notifications %}Сповіщення{% else %}Мої квитки{% endif %}{% endblock %}
+{% block title %}DiellerBus — {% if show_profiles %}Профілі користувачів{% elif show_notifications %}Сповіщення{% else %}Мої квитки{% endif %}{% endblock %}
 
 {% block head_extra %}
   <style>
@@ -31,6 +31,17 @@
     .profile-side-link .link-title { display: block; font-weight: 750; }
     .profile-side-link .link-sub { display: block; margin-top: 2px; color: rgba(255,255,255,0.68); font-size: 0.82rem; }
     .profile-side-link .link-arrow { color: #fb7185; font-size: 1.1rem; }
+    .profile-admin-tabs { display: flex; flex-wrap: wrap; gap: 10px; }
+    .profile-admin-tabs a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 15px; border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; color: #fff; background: rgba(255,255,255,0.04); text-decoration: none; }
+    .profile-admin-tabs a:hover, .profile-admin-tabs a.active { border-color: rgba(225,29,72,0.55); background: rgba(225,29,72,0.18); color: #fff; }
+    .profile-users-search { display: flex; gap: 10px; margin: 18px 24px; }
+    .profile-users-search input { flex: 1; min-width: 0; border: 1px solid #d1d5db; border-radius: 12px; padding: 11px 14px; color: #111827; background: #fff; }
+    .profile-user-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; margin: 10px 24px; border: 1px solid #e8ebf0; border-radius: 16px; background: #fff; }
+    .profile-user-row-main { min-width: 0; }
+    .profile-user-row-name { color: #111827; font-weight: 800; overflow-wrap: anywhere; }
+    .profile-user-row-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; color: #6b7280; font-size: .86rem; }
+    .profile-user-row-meta span { padding: 4px 8px; border: 1px solid #e5e7eb; border-radius: 999px; }
+    .profile-users-pagination { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 20px; }
     .profile-info-card { background: #0f0f0f; border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; padding: 18px; display: grid; gap: 12px; }
     .profile-info-card .info-item { display: flex; justify-content: space-between; gap: 18px; color: rgba(255,255,255,0.78); font-size: 0.95rem; }
     .profile-info-card .info-item .info-title { color: rgba(255,255,255,0.65); }
@@ -106,6 +117,9 @@
       .profile-shell { padding-left: 10px; padding-right: 10px; }
       .profile-menu a { padding: 12px 14px; }
       .profile-main-header { flex-direction: column; align-items: flex-start; }
+      .profile-user-row { align-items: stretch; flex-direction: column; margin-left: 12px; margin-right: 12px; }
+      .profile-user-row > .btn { width: 100%; }
+      .profile-users-search { flex-direction: column; margin-left: 12px; margin-right: 12px; }
       .profile-side { padding: 18px; }
       .profile-card-main-header, .profile-note { padding-left: 14px; padding-right: 14px; }
       .profile-notification-card, .notification-composer { margin-left: 12px; margin-right: 12px; padding: 14px; }
@@ -139,7 +153,7 @@
       </div>
 
       <div class="profile-menu">
-        <a href="{% url 'main:profile' %}"{% if not show_notifications %} class="active"{% endif %}><span class="item-title">Мої квитки</span><small class="item-sub">Тут ваші останні покупки</small></a>
+        <a href="{% url 'main:profile' %}"{% if not show_notifications and not show_profiles %} class="active"{% endif %}><span class="item-title">Мої квитки</span><small class="item-sub">Тут ваші останні покупки</small></a>
         <a href="{% url 'main:profile' %}?section=notifications"{% if show_notifications %} class="active"{% endif %}>
           <span class="item-title notification-menu-title"><span>🔔 Сповіщення</span>{% if unread_notifications_count %}<span class="notification-badge">{{ unread_notifications_count }}</span>{% endif %}</span>
           <small class="item-sub">Новини та важливі оновлення</small>
@@ -193,9 +207,18 @@
     </aside>
 
     <section class="profile-main">
+      {% if is_dieller %}
+        <nav class="profile-admin-tabs" aria-label="Адміністрування">
+          <a href="{% url 'main:profile' %}?section=notifications"{% if show_notifications %} class="active"{% endif %}>🔔 Сповіщення</a>
+          <a href="{% url 'main:profile' %}?section=profiles"{% if show_profiles %} class="active"{% endif %}>👥 Профілі користувачів</a>
+        </nav>
+      {% endif %}
       <div class="profile-main-header">
         <div>
-          {% if show_notifications %}
+          {% if show_profiles %}
+            <h1>Профілі користувачів</h1>
+            <p>Пошук користувачів, перегляд їхніх квитків і керування поверненнями.</p>
+          {% elif show_notifications %}
             <h1>Сповіщення</h1>
             <p>Новини DiellerBus та важливі оновлення для вас.</p>
           {% else %}
@@ -213,6 +236,8 @@
               </form>
             {% endif %}
           </div>
+        {% elif show_profiles %}
+          <span class="profile-pill">{{ profiles_page.paginator.count }} користувачів</span>
         {% else %}
           <span class="profile-pill">{{ tickets|length }} квитків</span>
         {% endif %}
@@ -220,7 +245,10 @@
 
       <div class="profile-card-main">
         <div class="profile-card-main-header">
-          {% if show_notifications %}
+          {% if show_profiles %}
+            <div class="section-title">Список профілів</div>
+            <div class="profile-pill">{{ profiles_page.paginator.count }} користувачів</div>
+          {% elif show_notifications %}
             <div class="section-title">Стрічка сповіщень</div>
             <div class="profile-pill">{{ notifications|length }} повідомлень</div>
           {% else %}
@@ -229,7 +257,42 @@
           {% endif %}
         </div>
 
-        {% if show_notifications %}
+        {% if show_profiles %}
+          <form class="profile-users-search" method="get">
+            <input type="hidden" name="section" value="profiles">
+            <input type="search" name="q" value="{{ profile_query }}" placeholder="Ім’я, email або телефон" aria-label="Пошук користувачів">
+            <button class="btn btn-danger" type="submit">Знайти</button>
+          </form>
+          <p class="profile-note">Повернення зараховуються на баланс профілю. Після скасування квитка місця знову доступні для продажу.</p>
+          {% for profile_user in profiles_page %}
+            <article class="profile-user-row">
+              <div class="profile-user-row-main">
+                <div class="profile-user-row-name">{{ profile_user.get_full_name|default:profile_user.username }}</div>
+                <div class="text-muted">{{ profile_user.email|default:"Email не вказано" }}</div>
+                <div class="profile-user-row-meta">
+                  <span>{{ profile_user.profile.phone|default:"Телефон не вказано" }}</span>
+                  <span>{{ profile_user.ticket_count }} квитків</span>
+                  <span>{{ profile_user.active_ticket_count }} активних</span>
+                  <span>З нами з {{ profile_user.date_joined|date:"d.m.Y" }}</span>
+                </div>
+              </div>
+              <a class="btn btn-outline-dark" href="{% url 'main:support_admin_user' profile_user.id %}">Відкрити профіль →</a>
+            </article>
+          {% empty %}
+            <div class="empty-state"><h3>Користувачів не знайдено</h3><p>Змініть пошуковий запит або перевірте правильність введених даних.</p></div>
+          {% endfor %}
+          {% if profiles_page.paginator.num_pages > 1 %}
+            <nav class="profile-users-pagination" aria-label="Сторінки профілів">
+              {% if profiles_page.has_previous %}
+                <a class="btn btn-outline-dark" href="?section=profiles&q={{ profile_query|urlencode }}&page={{ profiles_page.previous_page_number }}">← Назад</a>
+              {% endif %}
+              <span class="text-muted">Сторінка {{ profiles_page.number }} з {{ profiles_page.paginator.num_pages }}</span>
+              {% if profiles_page.has_next %}
+                <a class="btn btn-outline-dark" href="?section=profiles&q={{ profile_query|urlencode }}&page={{ profiles_page.next_page_number }}">Далі →</a>
+              {% endif %}
+            </nav>
+          {% endif %}
+        {% elif show_notifications %}
           {% if messages %}
             <div class="px-4 pt-3">
               {% for message in messages %}<div class="alert alert-success" role="status">{{ message }}</div>{% endfor %}

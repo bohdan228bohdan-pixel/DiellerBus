@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 from datetime import date, timedelta
+from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
@@ -106,6 +107,144 @@ class ProfileNotificationTests(TestCase):
 		notification = SiteNotification.objects.get(title='Важливі новини')
 		self.assertEqual(notification.created_by, self.dieller)
 		self.assertEqual(notification.audience, SiteNotification.AUDIENCE_CARRIERS)
+
+
+class AdminProfilesAndRefundTests(TestCase):
+	def setUp(self):
+		self.dieller = User.objects.create_user(username='dieller', password='pass1234')
+		self.user = User.objects.create_user(
+			username='ticket-buyer',
+			email='buyer@example.test',
+			password='pass1234',
+		)
+		self.city_from = City.objects.create(name='Львів', country='UA')
+		self.city_to = City.objects.create(name='Київ', country='UA')
+		self.route = Route.objects.create(name='Львів — Київ')
+		self.trip = Trip.objects.create(
+			route=self.route,
+			start_city=self.city_from,
+			end_city=self.city_to,
+			seats=1,
+			base_price='200.00',
+		)
+		TripStop.objects.create(trip=self.trip, city=self.city_from, order=1, departure_time='08:00')
+		TripStop.objects.create(trip=self.trip, city=self.city_to, order=2, arrival_time='12:00')
+		self.travel_date = date.today() + timedelta(days=10)
+		self.ticket = self.create_paid_ticket()
+
+	def create_paid_ticket(self, price='200.00'):
+		ticket = Ticket.objects.create(
+			user=self.user,
+			trip=self.trip,
+			route=self.route.name,
+			from_city=self.city_from.name,
+			to_city=self.city_to.name,
+			travel_date=self.travel_date,
+			passengers=1,
+			total_price=price,
+			currency='UAH',
+			paid=True,
+		)
+		Payment.objects.create(
+			ticket=ticket,
+			user=self.user,
+			provider='wayforpay',
+			order_reference=f'ticket-{ticket.id}-order',
+			amount=price,
+			currency='UAH',
+			status='success',
+		)
+		return ticket
+
+	def test_profiles_page_is_dieller_only_and_can_search_users(self):
+		self.client.force_login(self.user)
+		self.assertEqual(
+			self.client.get(reverse('main:profile'), {'section': 'profiles'}).status_code,
+			403,
+		)
+
+		self.client.force_login(self.dieller)
+		response = self.client.get(
+			reverse('main:profile'),
+			{'section': 'profiles', 'q': 'buyer@example.test'},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Профілі користувачів')
+		self.assertContains(response, 'ticket-buyer')
+		self.assertEqual(response.context['profiles_page'].paginator.count, 1)
+
+		response = self.client.get(reverse('main:support_admin_user', args=[self.user.id]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'Куплено')
+		self.assertContains(response, 'Повернути 50%')
+		self.assertEqual(
+			self.client.get(reverse('main:ticket_view', args=[self.ticket.id])).status_code,
+			200,
+		)
+
+	def test_dieller_profile_links_to_profiles_page(self):
+		self.client.force_login(self.dieller)
+		response = self.client.get(reverse('main:profile'))
+		self.assertContains(response, f"{reverse('main:profile')}?section=profiles")
+		self.assertNotContains(response, reverse('main:admin_profiles'))
+
+		self.client.force_login(self.user)
+		response = self.client.get(reverse('main:profile'))
+		self.assertNotContains(response, f"{reverse('main:profile')}?section=profiles")
+
+	def test_partial_refund_cancels_ticket_and_restores_trip_seat(self):
+		self.client.force_login(self.dieller)
+		response = self.client.post(
+			reverse('main:admin_ticket_refund', args=[self.ticket.id]),
+			{'refund_percent': '50'},
+		)
+
+		self.assertRedirects(response, reverse('main:support_admin_user', args=[self.user.id]))
+		self.ticket.refresh_from_db()
+		self.user.profile.refresh_from_db()
+		self.assertFalse(self.ticket.paid)
+		self.assertEqual(self.user.profile.balance, Decimal('100.00'))
+		refund = Payment.objects.get(ticket=self.ticket, provider='manual_refund')
+		self.assertEqual(refund.amount, Decimal('-100.00'))
+		self.assertEqual(refund.data['refund_percent'], 50)
+
+		api_response = api_trips(RequestFactory().get(
+			'/api/trips/',
+			{'from': 'Львів', 'to': 'Київ', 'date': self.travel_date.isoformat()},
+		))
+		import json
+		trips = json.loads(api_response.content.decode('utf-8'))['trips']
+		self.assertEqual(trips[0]['free'], 1)
+
+		self.client.post(
+			reverse('main:admin_ticket_refund', args=[self.ticket.id]),
+			{'refund_percent': '100'},
+		)
+		self.user.profile.refresh_from_db()
+		self.assertEqual(self.user.profile.balance, Decimal('100.00'))
+		self.assertEqual(Payment.objects.filter(ticket=self.ticket, provider='manual_refund').count(), 1)
+
+	def test_full_refund_credits_full_amount_and_used_ticket_is_rejected(self):
+		self.client.force_login(self.dieller)
+		response = self.client.post(
+			reverse('main:admin_ticket_refund', args=[self.ticket.id]),
+			{'refund_percent': '100'},
+		)
+		self.assertRedirects(response, reverse('main:support_admin_user', args=[self.user.id]))
+		self.user.profile.refresh_from_db()
+		self.assertEqual(self.user.profile.balance, Decimal('200.00'))
+
+		used_ticket = self.create_paid_ticket()
+		used_ticket.used = True
+		used_ticket.save(update_fields=['used'])
+		self.client.post(
+			reverse('main:admin_ticket_refund', args=[used_ticket.id]),
+			{'refund_percent': '50'},
+		)
+		used_ticket.refresh_from_db()
+		self.user.profile.refresh_from_db()
+		self.assertTrue(used_ticket.paid)
+		self.assertEqual(self.user.profile.balance, Decimal('200.00'))
 
 
 class SubcityMatchingTests(TestCase):

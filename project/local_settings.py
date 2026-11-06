@@ -14,9 +14,8 @@ os.environ.setdefault('WAYFORPAY_URL', 'https://secure.wayforpay.com/page')
 # Example: SUPPORT_ADMINS='dieller,ops@example.com'
 os.environ.setdefault('SUPPORT_ADMINS', 'dieller')
 
-# Development helper: run the site in local/dev mode by default when using
-# this local_settings.py file. These values are safe for local testing only
-# and should NOT be used in production deployments.
-os.environ.setdefault('DJANGO_DEBUG', 'True')
+# Keep DEBUG disabled by default; enable it explicitly in the environment when
+# local development requires Django's detailed error pages.
+os.environ.setdefault('DJANGO_DEBUG', 'False')
 os.environ.setdefault('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 os.environ.setdefault('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')

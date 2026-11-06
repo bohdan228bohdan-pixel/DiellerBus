@@ -22,9 +22,13 @@
         </div>
 
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <a href="{% url 'main:support_admin_user' view_user.id %}" class="btn btn-sm">Детально</a>
-          <a href="{% url 'main:support_edit_user' view_user.id %}" class="btn btn-sm">Редагувати профіль</a>
-          <a href="/admin/auth/user/{{ view_user.id }}/change/" class="btn btn-secondary btn-sm">Адмінка</a>
+          {% if is_dieller %}
+            <a href="{% url 'main:admin_profiles' %}" class="btn btn-sm">← До профілів</a>
+          {% else %}
+            <a href="{% url 'main:support_admin_user' view_user.id %}" class="btn btn-sm">Детально</a>
+            <a href="{% url 'main:support_edit_user' view_user.id %}" class="btn btn-sm">Редагувати профіль</a>
+            <a href="/admin/auth/user/{{ view_user.id }}/change/" class="btn btn-secondary btn-sm">Адмінка</a>
+          {% endif %}
         </div>
       </div>
 
@@ -43,16 +47,39 @@
             <div style="background:#0f0f0f;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;gap:12px">
               <div>
                 <div style="font-weight:800">Квиток #{{ t.id }} — {{ t.from_city }} → {{ t.to_city }}</div>
-                <div class="muted-small">{{ t.travel_date|date:'d.m.Y' }} · {{ t.passengers }} пас. — {% if t.paid %}Оплачено{% else %}Не оплачено{% endif %}</div>
+                <div class="muted-small">
+                  {{ t.travel_date|date:'d.m.Y' }} · {{ t.passengers }} пас. ·
+                  {% if t.paid %}Оплачено{% elif t.refunded_amount %}Повернено{% else %}Не оплачено{% endif %}
+                  · Куплено {{ t.created_at|timesince }} тому ({{ t.created_at|date:'d.m.Y H:i' }})
+                </div>
+                {% if t.refunded_amount %}
+                  <div class="muted-small">Повернуто на баланс: {{ t.refunded_amount }} {{ t.currency }}</div>
+                {% endif %}
+                {% if t.passenger_set.all %}
+                  <div class="muted-small">Пасажири: {% for passenger in t.passenger_set.all %}{{ passenger.first_name }} {{ passenger.last_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                {% endif %}
               </div>
               <div style="display:flex;gap:8px;align-items:center">
                 <a href="{% url 'main:ticket_view' t.id %}" class="btn btn-sm">Переглянути</a>
-                <a href="{% url 'main:ticket_edit' t.id %}" class="btn btn-sm">Редагувати</a>
-                <a href="{% url 'main:download_ticket' t.id %}" class="btn btn-sm">Завантажити</a>
-                <form method="post" action="{% url 'main:support_resend_ticket' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Відправити email</button></form>
-                <form method="post" action="{% url 'main:support_admin_send_rebook' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Надіслати лист перебронювання</button></form>
+                {% if not is_dieller %}
+                  <a href="{% url 'main:ticket_edit' t.id %}" class="btn btn-sm">Редагувати</a>
+                  <a href="{% url 'main:download_ticket' t.id %}" class="btn btn-sm">Завантажити</a>
+                  <form method="post" action="{% url 'main:support_resend_ticket' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Відправити email</button></form>
+                  <form method="post" action="{% url 'main:support_admin_send_rebook' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">Надіслати лист перебронювання</button></form>
+                {% endif %}
                 {% if t.paid %}
-                  <form method="post" action="{% url 'main:ticket_refund' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm" onclick="return confirm('Повернути гроші за квиток?')">Повернути</button></form>
+                  {% if is_dieller %}
+                    <form method="post" action="{% url 'main:admin_ticket_refund' t.id %}" style="display:inline">{% csrf_token %}
+                      <input type="hidden" name="refund_percent" value="50">
+                      <button class="btn btn-sm" onclick="return confirm('Скасувати квиток і зарахувати 50% вартості на баланс? Місця на рейсі стануть доступними.')">Повернути 50%</button>
+                    </form>
+                    <form method="post" action="{% url 'main:admin_ticket_refund' t.id %}" style="display:inline">{% csrf_token %}
+                      <input type="hidden" name="refund_percent" value="100">
+                      <button class="btn btn-danger btn-sm" onclick="return confirm('Скасувати квиток і зарахувати всю суму на баланс? Місця на рейсі стануть доступними.')">Повернути 100%</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{% url 'main:ticket_refund' t.id %}" style="display:inline">{% csrf_token %}<button class="btn btn-danger btn-sm" onclick="return confirm('Повернути гроші за квиток?')">Повернути</button></form>
+                  {% endif %}
                 {% endif %}
               </div>
             </div>
@@ -62,9 +89,10 @@
         {% endif %}
       </div>
 
-      <hr style="margin:18px 0">
-      <h4>Звернення в техпідтримку</h4>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      {% if not is_dieller %}
+        <hr style="margin:18px 0">
+        <h4>Звернення в техпідтримку</h4>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
         {% if tickets %}
           {% for s in tickets %}
             <div style="background:#0f0f0f;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center">
@@ -89,6 +117,7 @@
           <div class="muted-small">Звернень не знайдено.</div>
         {% endif %}
       </div>
+      {% endif %}
     </div>
   </div>
 </div>
